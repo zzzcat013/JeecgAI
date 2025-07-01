@@ -145,14 +145,19 @@ spring:
           selectWhereAlwayTrueCheck: false
         # 打开mergeSql功能；慢SQL记录
         stat:
-          merge-sql: false
+          merge-sql: true
           slow-sql-millis: 5000
       datasource:
         master:
-          url: jdbc:mysql://127.0.0.1:3306/jeecg-boot?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+          #          url: jdbc:mysql://10.52.101.152:3366/ip363?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+          url: jdbc:mysql://218.26.173.130:3366/ai381?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+          # url: jdbc:mysql://218.26.173.130:3366/kpi?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           username: root
-          password: root
-          driver-class-name: com.mysql.cj.jdbc.Driver
+          password: Qaz_1234
+#          url: jdbc:mysql://127.0.0.1:3306/jeecg-boot?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+#          username: root
+#          password: root
+#          driver-class-name: com.mysql.cj.jdbc.Driver
           # 多数据源配置
           #multi-datasource1:
           #url: jdbc:mysql://localhost:3306/jeecg-boot2?useUnicode=true&characterEncoding=utf8&autoReconnect=true&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
@@ -161,10 +166,10 @@ spring:
           #driver-class-name: com.mysql.cj.jdbc.Driver
   #redis 配置
   redis:
-    database: 0
-    host: 127.0.0.1
-    port: 6379
-    password: ''
+    #    host: 10.52.101.152
+    host: 218.26.173.130
+    port: 3360
+    password: '71b5ae132d028b15871b1f71b2dc5b63032502142e658b47d4365e81aa520c5d'
 #mybatis plus 设置
 mybatis-plus:
   mapper-locations: classpath*:org/jeecg/**/xml/*Mapper.xml
@@ -189,8 +194,8 @@ jeecg:
   ai-chat:
     enabled: true
     model: deepseek-chat
-    apiKey: ??
-    apiHost: https://api.deepseek.com/v1
+    apiKey: sk-efb4b89c08e842e094dece30e4baac0f
+    apiHost: https://api.deepseek.com
     timeout: 60
   # AIRag向量库
   ai-rag:
@@ -290,7 +295,6 @@ logging:
   level:
     org.flywaydb: debug
     org.jeecg.modules.system.mapper: info
-#swagger
 knife4j:
   #开启增强配置
   enable: true

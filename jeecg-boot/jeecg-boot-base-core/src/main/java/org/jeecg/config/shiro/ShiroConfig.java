@@ -182,6 +182,9 @@ public class ShiroConfig {
 
         filterChainDefinitionMap.put("/openapi/call/**", "anon");
 
+        filterChainDefinitionMap.put("/hello/**", "anon"); //测试接口排除
+        filterChainDefinitionMap.put("/sys/hello/**", "anon"); //测试接口排除
+
         // 添加自己的过滤器并且取名为jwt
         Map<String, Filter> filterMap = new HashMap<String, Filter>(1);
         //如果cloudServer为空 则说明是单体 需要加载跨域配置【微服务跨域切换】
