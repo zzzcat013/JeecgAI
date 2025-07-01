@@ -1,11 +1,11 @@
 <template>
     <div class="app-loading">
         <div class="app-loading-wrap">
-            <!-- <img src="/resource/img/logo.png" class="app-loading-logo" alt="Logo"> -->
+            <img src="/resource/img/logo.png" class="app-loading-logo" alt="Logo">
             <div class="app-loading-dots">
                 <span class="dot dot-spin"><i></i><i></i><i></i><i></i></span>
             </div>
-            <div class="app-loading-title">5G 专网运营支撑平台</div>
+            <div class="app-loading-title">JeecgBoot 企业级低代码平台</div>
         </div>
     </div>
 </template>

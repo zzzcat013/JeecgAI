@@ -11,10 +11,20 @@
 
     <artifactId>jeecg-module-biz</artifactId>
 
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.jeecgframework.boot</groupId>
+            <artifactId>jeecg-system-local-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jeecgframework.boot</groupId>
+            <artifactId>jeecg-boot-base-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jeecgframework.boot</groupId>
+            <artifactId>jeecg-boot-base-core</artifactId>
+        </dependency>
+    </dependencies>
 
 </project>

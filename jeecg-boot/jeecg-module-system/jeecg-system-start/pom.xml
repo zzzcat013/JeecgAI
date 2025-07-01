@@ -12,6 +12,12 @@
     <artifactId>jeecg-system-start</artifactId>
     
     <dependencies>
+        <!-- 业务模块 -->
+        <dependency>
+            <groupId>org.jeecgframework.boot</groupId>
+            <artifactId>jeecg-module-biz</artifactId>
+            <version>${jeecgboot.version}</version>
+        </dependency>
         <!-- SYSTEM 系统管理模块 -->
         <dependency>
             <groupId>org.jeecgframework.boot</groupId>

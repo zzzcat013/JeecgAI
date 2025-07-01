@@ -1,24 +1,22 @@
 <template>
-  <IndexChart v-if="indexStyle === 0"></IndexChart>
-  <IndexDef v-if="indexStyle === 1"></IndexDef>
-  <IndexBdc v-if="indexStyle == 2"></IndexBdc>
-  <IndexTask v-if="indexStyle == 3"></IndexTask>
-  <div style="width: 100%; text-align: right; margin-top: 20px">
-    首页主题：
-    <a-radio-group v-model:value="indexStyle">
-      <a-radio :value="0">默认</a-radio>
-      <a-radio :value="1">销量统计</a-radio>
-      <a-radio :value="2">业务统计</a-radio>
-      <a-radio :value="3">我的任务</a-radio>
-    </a-radio-group>
+  <div class="page-header-index-wide" style="margin:50px;">
+    <ul>
+      <li v-for="item in listData"><h2>{{item}}</h2></li>
+    </ul>
   </div>
 </template>
 <script lang="ts" setup>
-  import { ref } from 'vue';
-  import IndexDef from './homePage/IndexDef.vue';
-  import IndexChart from './homePage/IndexChart.vue';
-  import IndexBdc from './homePage/IndexBdc.vue';
-  import IndexTask from './homePage/IndexTask.vue';
+  import { ref ,reactive, toRefs } from 'vue';
 
-  const indexStyle = ref(0);
+  const listData = ref([]);
+
+  const items = [
+    '    本系统是5G专网运营支撑系统，属于网络线数据管理系统，致力于改善云网数据管理手段。',
+    '    本系统对5G专网运营管理、业务流程相关资料文档以及项目相关资料和现场配置文档进行有效管理，方便检索查询。',
+    '    本系统支持对接5G专网相关平台，同步数据。',
+    '    本系统支持各类数据维护、导出和报表展示。',
+    '    本系统将根据使用人的需求，实时展示相关统计报表。',
+  ]
+
+  listData.value.push(...items);
 </script>
