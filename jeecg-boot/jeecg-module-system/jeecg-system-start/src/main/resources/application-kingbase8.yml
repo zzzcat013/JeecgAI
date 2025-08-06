@@ -1,6 +1,7 @@
 server:
   port: 8080
   undertow:
+    decode-url: true # 启用URL解码
     # max-http-post-size: 10MB # 平替 tomcat server.tomcat.max-swallow-siz， undertow该值默认为-1
     worker-threads: 16  # 4核CPU标准配置
     buffers:
@@ -21,7 +22,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: metrics,httptrace-new
+        include: metrics,jeecghttptrace
 
 spring:
   flyway:
@@ -43,7 +44,8 @@ spring:
   ## quartz定时任务,采用数据库方式
   quartz:
     job-store-type: jdbc
-    initialize-schema: never
+    jdbc:
+      initialize-schema: never
     #定时任务启动开关，true-开  false-关
     auto-startup: true
     #延迟1秒启动定时任务

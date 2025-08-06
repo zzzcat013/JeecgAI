@@ -158,6 +158,13 @@ export function useTableScroll(
           const trHeight = lastrEl.offsetHeight;
           const dataHeight = trHeight * pageSize;
           if (tableBody && lastrEl) {
+            // update-begin--author:liaozhiyang---date:20250702---for：【issues/8532】online权限管理中的按钮权限第一页数据看不到
+            // table是否隐藏（隐藏的table不能吸底）
+            const isTableBodyHide = tableBody.offsetHeight == 0 && tableBody.offsetWidth == 0;
+            if (isTableBodyHide) {
+              return;
+            }
+            // update-end--author:liaozhiyang---date:20250702---for：【issues/8532】online权限管理中的按钮权限第一页数据看不到
             if (current === 1 && pageSize > unref(getDataSourceRef).length && total <= pageSize) {
               tableBody.style.height = `${height}px`;
             } else {
@@ -189,8 +196,9 @@ export function useTableScroll(
     // TODO props ?? 0;
     const NORMAL_WIDTH = maxColumnWidth ?? 150;
     // update-end--author:liaozhiyang---date:20230925---for：【issues/5411】BasicTable 配置maxColumnWidth 未生效
-
-    const columns = unref(columnsRef).filter((item) => !item.defaultHidden);
+    // date-begin--author:liaozhiyang---date:20250716---for：【QQYUN-13122】有数十个字段时只展示2个字段，其余字段为ifShow:false会有滚动条
+    const columns = unref(columnsRef).filter((item) => !(item.defaultHidden == true || item.ifShow == false))
+    // date-end--author:liaozhiyang---date:20250716---for：【QQYUN-13122】有数十个字段时只展示2个字段，其余字段为ifShow:false会有滚动条
     columns.forEach((item) => {
       width += Number.parseInt(item.width as string) || 0;
     });
