@@ -25,7 +25,7 @@ export interface TableRowSelection<T = any> extends ITableRowSelection {
    * Callback executed when select/deselect one row
    * @type Function
    */
-  onSelect?: (record: T, selected: boolean, selectedRows: Object[], nativeEvent: Event) => any;
+  onSelect?: (record: T, selected: boolean, selectedRows: Object[]) => any;
 
   /**
    * Callback executed when select/deselect all rows
@@ -190,7 +190,7 @@ export interface BasicTableProps<T = any> {
   // 额外的请求参数
   searchInfo?: Recordable;
   // 默认的排序参数
-  defSort?: Recordable;
+  defSort?: Recordable | Recordable[];
   // 使用搜索表单
   useSearchForm?: boolean;
   // 表单配置
@@ -459,7 +459,9 @@ export interface BasicColumn extends ColumnProps<Recordable> {
   editRow?: boolean;
   editable?: boolean;
   editComponent?: ComponentType;
-  editComponentProps?: Recordable;
+  // update-begin--author:liaozhiyang---date:20250818---for：【issues/8680】editComponentProps可接受一个函数传入record
+  editComponentProps?: Recordable | ((record: Recordable) => Recordable);
+  // update-end--author:liaozhiyang---date:20250818---for：【issues/8680】editComponentProps可接受一个函数传入record
   editRule?: boolean | ((text: string, record: Recordable) => Promise<string>);
   editValueMap?: (value: any) => string;
   onEditRow?: () => void;

@@ -37,9 +37,9 @@
 		<spring-cloud.version>2021.0.8</spring-cloud.version>
 		<spring-cloud-alibaba.version>2021.0.6.2</spring-cloud-alibaba.version>
 		<alibaba.nacos.version>2.0.4</alibaba.nacos.version>
-		<seata.version>1.5.2</seata.version>
-
+		<seata.version>1.7.0</seata.version>
 		<xxl-job-core.version>2.4.1</xxl-job-core.version>
+		
         <fastjson.version>2.0.57</fastjson.version>
         <aviator.version>5.2.6</aviator.version>
 		<pegdown.version>1.6.0</pegdown.version>
@@ -56,9 +56,11 @@
 		<dm8.version>8.1.1.49</dm8.version>
 		
 		<!-- 积木报表-->
-		<jimureport-spring-boot-starter.version>2.1.1</jimureport-spring-boot-starter.version>
-		<jimubi-spring-boot-starter.version>2.1.0</jimubi-spring-boot-starter.version>
-		<minidao.version>1.10.11</minidao.version>
+		<jimureport-spring-boot-starter.version>2.1.3</jimureport-spring-boot-starter.version>
+		<jimubi-spring-boot-starter.version>2.1.3</jimubi-spring-boot-starter.version>
+		<minidao.version>1.10.14</minidao.version>
+		<autopoi-web.version>1.4.18</autopoi-web.version>
+		
 		<!-- 持久层 -->
 		<mybatis-plus.version>3.5.12</mybatis-plus.version>
 		<dynamic-datasource-spring-boot-starter.version>4.1.3</dynamic-datasource-spring-boot-starter.version>
@@ -72,8 +74,7 @@
 		<shiro.version>1.13.0</shiro.version>
 		<shiro-redis.version>3.2.3</shiro-redis.version>
 		<java-jwt.version>4.5.0</java-jwt.version>
-		<codegenerate.version>1.4.9</codegenerate.version>
-		<autopoi-web.version>1.4.13</autopoi-web.version>
+		<codegenerate.version>1.5.1</codegenerate.version>
 		<minio.version>8.0.3</minio.version>
 		<justauth-spring-boot-starter.version>1.4.0</justauth-spring-boot-starter.version>
 		<dom4j.version>1.6.1</dom4j.version>
@@ -218,7 +219,7 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot</groupId>
 				<artifactId>jeecg-boot-starter-job</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>3.8.2-RC</version>
 			</dependency>
 			<!--redis分布式锁-->
 			<dependency>
@@ -241,7 +242,7 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot</groupId>
 				<artifactId>jeecg-boot-starter-shardingsphere</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>3.8.2-RC</version>
 			</dependency>
 			<dependency>
 				<groupId>org.hibernate</groupId>
@@ -440,6 +441,10 @@
 						<groupId>org.apache.calcite</groupId>
 						<artifactId>calcite-elasticsearch</artifactId>
 					</exclusion>
+					<exclusion>
+						<artifactId>autopoi-web</artifactId>
+						<groupId>org.jeecgframework</groupId>
+					</exclusion>
 				</exclusions>
 			</dependency>
 			<!-- 后台导出接口Echart图表支持包，按需引入 -->
@@ -458,7 +463,7 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot</groupId>
 				<artifactId>jeecg-boot-starter-chatgpt</artifactId>
-				<version>3.8.2</version>
+				<version>${jeecgboot.version}</version>
 			</dependency>
 			<!--flyway 支持 mysql5.7+、MariaDB10.3.16-->
 			<!--mysql5.6，需要把版本号改成5.2.1-->
