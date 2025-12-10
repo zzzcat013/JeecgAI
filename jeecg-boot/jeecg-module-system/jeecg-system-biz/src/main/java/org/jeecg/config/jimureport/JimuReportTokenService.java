@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -36,11 +36,7 @@ public class JimuReportTokenService implements JmReportTokenServiceI {
 
     @Override
     public String getToken(HttpServletRequest request) {
-        try {
-            return TokenUtils.getTokenByRequest(request);
-        } catch (Exception e) {
-            return null;
-        }
+        return TokenUtils.getTokenByRequest(request);
     }
 
     @Override

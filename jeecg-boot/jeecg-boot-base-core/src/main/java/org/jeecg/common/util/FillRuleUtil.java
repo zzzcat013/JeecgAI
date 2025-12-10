@@ -4,13 +4,13 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.jeecg.common.constant.SymbolConstant;
 import org.jeecg.common.handler.IFillRuleHandler;
 import org.jeecg.common.system.query.QueryGenerator;
 
-import javax.servlet.http.HttpServletRequest;
 
 
 /**

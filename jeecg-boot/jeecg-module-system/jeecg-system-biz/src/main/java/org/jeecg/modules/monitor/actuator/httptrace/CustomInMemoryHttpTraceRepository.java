@@ -1,7 +1,7 @@
 package org.jeecg.modules.monitor.actuator.httptrace;
 
-import org.springframework.boot.actuate.trace.http.HttpTrace;
-import org.springframework.boot.actuate.trace.http.InMemoryHttpTraceRepository;
+import org.springframework.boot.actuate.web.exchanges.HttpExchange;
+import org.springframework.boot.actuate.web.exchanges.InMemoryHttpExchangeRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -12,10 +12,10 @@ import java.util.stream.Stream;
  * @Author: chenrui
  * @Date: 2024/5/13 17:02
  */
-public class CustomInMemoryHttpTraceRepository extends InMemoryHttpTraceRepository {
+public class CustomInMemoryHttpTraceRepository extends InMemoryHttpExchangeRepository {
 
     @Override
-    public List<HttpTrace> findAll() {
+    public List<HttpExchange> findAll() {
         return super.findAll();
     }
 
@@ -26,7 +26,7 @@ public class CustomInMemoryHttpTraceRepository extends InMemoryHttpTraceReposito
      * @date 2025/6/4 19:38
      */
     @Override
-    public void add(HttpTrace trace) {
+    public void add(HttpExchange trace) {
         // 只有当请求不是OPTIONS方法，并且URI不包含httptrace时才记录数据
         if (!"OPTIONS".equals(trace.getRequest().getMethod()) &&
                 !trace.getRequest().getUri().toString().contains("httptrace")) {
@@ -34,10 +34,10 @@ public class CustomInMemoryHttpTraceRepository extends InMemoryHttpTraceReposito
         }
     }
 
-    public List<HttpTrace> findAll(String query) {
-        List<HttpTrace> allTrace = super.findAll();
+    public List<HttpExchange> findAll(String query) {
+        List<HttpExchange> allTrace = super.findAll();
         if (null != allTrace && !allTrace.isEmpty()) {
-            Stream<HttpTrace> stream = allTrace.stream();
+            Stream<HttpExchange> stream = allTrace.stream();
             String[] params = query.split(",");
             stream = filter(params, stream);
             stream = sort(params, stream);
@@ -46,7 +46,7 @@ public class CustomInMemoryHttpTraceRepository extends InMemoryHttpTraceReposito
         return allTrace;
     }
 
-    private Stream<HttpTrace> sort(String[] params, Stream<HttpTrace> stream) {
+    private Stream<HttpExchange> sort(String[] params, Stream<HttpExchange> stream) {
         if (params.length < 2) {
             return stream;
         }
@@ -71,7 +71,7 @@ public class CustomInMemoryHttpTraceRepository extends InMemoryHttpTraceReposito
         });
     }
 
-    private static Stream<HttpTrace> filter(String[] params, Stream<HttpTrace> stream) {
+    private static Stream<HttpExchange> filter(String[] params, Stream<HttpExchange> stream) {
         if (params.length == 0) {
             return stream;
         }

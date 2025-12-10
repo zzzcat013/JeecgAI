@@ -1,15 +1,18 @@
 package org.jeecg.config.oss;
 
+import jakarta.annotation.PostConstruct;
 import org.jeecg.common.util.oss.OssBootUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * 云存储 配置
  * @author: jeecg-boot
  */
+@Lazy(false)
 @Configuration
 @ConditionalOnProperty(prefix = "jeecg.oss", name = "endpoint")
 public class OssConfiguration {
@@ -26,7 +29,7 @@ public class OssConfiguration {
     private String staticDomain;
 
 
-    @Bean
+    @PostConstruct
     public void initOssBootConfiguration() {
         OssBootUtil.setEndPoint(endpoint);
         OssBootUtil.setAccessKeyId(accessKeyId);

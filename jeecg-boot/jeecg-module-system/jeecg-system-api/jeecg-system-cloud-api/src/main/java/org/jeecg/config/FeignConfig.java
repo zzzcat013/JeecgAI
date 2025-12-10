@@ -6,7 +6,7 @@
 //import java.util.List;
 //import java.util.SortedMap;
 //
-//import javax.servlet.http.HttpServletRequest;
+//import jakarta.servlet.http.HttpServletRequest;
 //
 //import org.jeecg.common.config.mqtoken.UserTokenContext;
 //import org.jeecg.common.constant.CommonConstant;
@@ -137,7 +137,6 @@
 //        return new SpringFormEncoder(new SpringEncoder(messageConverters));
 //    }
 //
-//    // update-begin--Author:sunjianlei Date:20210604 for： 给 Feign 添加 FastJson 的解析支持 ----------
 //    /**
 //     * 给 Feign 添加 FastJson 的解析支持
 //     */
@@ -175,6 +174,6 @@
 //
 //        return converter;
 //    }
-//    // update-end--Author:sunjianlei Date:20210604 for： 给 Feign 添加 FastJson 的解析支持 ----------
+//    
 //
 //}

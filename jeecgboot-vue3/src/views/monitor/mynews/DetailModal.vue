@@ -11,10 +11,13 @@
     :destroyOnClose="true"
     @visible-change="handleVisibleChange"
   >
-    <div class="print-btn" @click="onPrinter">
-      <Icon icon="ant-design:printer-filled" />
-      <span class="print-text">打印</span>
-    </div>
+   <template #title>
+     <span class="basic-title">查看详情</span>
+     <div class="print-btn" @click="onPrinter">
+       <Icon icon="ant-design:printer-filled" />
+       <span class="print-text">打印</span>
+     </div>
+   </template>
     <a-card class="daily-article">
       <a-card-meta :title="content.titile">
         <template #description>
@@ -58,6 +61,9 @@
           </div>
         </div>
       </template>
+      <a v-if="noticeFiles.length > 1" :href="downLoadFiles + '?id=' + content.id + '&token=' + getToken()" target="_blank" style="margin: 15px 6px; color: #5ac0fa">
+        <download-outlined class="item-icon" style="margin-right: 5px" /><span>批量下载所有附件</span>
+      </a>
     </template>
   </BasicModal>
 </template>
@@ -72,32 +78,40 @@
   import { getFileAccessHttpUrl } from '@/utils/common/compUtils';
   import { useGlobSetting } from '@/hooks/setting';
   import { encryptByBase64 } from '@/utils/cipher';
+  import { getToken } from '@/utils/auth';
+  import {defHttp} from "@/utils/http/axios";
   const router = useRouter();
   const glob = useGlobSetting();
   const isUpdate = ref(true);
   const content = ref<any>({});
   const noticeFiles = ref([]);
+  /**
+   * 下载文件路径
+   */
+  const downLoadFiles = `${glob.domainUrl}/sys/annountCement/downLoadFiles`;
   const emit = defineEmits(['close', 'register']);
   //表单赋值
   const [registerModal, { setModalProps, closeModal }] = useModalInner(async (data) => {
     isUpdate.value = !!data?.isUpdate;
+    noticeFiles.value = [];
     if (unref(isUpdate)) {
       //data.record.msgContent = '<p>2323</p><input onmouseover=alert(1)>xss test';
-      //update-begin-author:taoyan date:2022-7-14 for: VUEN-1702 【禁止问题】sql注入漏洞
+      // 代码逻辑说明: VUEN-1702 【禁止问题】sql注入漏洞
       if (data.record.msgContent) {
-        //update-begin---author:wangshuai---date:2023-11-15---for:【QQYUN-7049】3.6.0版本 通知公告中发布的富文本消息，在我的消息中查看没有样式---
+        // 代码逻辑说明: 【QQYUN-7049】3.6.0版本 通知公告中发布的富文本消息，在我的消息中查看没有样式---
         data.record.msgContent = xss(data.record.msgContent, options);
-        //update-end---author:wangshuai---date:2023-11-15---for:【QQYUN-7049】3.6.0版本 通知公告中发布的富文本消息，在我的消息中查看没有样式---
       }
-      //update-end-author:taoyan date:2022-7-14 for: VUEN-1702 【禁止问题】sql注入漏洞
 
-      //update-begin-author:liusq---date:2025-06-17--for: [QQYUN-12521]通知公告消息增加访问量
+      // 代码逻辑说明: [QQYUN-12521]通知公告消息增加访问量
       if (!data.record?.busId) {
         await addVisitsNum({ id: data.record.id });
       }
-      //update-end-author:liusq---date:2025-06-17--for: [QQYUN-12521]通知公告消息增加访问量
 
       content.value = data.record;
+      if(content.value.sender){
+        const userInfo = await defHttp.get({ url: '/sys/user/queryUserComponentData?isMultiTranslate=true', params: { username: content.value.sender } });
+        content.value.sender = userInfo && userInfo?.records && userInfo?.records.length>0?userInfo.records[0].realname : content.value.sender;
+      }
       console.log('data---------->>>', data);
       if (data.record?.files && data.record?.files.length > 0) {
         noticeFiles.value = data.record.files.split(',').map((item) => {
@@ -194,6 +208,24 @@
             padding: 0;
           }
         }
+        .ant-card-meta-detail {
+            display: flex !important ;
+            justify-content: center !important;
+            align-items: center !important;
+            flex-direction: column !important;
+        }
+        .ant-card-meta-title {
+            font-size: 22px !important;
+            color: rgba(51, 51, 51, 0.88);
+            font-weight: 600;
+            font-size: 16px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .ant-card .ant-card-meta-description {
+            color: rgba(51, 51, 51, 0.45);
+        }
       `;
       frameDoc.head.appendChild(style);
 
@@ -273,13 +305,14 @@
 
   .print-btn {
     position: absolute;
+    right: 100px;
     top: 20px;
-    right: 20px;
     cursor: pointer;
     color: #a3a3a5;
     z-index: 999;
     .print-text {
       margin-left: 5px;
+      font-size: 14px;
     }
     &:hover {
       color: #40a9ff;
@@ -336,5 +369,18 @@
   .article-content img {
     max-width: 100%;
     height: auto;
+  }
+  .basic-title{
+    position: relative;
+    display: flex;
+    padding-left: 7px;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 24px;
+    color: rgba(0,0,0,0.88);
+    cursor: move;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
   }
 </style>

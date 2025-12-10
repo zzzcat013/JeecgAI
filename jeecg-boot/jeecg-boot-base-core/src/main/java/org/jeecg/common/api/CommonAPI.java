@@ -1,5 +1,6 @@
 package org.jeecg.common.api;
 
+import org.jeecg.common.api.dto.AiragFlowDTO;
 import org.jeecg.common.system.vo.*;
 
 import java.util.List;
@@ -131,7 +132,6 @@ public interface CommonAPI {
      */
     Map<String, List<DictModel>> translateManyDict(String dictCodes, String keys);
 
-    //update-begin---author:chenrui ---date:20231221  for：[issues/#5643]解决分布式下表字典跨库无法查询问题------------
     /**
      * 15 字典表的 翻译，可批量
      * @param table
@@ -142,6 +142,16 @@ public interface CommonAPI {
      * @return
      */
     List<DictModel> translateDictFromTableByKeys(String table, String text, String code, String keys, String dataSource);
-    //update-end---author:chenrui ---date:20231221  for：[issues/#5643]解决分布式下表字典跨库无法查询问题------------
+
+    /**
+     * 16 运行AIRag流程
+     * for  [QQYUN-13634]在baseapi里面封装方法，方便其他模块调用
+     *
+     * @param airagFlowDTO
+     * @return 流程执行结果,可能是String或者Map
+     * @author chenrui
+     * @date 2025/9/2 11:43
+     */
+    Object runAiragFlow(AiragFlowDTO airagFlowDTO);
 
 }

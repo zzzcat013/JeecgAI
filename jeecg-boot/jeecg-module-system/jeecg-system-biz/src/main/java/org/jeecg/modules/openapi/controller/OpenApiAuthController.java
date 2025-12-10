@@ -11,7 +11,7 @@ import org.jeecg.modules.openapi.generator.AKSKGenerator;
 import org.jeecg.modules.openapi.service.OpenApiAuthService;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 
 /**

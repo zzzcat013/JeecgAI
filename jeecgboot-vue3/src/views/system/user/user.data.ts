@@ -1,8 +1,11 @@
 import { BasicColumn } from '/@/components/Table';
 import { FormSchema } from '/@/components/Table';
-import { getAllRolesListNoByTenant, getAllTenantList } from './user.api';
+import { getAllRolesListNoByTenant, getDepPostIdByDepId } from './user.api';
 import { rules } from '/@/utils/helper/validator';
 import { render } from '/@/utils/common/renderUtils';
+import { getDepartPathNameByOrgCode, getDepartName, getMultiDepartPathName, getDepartPathName } from '@/utils/common/compUtils';
+import { h } from 'vue';
+import { Tag } from 'ant-design-vue';
 export const columns: BasicColumn[] = [
   {
     title: '用户账号',
@@ -14,12 +17,12 @@ export const columns: BasicColumn[] = [
     dataIndex: 'realname',
     width: 100,
   },
-  {
+/*  {
     title: '头像',
     dataIndex: 'avatar',
     width: 120,
     customRender: render.renderAvatar,
-  },
+  },*/
   {
     title: '性别',
     dataIndex: 'sex',
@@ -29,25 +32,62 @@ export const columns: BasicColumn[] = [
       return render.renderDict(text, 'sex');
     },
   },
-  {
+/*  {
     title: '生日',
     dataIndex: 'birthday',
     width: 100,
-  },
+  },*/
   {
     title: '手机号',
     dataIndex: 'phone',
     width: 100,
+    customRender:( { record, text })=>{
+      if(record.izHideContact && record.izHideContact === '1'){
+        return '/';
+      }
+      return text;
+    }
   },
   {
     title: '部门',
     width: 150,
-    dataIndex: 'orgCodeTxt',
+    dataIndex: 'belongDepIds',
+    customRender:( { record, text })=>{
+      if(!text){
+        return '';
+      }
+      return getDepartName(getMultiDepartPathName(record.orgCodeTxt,text));
+    }
   },
   {
     title: '负责部门',
     width: 150,
-    dataIndex: 'departIds_dictText',
+    dataIndex: 'departIds',
+    customRender:( { record, text })=>{
+      if(!text){
+        return '';
+      }
+      return getDepartName(getMultiDepartPathName(record.departIds_dictText,text));
+    }
+  },
+  {
+    title: '主岗位',
+    width: 150,
+    dataIndex: 'mainDepPostId',
+    customRender: ({ record, text })=>{
+      return getDepartName(getDepartPathName(record.mainDepPostId_dictText,text,false));
+    }
+  },
+  {
+    title: '兼职岗位',
+    width: 150,
+    dataIndex: 'otherDepPostId',
+    customRender:({ record, text })=>{
+      if(!text){
+        return '';
+      }
+      return getDepartName(getMultiDepartPathName(record.otherDepPostId_dictText,text));
+    }
   },
   {
     title: '状态',
@@ -125,6 +165,16 @@ export const searchFormSchema: FormSchema[] = [
     },
    //colProps: { span: 6 },
   },
+  {
+    label: '所属部门',
+    field: 'departId',
+    component: 'JSelectDept',
+    componentProps: {
+      placeholder: '请选择所属部门',
+      showButton: false,
+      checkStrictly: true
+    },
+  },
 ];
 
 export const formSchema: FormSchema[] = [
@@ -158,7 +208,7 @@ export const formSchema: FormSchema[] = [
       },
       {
         pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
-        message: '密码由8位数字、大小写字母和特殊符号组成!',
+        message: '密码由 8 位及以上数字、大小写字母和特殊符号组成！',
       },
     ],
   },
@@ -177,17 +227,27 @@ export const formSchema: FormSchema[] = [
   {
     label: '工号',
     field: 'workNo',
-    required: true,
+    required: false,
     component: 'Input',
-    dynamicRules: ({ model, schema }) => rules.duplicateCheckRule('sys_user', 'work_no', model, schema, true),
+    dynamicRules: ({ model, schema }) => rules.duplicateCheckRule('sys_user', 'work_no', model, schema, false),
   },
-  {
+/*  {
     label: '职务',
     field: 'post',
     required: false,
     component: 'JSelectPosition',
     componentProps: {
       labelKey: 'name',
+    },
+  },*/
+  {
+    label: '职务',
+    field: 'positionType',
+    required: false,
+    component: 'JDictSelectTag',
+    componentProps: {
+      dictCode: "user_position",
+      mode: 'multiple',
     },
   },
   {
@@ -216,21 +276,63 @@ export const formSchema: FormSchema[] = [
           const { updateSchema } = formActionType;
           //所属部门修改后更新负责部门下拉框数据
           updateSchema([
+            //修改主岗位和兼职岗位的参数
             {
-              field: 'departIds',
-              componentProps: { options },
+              field: 'mainDepPostId',
+              componentProps: { params: { departIds: values?values.value.join(","): "" } },
             },
+            {
+              field: 'otherDepPostId',
+              componentProps: { params: { departIds: values?values.value.join(","): "" } },
+            }
           ]);
-          //update-begin---author:wangshuai---date:2024-05-11---for:【issues/1222】用户编辑界面“所属部门”与“负责部门”联动出错整---
+          //更新负责部门的option
+          updateDepartOption(options, updateSchema);
           if(!values){
             formModel.departIds = [];
+            formModel.mainDepPostId = "";
+            formModel.otherDepPostId = "";
             return;
           }
-          //update-end---author:wangshuai---date:2024-05-11---for:【issues/1222】用户编辑界面“所属部门”与“负责部门”联动出错整---
           //所属部门修改后更新负责部门数据
           formModel.departIds && (formModel.departIds = formModel.departIds.filter((item) => values.value.indexOf(item) > -1));
         },
+        onChange: async (values) => {
+          // 当所属部门发生改变时，需要取消主岗位和兼职岗位的选中值
+          await removeDepPostByDepId(formModel, values, formActionType);
+        }
       };
+    },
+  },
+  {
+    label: '主岗位',
+    field: 'mainDepPostId',
+    component: 'JSelectDepartPost',
+    componentProps: {
+      rowKey: 'id',
+      multiple: false,
+      izShowDepPath: true,
+    },
+    ifShow:  ({ values }) => {
+      if(!values.selecteddeparts){
+        return false;
+      }
+      return !(values.selecteddeparts instanceof Array && values.selecteddeparts.length == 0);
+    },
+  },
+  {
+    label: '兼职岗位',
+    field: 'otherDepPostId',
+    component: 'JSelectDepartPost',
+    componentProps: {
+      rowKey: 'id',
+      izShowDepPath: true,
+    },
+    ifShow:  ({ values }) => {
+      if(!values.selecteddeparts){
+        return false;
+      }
+      return !(values.selecteddeparts instanceof Array && values.selecteddeparts.length == 0);
     },
   },
   {
@@ -266,8 +368,48 @@ export const formSchema: FormSchema[] = [
     component: 'Select',
     componentProps: {
       mode: 'multiple',
+      tagRender: ({ label, value, closable, onClose }) => {
+        // 计算显示文本：前面省略号 + 后面字符
+        let displayLabel = label;
+        if(displayLabel && label.length >= 20) {
+          displayLabel = "..." + displayLabel.substring(label.length - 20);
+        }
+        return h(Tag, {
+          style: {
+            position: 'relative',
+            boxSizing: 'border-box',
+            height: '24px',
+            marginTop: '2px',
+            fontSize: '14px',
+            marginBottom: '2px',
+            lineHeight: '22px',
+            background: 'rgba(51, 51, 51, 0.06)',
+            border: '1px solid rgba(5, 5, 5, 0.06)',
+            borderRadius: '4px',
+            cursor: 'default'
+          },
+          title: label,
+          closable,
+          onClose:(e)=>{
+            e.stopPropagation();
+            onClose();
+          }
+        }, () => displayLabel);
+      }
     },
     ifShow: ({ values }) => values.userIdentity == 2,
+  },
+  {
+    label: '排序',
+    field: 'sort',
+    component: 'InputNumber',
+    defaultValue: 1000,
+    componentProps: {
+      min: 1,
+      max: 999999,
+      step: 1,
+      precision: 0
+    }
   },
   {
     label: '头像',
@@ -296,10 +438,10 @@ export const formSchema: FormSchema[] = [
     label: '邮箱',
     field: 'email',
     component: 'Input',
-    required: true,
+    required: false,
     dynamicRules: ({ model, schema }) => {
       return [
-        { ...rules.duplicateCheckRule('sys_user', 'email', model, schema, true)[0], trigger: 'blur' },
+        { ...rules.duplicateCheckRule('sys_user', 'email', model, schema, false)[0], trigger: 'blur' },
         { ...rules.rule('email', false)[0], trigger: 'blur' },
       ];
     },
@@ -333,6 +475,16 @@ export const formSchema: FormSchema[] = [
       stringToNumber: true,
     },
   },
+  {
+    label: '隐藏联系方式',
+    field: 'izHideContact',
+    defaultValue: '0',
+    component: 'JDictSelectTag',
+    componentProps: {
+      dictCode: 'yn',
+      type: 'radio',
+    },
+  },
 ];
 
 export const formPasswordSchema: FormSchema[] = [
@@ -356,7 +508,7 @@ export const formPasswordSchema: FormSchema[] = [
       },
       {
         pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
-        message: '密码由8位数字、大小写字母和特殊符号组成!',
+        message: '密码由 8 位及以上数字、大小写字母和特殊符号组成！',
       },
     ],
   },
@@ -368,131 +520,6 @@ export const formPasswordSchema: FormSchema[] = [
   },
 ];
 
-export const formAgentSchema: FormSchema[] = [
-  {
-    label: '',
-    field: 'id',
-    component: 'Input',
-    show: false,
-  },
-  {
-    field: 'userName',
-    label: '用户名',
-    component: 'Input',
-    componentProps: {
-      readOnly: true,
-      allowClear: false,
-    },
-  },
-  {
-    field: 'agentUserName',
-    label: '代理人用户名',
-    required: true,
-    component: 'JSelectUser',
-    componentProps: {
-      rowKey: 'username',
-      labelKey: 'realname',
-      maxSelectCount: 10,
-    },
-  },
-  {
-    field: 'startTime',
-    label: '代理开始时间',
-    component: 'DatePicker',
-    required: true,
-    componentProps: {
-      showTime: true,
-      valueFormat: 'YYYY-MM-DD HH:mm:ss',
-      placeholder: '请选择代理开始时间',
-      getPopupContainer: () => document.body,
-    },
-  },
-  {
-    field: 'endTime',
-    label: '代理结束时间',
-    component: 'DatePicker',
-    required: true,
-    componentProps: {
-      showTime: true,
-      valueFormat: 'YYYY-MM-DD HH:mm:ss',
-      placeholder: '请选择代理结束时间',
-      getPopupContainer: () => document.body,
-    },
-  },
-  {
-    field: 'status',
-    label: '状态',
-    component: 'JDictSelectTag',
-    defaultValue: '1',
-    componentProps: {
-      dictCode: 'valid_status',
-      type: 'radioButton',
-    },
-  },
-];
-
-export const formQuitAgentSchema: FormSchema[] = [
-  {
-    label: '',
-    field: 'id',
-    component: 'Input',
-    show: false,
-  },
-  {
-    field: 'userName',
-    label: '用户名',
-    component: 'Input',
-    componentProps: {
-      readOnly: true,
-      allowClear: false,
-    },
-  },
-  {
-    field: 'agentUserName',
-    label: '交接人员',
-    //required: true,
-    component: 'JSelectUser',
-    componentProps: {
-      rowKey: 'username',
-      labelKey: 'realname',
-      maxSelectCount: 1,
-    },
-  },
-  {
-    field: 'startTime',
-    label: '交接开始时间',
-    component: 'DatePicker',
-    //required: true,
-    componentProps: {
-      showTime: true,
-      valueFormat: 'YYYY-MM-DD HH:mm:ss',
-      placeholder: '请选择交接开始时间',
-      getPopupContainer: () => document.body,
-    },
-  },
-  {
-    field: 'endTime',
-    label: '交接结束时间',
-    component: 'DatePicker',
-    //required: true,
-    componentProps: {
-      showTime: true,
-      valueFormat: 'YYYY-MM-DD HH:mm:ss',
-      placeholder: '请选择交接结束时间',
-      getPopupContainer: () => document.body,
-    },
-  },
-  {
-    field: 'status',
-    label: '状态',
-    component: 'JDictSelectTag',
-    defaultValue: '1',
-    componentProps: {
-      dictCode: 'valid_status',
-      type: 'radioButton',
-    },
-  },
-];
 
 //租户用户列表
 export const userTenantColumns: BasicColumn[] = [
@@ -564,3 +591,105 @@ export const userTenantFormSchema: FormSchema[] = [
     colProps: { span: 6 },
   },
 ];
+
+
+/**
+ * 删除非当前部门下的数据
+ * 当所属部门发生改变时，取消主岗位和兼职岗位的选中值
+ * 
+ * @param formModel 表单模型
+ * @param values 选中的部门值
+ * @param formActionType 表单操作方法
+ */
+async function removeDepPostByDepId(formModel, values, formActionType) {
+  const { setFieldsValue } = formActionType;
+  if (values) {
+    let departIds = "";
+    if (values instanceof Array) {
+      departIds = values.join(",");
+    } else {
+      departIds = values;
+    }
+    if (departIds) {
+      try {
+        // 查询当前选中部门下的岗位ID
+        const { result } = await getDepPostIdByDepId({ depIds: departIds });
+        const validPostIds = result.split(",") || [];
+        
+        // 检查主岗位是否在当前部门下
+        if (formModel.mainDepPostId) {
+          const mainPostId = Array.isArray(formModel.mainDepPostId) 
+            ? formModel.mainDepPostId[0] 
+            : formModel.mainDepPostId;
+          
+          if (mainPostId && !validPostIds.includes(mainPostId)) {
+            // 主岗位不在当前部门下，清空主岗位
+            setFieldsValue({ mainDepPostId: null });
+            formModel.mainDepPostId = null;
+          }
+        }
+
+        // 检查兼职岗位是否在当前部门下
+        if(typeof formModel.otherDepPostId === "string"){
+          formModel.otherDepPostId = formModel.otherDepPostId.split(",");
+        }
+        if (formModel.otherDepPostId && Array.isArray(formModel.otherDepPostId)) {
+          const validOtherPosts = formModel.otherDepPostId.filter(postId => 
+            validPostIds.includes(postId)
+          );
+          // 有兼职岗位不在当前部门下，更新兼职岗位
+          setFieldsValue({ otherDepPostId: validOtherPosts });
+          formModel.otherDepPostId = validOtherPosts;
+        }
+      } catch (error) {
+        console.error('查询部门岗位失败:', error);
+        // 查询失败时，清空所有岗位选择
+        setFieldsValue({
+          mainDepPostId: null,
+          otherDepPostId: []
+        });
+        formModel.mainDepPostId = null;
+        formModel.otherDepPostId = [];
+      }
+    } else {
+      // 没有选中部门时，清空所有岗位选择
+      setFieldsValue({
+        mainDepPostId: null,
+        otherDepPostId: []
+      });
+      formModel.mainDepPostId = null;
+      formModel.otherDepPostId = [];
+    }
+  }
+}
+
+/**
+ * 更新负责部门的options
+ *
+ * @param options
+ * @param updateSchema
+ */
+async function updateDepartOption(options, updateSchema) {
+  if (options && options.length > 0) {
+    // 并行处理所有异步操作
+    const updatedOptions = await Promise.all(
+      options.map(async (item) => {
+        const departPathName = await getDepartPathNameByOrgCode('', item.label, item.value);
+        return { ...item, label: departPathName };
+      })
+    );
+    updateSchema([
+      {
+        field: 'departIds',
+        componentProps: { options: updatedOptions },
+      },
+    ]);
+  } else {
+    updateSchema([
+      {
+        field: 'departIds',
+        componentProps: { options: [] },
+      },
+    ]);
+  }
+}

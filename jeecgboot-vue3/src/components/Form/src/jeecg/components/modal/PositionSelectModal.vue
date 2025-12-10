@@ -100,7 +100,7 @@
           xl: 10,
           xxl: 10,
         },
-        //update-begin-author:liusq date:2023-10-30 for: [issues/5514]组件页面显示错位
+        // 代码逻辑说明: [issues/5514]组件页面显示错位
         actionColOptions: {
             xs: 24,
             sm: 8,
@@ -109,7 +109,6 @@
             xl: 8,
             xxl: 8,
         },
-        //update-end-author:liusq date:2023-10-30 for: [issues/5514]组件页面显示错位
         schemas: [
           {
             label: '职务名称',
@@ -122,20 +121,13 @@
       //定义表格列
       const columns = [
         {
-          title: '职务编码',
-          dataIndex: 'code',
-          width: 180,
-          align: 'left',
-        },
-        {
           title: '职务名称',
           dataIndex: 'name',
           // width: 180,
         },
         {
-          title: '职务等级',
-          dataIndex: 'postRank_dictText',
-          width: 180,
+          title: '职务级别',
+          dataIndex: 'postLevel',
         },
       ];
       //已选择的table信息

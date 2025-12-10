@@ -4,7 +4,7 @@ import lombok.Getter;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
-import org.springframework.boot.actuate.trace.http.HttpTrace;
+import org.springframework.boot.actuate.web.exchanges.HttpExchange;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
@@ -29,14 +29,14 @@ public class CustomHttpTraceEndpoint{
 
     @ReadOperation
     public HttpTraceDescriptor traces(@Selector(match = ALL_REMAINING) String query) {
-        return new CustomHttpTraceEndpoint.HttpTraceDescriptor(this.repository.findAll(query));
+        return new HttpTraceDescriptor(this.repository.findAll(query));
     }
 
     @Getter
     public static final class HttpTraceDescriptor {
-        private final List<HttpTrace> traces;
+        private final List<HttpExchange> traces;
 
-        private HttpTraceDescriptor(List<HttpTrace> traces) {
+        private HttpTraceDescriptor(List<HttpExchange> traces) {
             this.traces = traces;
         }
 

@@ -2,6 +2,7 @@
 **/.idea
 *.iml
 rebel.xml
+.DS_Store
 
 ## backend
 **/target
@@ -13,3 +14,5 @@ os_del.cmd
 os_del_doc.cmd
 .svn
 derby.log
+.cursor
+.history

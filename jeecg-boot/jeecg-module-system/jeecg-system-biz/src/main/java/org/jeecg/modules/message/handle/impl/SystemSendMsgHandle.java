@@ -20,7 +20,7 @@ import org.jeecg.modules.system.mapper.SysAnnouncementSendMapper;
 import org.jeecg.modules.system.mapper.SysUserMapper;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.Date;
 import java.util.Map;
 
@@ -75,9 +75,8 @@ public class SystemSendMsgHandle implements ISendMsgHandle {
         Map<String,Object> data = messageDTO.getData();
         String[] arr = messageDTO.getToUser().split(",");
         for(String username: arr){
-            //update-begin---author:wangshuai---date:2025-06-26---for:【QQYUN-12162】OA项目改造，系统重消息拆分，目前消息都在一起 需按分类进行拆分---
+            // 代码逻辑说明: 【QQYUN-12162】OA项目改造，系统重消息拆分，目前消息都在一起 需按分类进行拆分---
             doSend(title, content, fromUser, username, data, messageDTO.getNoticeType());
-            //update-end---author:wangshuai---date:2025-06-26---for:【QQYUN-12162】OA项目改造，系统重消息拆分，目前消息都在一起 需按分类进行拆分---
         }
     }
 

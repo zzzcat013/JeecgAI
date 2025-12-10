@@ -1,14 +1,12 @@
 <template>
   <a-card :bordered="false" style="height: 100%">
-    <div class="j-table-operator" style="width: 100%">
+    <div class="j-table-operator" style="width: 100%;display: flex;align-items: center">
       <a-button type="primary" preIcon="ant-design:plus-outlined" @click="onAddDepart">新增</a-button>
       <a-button type="primary" preIcon="ant-design:plus-outlined" @click="onAddChildDepart()">添加下级</a-button>
-      <a-upload name="file" :showUploadList="false" :customRequest="onImportXls">
+      <a-upload name="file" :showUploadList="false" :customRequest="onImportXls" v-if="!isTenantDepart">
         <a-button type="primary" preIcon="ant-design:import-outlined">导入</a-button>
       </a-upload>
-      <a-button type="primary" preIcon="ant-design:export-outlined" @click="onExportXls">导出</a-button>
-      <a-button type="primary" preIcon="ant-design:sync-outlined">同步企微?</a-button>
-      <a-button type="primary" preIcon="ant-design:sync-outlined">同步钉钉?</a-button>
+      <a-button type="primary" preIcon="ant-design:export-outlined" @click="onExportXls" v-if="!isTenantDepart">导出</a-button>
       <template v-if="checkedKeys.length > 0">
         <a-dropdown>
           <template #overlay>
@@ -25,6 +23,10 @@
           </a-button>
         </a-dropdown>
       </template>
+      <Icon icon="ant-design:question-circle-outlined" style="margin-left: 10px;cursor: pointer" @click="tipShow = true"></Icon>
+      <div v-if="loginTenantName" style="margin-left: 10px;"
+      >当前登录租户: <span class="tenant-name">{{ loginTenantName }}</span>
+      </div>
     </div>
     <a-alert type="info" show-icon class="alert" style="margin-bottom: 8px">
       <template #message>
@@ -54,8 +56,12 @@
           v-model:expandedKeys="expandedKeys"
           @check="onCheck"
           @select="onSelect"
+          draggable
+          @drop="onDrop"
+          @dragstart="onDragStart"
+          style="overflow-y: auto;height: calc(100vh - 330px);"
         >
-          <template #title="{ key: treeKey, title, dataRef }">
+          <template #title="{ key: treeKey, title, dataRef, data }">
             <a-dropdown :trigger="['contextmenu']">
               <Popconfirm
                 :open="visibleTreeKey === treeKey"
@@ -66,12 +72,12 @@
                 @confirm="onDelete(dataRef)"
                 @openChange="onVisibleChange"
               >
-                <span>{{ title }}</span>
+                <TreeIcon :orgCategory="dataRef.orgCategory" :title="title"></TreeIcon>
               </Popconfirm>
 
               <template #overlay>
                 <a-menu @click="">
-                  <a-menu-item key="1" @click="onAddChildDepart(dataRef)">添加子级</a-menu-item>
+                  <a-menu-item key="1" @click="onAddChildDepart(dataRef)" v-if="data.orgCategory !== '3'">添加下级</a-menu-item>
                   <a-menu-item key="2" @click="visibleTreeKey = treeKey">
                     <span style="color: red">删除</span>
                   </a-menu-item>
@@ -85,22 +91,44 @@
     </a-spin>
     <DepartFormModal :rootTreeData="treeData" @register="registerModal" @success="loadRootTreeData" />
   </a-card>
+  <a-modal v-model:open="tipShow" :footer="null" title="部门规则说明" :width="800">
+      <ul class="departmentalRulesTip">
+        <li>当前部门机构设置支持集团组织架构，第一级默认为公司，下级可创建子公司、部门和岗位。</li>
+        <li><br/></li>
+        <li>1、岗位下不能添加下级。</li>
+        <li>2、部门下不能直接添加子公司。</li>
+        <li>3、子公司下可继续添加子公司。</li>
+        <li>4、岗位需配置职务级别，岗位的级别高低和上下级关系均以职务级别及上级岗位设置为准。</li>
+        <li>5、董事长岗位仅可选择上级公司（子公司或总公司）各部门的所有岗位为上级岗位。</li>
+        <li>6、非董事长岗位仅可选择当前父级部门及本部门内级别更高的岗位为上级岗位。</li>
+        <li><br/></li>
+        <li><b>特别说明：</b>董事长相关逻辑为固定写死，职务等级“董事长”的表述请勿修改。</li>
+      </ul>
+    <div style="height: 10px"></div>
+  </a-modal>
 </template>
 
 <script lang="ts" setup>
-  import { inject, nextTick, ref, unref } from 'vue';
+  import { inject, nextTick, ref, unref, defineEmits, h } from 'vue';
   import { useModal } from '/@/components/Modal';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { useMethods } from '/@/hooks/system/useMethods';
-  import { Api, deleteBatchDepart, queryDepartTreeSync } from '../depart.api';
+  import { Api, deleteBatchDepart, queryDepartAndPostTreeSync, updateChangeDepart } from '../depart.api';
   import { searchByKeywords } from '/@/views/system/departUser/depart.user.api';
   import DepartFormModal from '/@/views/system/depart/components/DepartFormModal.vue';
-  import { Popconfirm } from 'ant-design-vue';
+  import { Modal, Popconfirm } from 'ant-design-vue';
+  import TreeIcon from "@/components/Form/src/jeecg/components/TreeIcon/TreeIcon.vue";
 
   const prefixCls = inject('prefixCls');
   const emit = defineEmits(['select', 'rootTreeData']);
   const { createMessage } = useMessage();
   const { handleImportXls, handleExportXls } = useMethods();
+  const props = defineProps({
+    //是否为租户部门
+    isTenantDepart: { default: false, type: Boolean },
+    //当前登录租户
+    loginTenantName: { default: "", type: String },
+  })
 
   const loading = ref<boolean>(false);
   // 部门树列表数据
@@ -121,6 +149,8 @@
   const visibleTreeKey = ref<any>(null);
   // 搜索关键字
   const searchKeyword = ref('');
+  // 提示弹窗是否显示
+  const tipShow = ref<boolean>(false);
 
   // 注册 modal
   const [registerModal, { openModal }] = useModal();
@@ -130,7 +160,7 @@
     try {
       loading.value = true;
       treeData.value = [];
-      const result = await queryDepartTreeSync();
+      const result = await queryDepartAndPostTreeSync();
       if (Array.isArray(result)) {
         treeData.value = result;
       }
@@ -158,7 +188,7 @@
   // 加载子级部门信息
   async function loadChildrenTreeData(treeNode) {
     try {
-      const result = await queryDepartTreeSync({
+      const result = await queryDepartAndPostTreeSync({
         pid: treeNode.dataRef.id,
       });
       if (result.length == 0) {
@@ -231,7 +261,11 @@
       createMessage.warning('请先选择一个部门');
       return;
     }
-    const record = { parentId: data.id };
+    if(data.orgCategory === '3'){
+      createMessage.warning('岗位下无法添加子级！');
+      return;
+    }
+    const record = { parentId: data.id, orgCategory: data.orgCategory };
     openModal(true, { isUpdate: false, isChild: true, record });
   }
 
@@ -241,7 +275,7 @@
       try {
         loading.value = true;
         treeData.value = [];
-        let result = await searchByKeywords({ keyWord: value });
+        let result = await searchByKeywords({ keyWord: value, orgCategory: "1,2,3,4" });
         if (Array.isArray(result)) {
           treeData.value = result;
         }
@@ -323,16 +357,125 @@
   }
 
   function onExportXls() {
-    //update-begin---author:wangshuai---date:2024-07-05---for:【TV360X-1671】部门管理不支持选中的记录导出---
+    // 代码逻辑说明: 【TV360X-1671】部门管理不支持选中的记录导出---
     let params = {}
     if(checkedKeys.value && checkedKeys.value.length > 0) {
       params['selections'] = checkedKeys.value.join(',')
     }
     handleExportXls('部门信息', Api.exportXlsUrl,params);
-    //update-end---author:wangshuai---date:2024-07-05---for:【TV360X-1671】部门管理不支持选中的记录导出---
   }
 
+  /**
+   * 拖拽开始时，只关闭被拖拽的当前节点
+   * 
+   * @param info
+   */
+  function onDragStart(info: any) {
+    const dragKey = info.node?.key;
+    if (!dragKey){
+      return;
+    }
+    // 只关闭被拖拽的当前节点，不关闭其子节点
+    if (expandedKeys.value.includes(dragKey)) {
+      expandedKeys.value = expandedKeys.value.filter(key => key !== dragKey);
+    }
+  }
+  
+  /**
+   * 拖拽结束
+   * @param info
+   */
+  function onDrop (info){
+    const dropKey = info.node.key;
+    const dragKey = info.dragNode.key;
+    const dropPos = info.node.pos.split('-');
+    const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1]);
+    const dropTitle = info.node.title;
+    const dragTitle = info.dragNode.title;
+    //禁止拖拽到子节点
+    if (isDescendant(info.dragNode, info.node.key)) {
+      createMessage.warning('不能拖拽到自身后代');
+      return;
+    }
+    if(dropKey === dragKey){
+      createMessage.warning('不能自身拖拽到自身');
+      return;
+    }
+    let pos = "中";
+    if(dropPosition === -1){
+      pos = "上方";
+    }else if (dropPosition === 1){
+      pos = "下方";
+    }
+    let text = "将【" + dragTitle + "】移动到【" + dropTitle + "】" + pos + "？";
+    Modal.confirm({
+      title: '确认移动',
+      content: h('div', {}, [
+        h('p', { style: { marginBottom: '12px', fontSize: '14px' } }, text),
+        h('p', { 
+          style: { 
+            color: '#ff4d4f', 
+            fontSize: '13px',
+            margin: '0'
+          } 
+        }, '移动后：机构编码会改变，历史业务数据保留原机构编码，此操作不可撤销！')
+      ]),
+      okText: '确认',
+      cancelText: '取消',
+      onOk: () => {
+        updateChangeDepart({ dragId: dragKey, dropId: dropKey, dropPosition: dropPosition, sort: info.dropPosition }).then(res=>{
+          if(res.success){
+            createMessage.success('部门顺序调整成功');
+            //重新加载树
+            treeData.value = [];
+            selectedKeys.value = [];
+            loadRootTreeData();
+          } else {
+            createMessage.error(res.message);
+          }
+        }).catch(e=>{
+          createMessage.error(e.message);
+        })
+      }
+    })
+  }
+
+  /**
+   * 判断目标节点是否在拖拽节点的子树中（避免循环引用）
+   * 
+   * @param dragNode
+   * @param targetKey
+   */
+  function isDescendant(dragNode, targetKey) {
+    const stack = [...(dragNode.children ?? [])];
+    while (stack.length) {
+      const node = stack.pop()!;
+      if (node.key === targetKey){
+        return true;
+      }
+      if (node.children){
+        stack.push(...node.children);
+      }
+    }
+    return false;
+  }
+  
   defineExpose({
     loadRootTreeData,
   });
 </script>
+
+<style lang="less" scoped>
+  .departmentalRulesTip{
+    margin: 20px;
+    background-color: #f8f9fb;
+    color: #99a1a9;
+    border-radius: 4px;
+    padding: 12px;
+  }
+  .tenant-name {
+    text-decoration: underline;
+    margin: 5px;
+    font-size: 15px;
+  }
+</style>

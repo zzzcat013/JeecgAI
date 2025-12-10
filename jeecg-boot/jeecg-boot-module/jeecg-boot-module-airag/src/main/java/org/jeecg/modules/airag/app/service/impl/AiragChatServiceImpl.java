@@ -1,20 +1,23 @@
 package org.jeecg.modules.airag.app.service.impl;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.output.FinishReason;
 import dev.langchain4j.service.TokenStream;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.exception.JeecgBootBizTipException;
+import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.system.api.ISysBaseAPI;
 import org.jeecg.common.system.util.JwtUtil;
 import org.jeecg.common.util.*;
 import org.jeecg.modules.airag.app.consts.AiAppConsts;
 import org.jeecg.modules.airag.app.entity.AiragApp;
 import org.jeecg.modules.airag.app.mapper.AiragAppMapper;
-import org.jeecg.modules.airag.app.service.IAiragAppService;
 import org.jeecg.modules.airag.app.service.IAiragChatService;
 import org.jeecg.modules.airag.app.vo.AppDebugParams;
 import org.jeecg.modules.airag.app.vo.ChatConversation;
@@ -23,14 +26,19 @@ import org.jeecg.modules.airag.common.consts.AiragConsts;
 import org.jeecg.modules.airag.common.handler.AIChatParams;
 import org.jeecg.modules.airag.common.handler.IAIChatHandler;
 import org.jeecg.modules.airag.common.utils.AiragLocalCache;
+import org.jeecg.modules.airag.common.vo.LlmPlugin;
 import org.jeecg.modules.airag.common.vo.MessageHistory;
 import org.jeecg.modules.airag.common.vo.event.EventData;
 import org.jeecg.modules.airag.common.vo.event.EventFlowData;
 import org.jeecg.modules.airag.common.vo.event.EventMessageData;
 import org.jeecg.modules.airag.flow.consts.FlowConsts;
+import org.jeecg.modules.airag.flow.entity.AiragFlow;
 import org.jeecg.modules.airag.flow.service.IAiragFlowService;
 import org.jeecg.modules.airag.flow.vo.api.FlowRunParams;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
+import org.jeecg.modules.airag.llm.handler.AIChatHandler;
+import org.jeecg.modules.airag.llm.handler.JeecgToolsProvider;
+import org.jeecg.modules.airag.llm.mapper.AiragModelMapper;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.BoundValueOperations;
@@ -38,11 +46,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -74,6 +80,17 @@ public class AiragChatServiceImpl implements IAiragChatService {
     @Autowired
     private RedisUtil redisUtil;
 
+    @Autowired
+    JeecgToolsProvider jeecgToolsProvider;
+
+    @Autowired
+    AiragModelMapper airagModelMapper;
+
+    /**
+     * 重新接收消息
+     */
+    private static final ExecutorService SSE_THREAD_POOL = Executors.newFixedThreadPool(10); // 最大10个线程
+
     @Override
     public SseEmitter send(ChatSendParams chatSendParams) {
         AssertUtils.assertNotEmpty("参数异常", chatSendParams);
@@ -93,6 +110,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (oConvertUtils.isEmpty(chatConversation.getTitle())) {
             chatConversation.setTitle(userMessage.length() > 5 ? userMessage.substring(0, 5) : userMessage);
         }
+        //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        // 保存工作流入参配置（如果有）
+        if (oConvertUtils.isObjectNotEmpty(chatSendParams.getFlowInputs())) {
+            chatConversation.setFlowInputs(chatSendParams.getFlowInputs());
+        }
+        //update-end---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
         // 发送消息
         return doChat(chatConversation, topicId, chatSendParams);
     }
@@ -108,6 +131,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
         AiragApp app = appDebugParams.getApp();
         app.setId("__DEBUG_APP");
         ChatConversation chatConversation = getOrCreateChatConversation(app, topicId);
+        //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        // 保存工作流入参配置（如果有）
+        if (oConvertUtils.isObjectNotEmpty(appDebugParams.getFlowInputs())) {
+            chatConversation.setFlowInputs(appDebugParams.getFlowInputs());
+        }
+        //update-end---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
         // 发送消息
         SseEmitter emitter = doChat(chatConversation, topicId, appDebugParams);
         //保存会话
@@ -148,7 +177,9 @@ public class AiragChatServiceImpl implements IAiragChatService {
             // 发送完成事件
             emitter.send(SseEmitter.event().data(eventData));
         } catch (Exception e) {
-            log.error("终止会话时发生错误", e);
+            if(!e.getMessage().contains("ResponseBodyEmitter has already completed")){
+                log.error("终止会话时发生错误", e);
+            }
             try {
                 // 防止异常冒泡
                 emitter.completeWithError(e);
@@ -226,7 +257,33 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (oConvertUtils.isObjectEmpty(chatConversation)) {
             return Result.ok(Collections.emptyList());
         }
-        return Result.ok(chatConversation.getMessages());
+        //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        // 返回消息列表和会话设置信息
+        Map<String, Object> result = new HashMap<>();
+        // 过滤掉工具调用相关的消息（前端不需要展示）
+        List<MessageHistory> messages = chatConversation.getMessages();
+        if (oConvertUtils.isObjectNotEmpty(messages)) {
+            messages = messages.stream()
+                    .filter(msg -> !AiragConsts.MESSAGE_ROLE_TOOL.equals(msg.getRole()))
+                    .map(msg -> {
+                        // 克隆消息对象，移除工具执行请求信息（前端不需要）
+                        MessageHistory displayMsg = MessageHistory.builder()
+                                .conversationId(msg.getConversationId())
+                                .topicId(msg.getTopicId())
+                                .role(msg.getRole())
+                                .content(msg.getContent())
+                                .images(msg.getImages())
+                                .datetime(msg.getDatetime())
+                                .build();
+                        // 不设置toolExecutionRequests和toolExecutionResult
+                        return displayMsg;
+                    })
+                    .collect(Collectors.toList());
+        }
+        result.put("messages", messages);
+        result.put("flowInputs", chatConversation.getFlowInputs());
+        return Result.ok(result);
+        //update-end---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
     }
 
     @Override
@@ -247,7 +304,142 @@ public class AiragChatServiceImpl implements IAiragChatService {
     @Override
     public Result<?> initChat(String appId) {
         AiragApp app = airagAppMapper.getByIdIgnoreTenant(appId);
+        //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        if(AiAppConsts.APP_TYPE_CHAT_FLOW.equalsIgnoreCase(app.getType())) {
+            AiragFlow flow = airagFlowService.getById(app.getFlowId());
+            String flowMetadata = flow.getMetadata();
+            if(oConvertUtils.isNotEmpty(flowMetadata)) {
+                JSONObject flowMetadataJson = JSONObject.parseObject(flowMetadata);
+                JSONArray flowMetadataInputs = flowMetadataJson.getJSONArray(FlowConsts.FLOW_METADATA_INPUTS);
+                if(oConvertUtils.isObjectNotEmpty(flowMetadataInputs)) {
+                    String appMetadataStr = app.getMetadata();
+                    JSONObject appMetadataJson;
+                    if(oConvertUtils.isEmpty(appMetadataStr)){
+                        appMetadataJson = new JSONObject();
+                    } else {
+                        appMetadataJson = JSONObject.parseObject(appMetadataStr);
+                    }
+                    appMetadataJson.put(AiAppConsts.APP_METADATA_FLOW_INPUTS, flowMetadataInputs);
+                    app.setMetadata(appMetadataJson.toJSONString());
+                }
+            }
+        }
+        //update-end---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        
+        //update-begin---author:chenrui ---date:202501XX  for：在initChat接口中返回模型供应商信息，避免前端多次调用模型查询接口------------
+        // 如果应用有模型ID，查询模型信息并将供应商、类型、名称等信息添加到metadata中
+        if (oConvertUtils.isNotEmpty(app.getModelId())) {
+            AiragModel model = airagModelMapper.getByIdIgnoreTenant(app.getModelId());
+            if (model != null) {
+                String appMetadataStr = app.getMetadata();
+                JSONObject appMetadataJson;
+                if(oConvertUtils.isEmpty(appMetadataStr)){
+                    appMetadataJson = new JSONObject();
+                } else {
+                    appMetadataJson = JSONObject.parseObject(appMetadataStr);
+                }
+                // 将模型信息添加到metadata中
+                JSONObject modelInfo = new JSONObject();
+                modelInfo.put("provider", model.getProvider());
+                modelInfo.put("modelType", model.getModelType());
+                modelInfo.put("modelName", model.getModelName());
+                appMetadataJson.put("modelInfo", modelInfo);
+                app.setMetadata(appMetadataJson.toJSONString());
+            }
+        }
+        //update-end---author:chenrui ---date:202501XX  for：在initChat接口中返回模型供应商信息，避免前端多次调用模型查询接口------------
+        
         return Result.ok(app);
+    }
+
+    @Override
+    public SseEmitter receiveByRequestId(String requestId) {
+        AssertUtils.assertNotEmpty("请选择会话",requestId);
+        if(AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId) == null){
+            return null;
+        }
+        List<EventData> datas = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE_HISTORY_MSG, requestId);
+        if(null == datas){
+            return null;
+        }
+        SseEmitter emitter = createSSE(requestId);
+        // 120秒
+        final long timeoutMillis = 120_000L;
+        // 使用线程池提交任务
+        SSE_THREAD_POOL.submit(() -> {
+            int lastIndex = 0;
+            long lastActiveTime = System.currentTimeMillis();
+            try {
+                while (true) {
+                    if(lastIndex < datas.size()) {
+                        try {
+                            EventData eventData = datas.get(lastIndex++);
+                            String eventStr = JSONObject.toJSONString(eventData);
+                            log.debug("[AI应用]继续接收-接收LLM返回消息:{}", eventStr);
+                            emitter.send(SseEmitter.event().data(eventStr));
+                            // 有新消息，重置计时
+                            lastActiveTime = System.currentTimeMillis();
+                        } catch (IOException e) {
+                            log.error("[AI应用]继续接收-发送消息失败");
+                        }
+                    } else {
+                        // 没有新消息了
+                        if (AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId) == null) {
+                            // 主线程sse已经被移除,退出线程.
+                            log.info("[AI应用]继续接收-SSE消息推送完成: {}", requestId);
+                            break;
+                        } else if (System.currentTimeMillis() - lastActiveTime > timeoutMillis) {
+                            // 主线程未结束,等待超时,
+                            log.warn("[AI应用]继续接收-等待消息更新超时，释放线程: {}", requestId);
+                            break;
+                        } else {
+                            // 主线程未结束, 未超时, 休眠一会再查
+                            log.warn("[AI应用]继续接收-等待消息更新: {}", requestId);
+                            Thread.sleep(500);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("SSE消息推送异常", e);
+            } finally {
+                try {
+                    // 发送完成事件
+                    emitter.send(SseEmitter.event().data(new EventData(requestId, null, EventData.EVENT_MESSAGE_END)));
+                } catch (Exception e) {
+                    log.error("终止会话时发生错误", e);
+                    try {
+                        // 防止异常冒泡
+                        emitter.completeWithError(e);
+                    } catch (Exception ignore) {}
+                } finally {
+                    // 关闭emitter
+                    try {
+                        emitter.complete();
+                    } catch (Exception ignore) {}
+                }
+            }
+        });
+        return emitter;
+    }
+
+    /**
+     * 创建SSE
+     * @param requestId
+     * @return
+     * @author chenrui
+     * @date 2025/8/12 15:30
+     */
+    private static SseEmitter createSSE(String requestId) {
+        SseEmitter emitter = new SseEmitter(-0L);
+        emitter.onError(throwable -> {
+            log.warn("SEE向客户端发送消息失败: {}", throwable.getMessage());
+            AiragLocalCache.remove(AiragConsts.CACHE_TYPE_SSE, requestId);
+            AiragLocalCache.remove(AiragConsts.CACHE_TYPE_SSE_SEND_TIME, requestId);
+            try {
+                emitter.complete();
+            } catch (Exception ignore) {}
+        });
+        return emitter;
     }
 
     @Override
@@ -440,7 +632,30 @@ public class AiragChatServiceImpl implements IAiragChatService {
                         chatMessage = UserMessage.from(contents);
                         break;
                     case AiragConsts.MESSAGE_ROLE_AI:
-                        chatMessage = new AiMessage(history.getContent());
+                        // 重建AI消息，包括工具执行请求
+                        if (oConvertUtils.isObjectNotEmpty(history.getToolExecutionRequests())) {
+                            // 有工具执行请求，重建带工具调用的AiMessage
+                            List<ToolExecutionRequest> toolRequests = history.getToolExecutionRequests().stream()
+                                    .map(toolReq -> ToolExecutionRequest.builder()
+                                            .id(toolReq.getId())
+                                            .name(toolReq.getName())
+                                            .arguments(toolReq.getArguments())
+                                            .build())
+                                    .collect(Collectors.toList());
+                            chatMessage = AiMessage.from(history.getContent(), toolRequests);
+                        } else {
+                            chatMessage = new AiMessage(history.getContent());
+                        }
+                        break;
+                    case AiragConsts.MESSAGE_ROLE_TOOL:
+                        // 重建工具执行结果消息
+                        // 需要重建ToolExecutionRequest，第一个参数是request对象，第二个参数是result字符串
+                        ToolExecutionRequest recreatedRequest = ToolExecutionRequest.builder()
+                                .id(history.getContent()) // content字段存储的是工具执行的id
+                                .name("unknown") // 工具名称在重建时不重要，因为主要用于AI理解结果
+                                .arguments("{}")
+                                .build();
+                        chatMessage = ToolExecutionResultMessage.from(recreatedRequest, history.getToolExecutionResult());
                         break;
                 }
                 if (null == chatMessage) {
@@ -498,7 +713,26 @@ public class AiragChatServiceImpl implements IAiragChatService {
             historyMessage.setImages(images);
         } else if (message.type().equals(ChatMessageType.AI)) {
             historyMessage.setRole(AiragConsts.MESSAGE_ROLE_AI);
-            historyMessage.setContent(((AiMessage) message).text());
+            AiMessage aiMessage = (AiMessage) message;
+            historyMessage.setContent(aiMessage.text());
+            // 处理工具执行请求
+            if (oConvertUtils.isObjectNotEmpty(aiMessage.toolExecutionRequests())) {
+                List<MessageHistory.ToolExecutionRequestHistory> toolRequests = new ArrayList<>();
+                for (ToolExecutionRequest request : aiMessage.toolExecutionRequests()) {
+                    toolRequests.add(MessageHistory.ToolExecutionRequestHistory.from(
+                            request.id(),
+                            request.name(),
+                            request.arguments()
+                    ));
+                }
+                historyMessage.setToolExecutionRequests(toolRequests);
+            }
+        } else if (message.type().equals(ChatMessageType.TOOL_EXECUTION_RESULT)) {
+            // 工具执行结果消息
+            historyMessage.setRole(AiragConsts.MESSAGE_ROLE_TOOL);
+            ToolExecutionResultMessage toolMessage = (ToolExecutionResultMessage) message;
+            historyMessage.setContent(toolMessage.id());
+            historyMessage.setToolExecutionResult(toolMessage.text());
         }
         histories.add(historyMessage);
         chatConversation.setMessages(histories);
@@ -522,22 +756,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
         AiragApp aiApp = chatConversation.getApp();
         // 每次会话都生成一个新的,用来缓存emitter
         String requestId = UUIDGenerator.generate();
-        SseEmitter emitter = new SseEmitter(-0L);
-        emitter.onError(throwable -> {
-            log.warn("SEE向客户端发送消息失败: {}", throwable.getMessage());
-            AiragLocalCache.remove(AiragConsts.CACHE_TYPE_SSE, requestId);
-            try {
-                emitter.complete();
-            } catch (Exception ignore) {}
-        });
-        EventData eventRequestId = new EventData(requestId, null, EventData.EVENT_INIT_REQUEST_ID, chatConversation.getId(), topicId);
-        eventRequestId.setData(EventMessageData.builder().message("").build());
-        sendMessage2Client(emitter, eventRequestId);
+        SseEmitter emitter = createSSE(requestId);
         // 缓存emitter
         AiragLocalCache.put(AiragConsts.CACHE_TYPE_SSE, requestId, emitter);
         // 缓存开始发送时间
         log.info("[AI-CHAT]开始发送消息,requestId:{}", requestId);
         AiragLocalCache.put(AiragConsts.CACHE_TYPE_SSE_SEND_TIME, requestId, System.currentTimeMillis());
+        // 初始化历史消息缓存
+        AiragLocalCache.put(AiragConsts.CACHE_TYPE_SSE_HISTORY_MSG, requestId, new CopyOnWriteArrayList<>());
         try {
             // 组装用户消息
             UserMessage userMessage = aiChatHandler.buildUserMessage(sendParams.getContent(), sendParams.getImages());
@@ -555,12 +781,20 @@ public class AiragChatServiceImpl implements IAiragChatService {
                     sendWithFlow(requestId, aiApp.getFlowId(), chatConversation, topicId, messages, sendParams);
                 } else {
                     // AI应用-聊天助手(ChatAssistant):从应用信息组装模型和提示词
-                    sendWithAppChat(requestId, messages, chatConversation, topicId);
+                    sendWithAppChat(requestId, messages, chatConversation, topicId, sendParams);
                 }
             } else {
                 // 发消息
-                sendWithDefault(requestId, chatConversation, topicId, null, messages, null);
+                AIChatParams aiChatParams = new AIChatParams();
+                if (oConvertUtils.isObjectNotEmpty(sendParams.getEnableSearch())) {
+                    aiChatParams.setEnableSearch(sendParams.getEnableSearch());
+                }
+                sendWithDefault(requestId, chatConversation, topicId, null, messages, aiChatParams);
             }
+            // 发送就绪消息
+            EventData eventRequestId = new EventData(requestId, null, EventData.EVENT_INIT_REQUEST_ID, chatConversation.getId(), topicId);
+            eventRequestId.setData(EventMessageData.builder().message("").build());
+            sendMessage2Client(emitter, eventRequestId);
         } catch (Throwable e) {
             log.error(e.getMessage(), e);
             EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR, chatConversation.getId(), topicId);
@@ -601,6 +835,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
         flowInputParams.put(FlowConsts.FLOW_INPUT_PARAM_HISTORY, histories);
         flowInputParams.put(FlowConsts.FLOW_INPUT_PARAM_QUESTION, sendParams.getContent());
         flowInputParams.put(FlowConsts.FLOW_INPUT_PARAM_IMAGES, sendParams.getImages());
+        
+        //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        // 添加工作流的额外参数（从conversation的flowInputs中读取）
+        if (oConvertUtils.isObjectNotEmpty(chatConversation.getFlowInputs())) {
+            flowInputParams.putAll(chatConversation.getFlowInputs());
+        }
+        //update-end---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+        
         flowRunParams.setInputParams(flowInputParams);
         HttpServletRequest httpRequest = SpringContextUtils.getHttpServletRequest();
         flowRunParams.setHttpRequest(httpRequest);
@@ -665,11 +907,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @param messages
      * @param chatConversation
      * @param topicId
+     * @param sendParams
      * @return
      * @author chenrui
      * @date 2025/2/28 10:41
      */
-    private void sendWithAppChat(String requestId, List<ChatMessage> messages, ChatConversation chatConversation, String topicId) {
+    private void sendWithAppChat(String requestId, List<ChatMessage> messages, ChatConversation chatConversation, String topicId, ChatSendParams sendParams) {
         AiragApp aiApp = chatConversation.getApp();
         String modelId = aiApp.getModelId();
         AssertUtils.assertNotEmpty("请先选择模型", modelId);
@@ -702,6 +945,31 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 }
             }
         }
+
+        // AI应用插件（支持MCP和自定义插件）
+        String plugins = aiApp.getPlugins();
+        if (oConvertUtils.isNotEmpty(plugins)) {
+            List<String> pluginIds = new ArrayList<>();
+            JSONArray pluginArray = JSONArray.parseArray(plugins);
+            pluginArray.stream().filter(Objects::nonNull)
+                    .map(o -> JSONObject.parseObject(o.toString(), LlmPlugin.class))
+                    .forEach(plugin -> {
+                        // 支持MCP和插件类型
+                        if (plugin.getCategory().equals(AiragConsts.PLUGIN_CATEGORY_MCP) 
+                                || plugin.getCategory().equals(AiragConsts.PLUGIN_CATEGORY_PLUGIN)) {
+                            pluginIds.add(plugin.getPluginId());
+                        }
+                    });
+            if (oConvertUtils.isNotEmpty(pluginIds)) {
+                aiChatParams.setPluginIds(pluginIds);
+            }
+        }
+
+        // 设置网络搜索参数（如果前端传递了）
+        if (sendParams != null && oConvertUtils.isObjectNotEmpty(sendParams.getEnableSearch())) {
+            aiChatParams.setEnableSearch(sendParams.getEnableSearch());
+        }
+
         // 打印流程耗时日志
         printChatDuration(requestId, "构造应用自定义参数完成");
         // 发消息
@@ -725,8 +993,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (null == aiChatParams) {
             aiChatParams = new AIChatParams();
         }
+        // 如果是默认app,加载系统默认工具
+        if(chatConversation.getApp().getId().equals(AiAppConsts.DEFAULT_APP_ID)){
+            aiChatParams.setTools(jeecgToolsProvider.getDefaultTools());
+        }
         aiChatParams.setKnowIds(chatConversation.getApp().getKnowIds());
         aiChatParams.setMaxMsgNumber(oConvertUtils.getInt(chatConversation.getApp().getMsgNum(), 5));
+        aiChatParams.setCurrentHttpRequest(SpringContextUtils.getHttpServletRequest());
+        aiChatParams.setReturnThinking(true);
         HttpServletRequest httpRequest = SpringContextUtils.getHttpServletRequest();
         TokenStream chatStream;
         try {
@@ -739,6 +1013,19 @@ public class AiragChatServiceImpl implements IAiragChatService {
             }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
+            // sse
+            SseEmitter emitter = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId);
+            if (null == emitter) {
+                log.warn("[AI应用]接收LLM返回会话已关闭{}", requestId);
+                return;
+            }
+            String errMsg = "调用大模型接口失败，详情请查看后台日志。";
+            if(e instanceof JeecgBootException){
+                errMsg = e.getMessage();
+            }
+            EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR, chatConversation.getId(), topicId);
+            eventData.setData(EventFlowData.builder().success(false).message(errMsg).build());
+            closeSSE(emitter, eventData);
             throw new JeecgBootBizTipException("调用大模型接口失败:" + e.getMessage());
         }
         /**
@@ -746,21 +1033,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
          */
         AtomicBoolean isThinking = new AtomicBoolean(false);
         // ai聊天响应逻辑
-        chatStream.onNext((String resMessage) -> {
-            // 兼容推理模型
-            if ("<think>".equals(resMessage)) {
-                isThinking.set(true);
-                resMessage = "> ";
-            }
-            if ("</think>".equals(resMessage)) {
+        chatStream.onPartialResponse((String resMessage) -> {
+            //update-begin---author:wangshuai---date:2025-11-07---for:[issues/8506]/[issues/8260]/[issues/8166]新增推理模型的支持---
+            if(isThinking.get()){
+                //思考过程结束
+                this.sendThinkEnd(requestId, chatConversation, topicId);
                 isThinking.set(false);
-                resMessage = "\n\n";
             }
-            if (isThinking.get()) {
-                if (null != resMessage && resMessage.contains("\n")) {
-                    resMessage = "\n> ";
-                }
-            }
+            //update-end---author:wangshuai---date:2025-11-07---for:[issues/8506]/[issues/8260]/[issues/8166]新增推理模型的支持---
             EventData eventData = new EventData(requestId, null, EventData.EVENT_MESSAGE, chatConversation.getId(), topicId);
             EventMessageData messageEventData = EventMessageData.builder().message(resMessage).build();
             eventData.setData(messageEventData);
@@ -772,12 +1052,54 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 return;
             }
             sendMessage2Client(emitter, eventData);
-        }).onComplete((responseMessage) -> {
+        }).onToolExecuted((toolExecution) -> {
+            // 打印工具执行结果
+            log.debug("[AI应用]工具执行结果: toolName={}, toolId={}, result={}",
+                    toolExecution.request().name(), 
+                    toolExecution.request().id(), 
+                    toolExecution.result());
+            // 将工具执行结果存储到消息历史中
+            ToolExecutionResultMessage toolResultMessage = ToolExecutionResultMessage.from(
+                    toolExecution.request(),
+                    toolExecution.result()
+            );
+            appendMessage(messages, toolResultMessage, chatConversation, topicId);
+        }).onIntermediateResponse((chatResponse) -> {
+            // 中间响应：包含tool_calls的AI消息
+            AiMessage aiMessage = chatResponse.aiMessage();
+            if (aiMessage != null && oConvertUtils.isObjectNotEmpty(aiMessage.toolExecutionRequests())) {
+                // 保存包含工具调用请求的AI消息
+                log.debug("[AI应用]保存包含工具调用的AI消息: toolCallsCount={}", aiMessage.toolExecutionRequests().size());
+                appendMessage(messages, aiMessage, chatConversation, topicId);
+            }
+        }).onPartialThinking((partialThinking) -> {
+            try {
+                if (oConvertUtils.isEmpty(partialThinking)) {
+                    return;
+                }
+                isThinking.set(true);
+                String text = partialThinking.text();
+                // 构造事件数据（EVENT_THINKING 以便前端统一处理）
+                EventData thinkingEvent = new EventData(requestId, null, EventData.EVENT_THINKING, chatConversation.getId(), topicId);
+                thinkingEvent.setData(EventMessageData.builder().message(text).build());
+                thinkingEvent.setRequestId(requestId);
+                // 获取当前缓存的 emitter
+                SseEmitter emitter = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId);
+                if (null == emitter) {
+                    log.warn("[AI应用]思考过程发送失败，SSE 已关闭: {}", requestId);
+                    return;
+                }
+                // 发送给客户端并缓存历史
+                sendMessage2Client(emitter, thinkingEvent);
+            } catch (Exception e) {
+                log.error("发送思考过程异常", e);
+            }
+        }).onCompleteResponse((responseMessage) -> {
             // 打印流程耗时日志
             printChatDuration(requestId, "LLM输出消息完成");
             AiragLocalCache.remove(AiragConsts.CACHE_TYPE_SSE_SEND_TIME, requestId);
             // 记录ai的回复
-            AiMessage aiMessage = responseMessage.content();
+            AiMessage aiMessage = responseMessage.aiMessage();
             FinishReason finishReason = responseMessage.finishReason();
             String respText = aiMessage.text();
             // sse
@@ -793,9 +1115,6 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 // 保存会话
                 saveChatConversation(chatConversation, false, httpRequest);
                 closeSSE(emitter, eventData);
-            } else if (FinishReason.TOOL_EXECUTION.equals(finishReason)) {
-                // 需要执行工具
-                // TODO author: chenrui for: date:2025/3/7
             } else if (FinishReason.LENGTH.equals(finishReason)) {
                 // 上下文长度超过限制
                 log.error("调用模型异常:上下文长度超过限制:{}", responseMessage.tokenUsage());
@@ -808,7 +1127,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 // 异常结束
                 log.error("调用模型异常:" + respText);
                 if (respText.contains("insufficient Balance")) {
-                    respText = "大预言模型账号余额不足!";
+                    respText = "大语言模型账号余额不足!";
                 }
                 EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR, chatConversation.getId(), topicId);
                 eventData.setData(EventFlowData.builder().success(false).message(respText).build());
@@ -837,11 +1156,39 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 //update-end---author:chenrui ---date:20250425  for：[QQYUN-12203]AI 聊天，超时或者服务器报错，给个友好提示------------
             } else {
                 errMsg = "调用大模型接口失败，详情请查看后台日志。";
+                // 根据常见异常关键字做细致翻译
+                for (Map.Entry<String, String> entry : AIChatHandler.MODEL_ERROR_MAP.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    if (error.getMessage().contains(key)) {
+                        errMsg = value;
+                    }
+                }
                 EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR, chatConversation.getId(), topicId);
                 eventData.setData(EventFlowData.builder().success(false).message(errMsg).build());
                 closeSSE(emitter, eventData);
             }
         }).start();
+    }
+
+    /**
+     * 发送思考过程结束
+     * 
+     * @param requestId
+     * @param chatConversation
+     * @param topicId
+     */
+    private void sendThinkEnd(String requestId, ChatConversation chatConversation, String topicId) {
+        EventData eventData = new EventData(requestId, null, EventData.EVENT_THINKING_END, chatConversation.getId(), topicId);
+        EventMessageData messageEventData = EventMessageData.builder().message("").build();
+        eventData.setData(messageEventData);
+        eventData.setRequestId(requestId);
+        SseEmitter emitter = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId);
+        if (null == emitter) {
+            log.warn("[AI应用]接收LLM返回会话已关闭");
+            return;
+        }
+        sendMessage2Client(emitter, eventData);
     }
 
     /**
@@ -858,6 +1205,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
             String eventStr = JSONObject.toJSONString(eventData);
             log.debug("[AI应用]接收LLM返回消息:{}", eventStr);
             emitter.send(SseEmitter.event().data(eventStr));
+            List<EventData> historyMsg = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE_HISTORY_MSG, eventData.getRequestId());
+            if (null == historyMsg) {
+                historyMsg = new CopyOnWriteArrayList<>();
+                AiragLocalCache.put(AiragConsts.CACHE_TYPE_SSE_HISTORY_MSG, eventData.getRequestId(), historyMsg);
+            }
+            historyMsg.add(eventData);
         } catch (IOException e) {
             log.error("发送消息失败", e);
         }

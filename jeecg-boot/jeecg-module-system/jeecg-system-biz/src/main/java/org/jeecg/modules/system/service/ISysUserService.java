@@ -11,6 +11,7 @@ import org.jeecg.common.system.vo.LoginUser;
 import org.jeecg.common.system.vo.SysUserCacheInfo;
 import org.jeecg.modules.system.entity.SysRoleIndex;
 import org.jeecg.modules.system.entity.SysUser;
+import org.jeecg.modules.system.model.SysUserSysDepPostModel;
 import org.jeecg.modules.system.model.SysUserSysDepartModel;
 import org.jeecg.modules.system.vo.SysUserExportVo;
 import org.jeecg.modules.system.vo.lowapp.DepartAndUserInfo;
@@ -18,8 +19,7 @@ import org.jeecg.modules.system.vo.lowapp.UpdateDepartInfo;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.ModelAndView;
 
-import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -158,9 +158,7 @@ public interface ISysUserService extends IService<SysUser> {
      * @param queryWrapper
      * @return
      */
-    //update-begin-author:taoyan date:2022-9-13 for: VUEN-2245【漏洞】发现新漏洞待处理20220906 ----sql注入 方法没有使用，注掉
     // public IPage<SysUser> getUserByDepartIdAndQueryWrapper(Page<SysUser> page, String departId, QueryWrapper<SysUser> queryWrapper);
-	//update-end-author:taoyan date:2022-9-13 for: VUEN-2245【漏洞】发现新漏洞待处理20220906 ----sql注入 方法没有使用，注掉
 
 	/**
 	 * 根据 orgCode 查询用户，包括子部门下的用户
@@ -176,10 +174,11 @@ public interface ISysUserService extends IService<SysUser> {
 	 * 根据角色Id查询
 	 * @param page
      * @param roleId 角色id
-     * @param username 用户账户名称
+     * @param username 用户账户
+     * @param realname 用户姓名
 	 * @return
 	 */
-	public IPage<SysUser> getUserByRoleId(Page<SysUser> page,String roleId, String username);
+	public IPage<SysUser> getUserByRoleId(Page<SysUser> page,String roleId, String username, String realname);
 
 	/**
 	 * 通过用户名获取用户角色集合
@@ -299,13 +298,15 @@ public interface ISysUserService extends IService<SysUser> {
 	List<SysUser> queryByDepIds(List<String> departIds, String username);
 
 	/**
-	 * 保存用户
-	 * @param user 用户
-	 * @param selectedRoles 选择的角色id，多个以逗号隔开
-	 * @param selectedDeparts 选择的部门id，多个以逗号隔开
-	 * @param relTenantIds 多个租户id
-	 */
-	void saveUser(SysUser user, String selectedRoles, String selectedDeparts, String relTenantIds);
+     * 保存用户
+     *
+     * @param user            用户
+     * @param selectedRoles   选择的角色id，多个以逗号隔开
+     * @param selectedDeparts 选择的部门id，多个以逗号隔开
+     * @param relTenantIds    多个租户id
+     * @param izSyncPack 是否需要同步租户套餐包
+     */
+	void saveUser(SysUser user, String selectedRoles, String selectedDeparts, String relTenantIds, boolean izSyncPack);
 
 	/**
 	 * 编辑用户
@@ -482,4 +483,59 @@ public interface ISysUserService extends IService<SysUser> {
      * @param username
      */
     void updatePasswordNotBindPhone(String oldPassword, String password, String username);
+
+	/**
+	 * 根据用户名称查询用户和部门信息
+	 * @param userName
+	 * @return
+	 */
+	Map<String, String> queryUserAndDeptByName(String userName);
+
+    /**
+     * 查询部门、岗位下的用户 包括子部门下的用户
+     * 
+     * @param orgCode
+     * @param userParams
+     * @param page
+     * @return
+     */
+    IPage<SysUserSysDepPostModel> queryDepartPostUserByOrgCode(String orgCode, SysUser userParams, IPage page);
+
+    /**
+     * 根据 orgCode 查询用户信息（部门全路径，主岗位和兼职岗位的信息），包括公司、子公司、部门
+     *
+     * @param orgCode
+     * @param userParams
+     * @param page
+     * @return
+     */
+    IPage<SysUserSysDepPostModel> queryDepartUserByOrgCode(String orgCode, SysUser userParams, IPage page);
+
+    /**
+     * 通讯录点击用户获取用户详情（包含用户基本信息、部门全路径、主岗位兼职岗位全路径）
+     *
+     * @param userId
+     * @return
+     */
+    SysUserSysDepPostModel getUserDetailByUserId(String userId);
+
+	/**
+	 * 登录获取用户部门信息
+	 * @param jsonObject
+	 * @return
+	 */
+    Result loginGetUserDeparts(JSONObject jsonObject);
+
+	/**
+	 * 根据用户名查询重置成系统密码
+	 * @param usernames
+	 */
+	void resetToSysPassword(String usernames);
+
+	/**
+	 * 更新用户设备ID
+	 * @param clientId
+	 * @param userId
+	 */
+    void updateClientId(String clientId,String userId);
 }

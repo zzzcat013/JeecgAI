@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>jeecg-visual</artifactId>
-        <groupId>org.jeecgframework.boot</groupId>
-        <version>3.8.2</version>
+        <groupId>org.jeecgframework.boot3</groupId>
+        <version>3.9.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>jeecg-cloud-monitor</artifactId>
@@ -19,11 +19,17 @@
         <dependency>
             <groupId>de.codecentric</groupId>
             <artifactId>spring-boot-admin-starter-server</artifactId>
-            <version>2.3.1</version>
+            <version>3.5.2</version>
         </dependency>
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-properties-migrator</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!--安全模块-->

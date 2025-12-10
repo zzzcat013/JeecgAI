@@ -3,8 +3,10 @@ package org.jeecg.common.system.api.fallback;
 import com.alibaba.fastjson.JSONObject;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.common.api.dto.AiragFlowDTO;
 import org.jeecg.common.api.dto.DataLogDTO;
 import org.jeecg.common.api.dto.OnlineAuthDTO;
+import org.jeecg.common.api.dto.PushMessageDTO;
 import org.jeecg.common.api.dto.message.*;
 import org.jeecg.common.constant.enums.DySmsEnum;
 import org.jeecg.common.constant.enums.EmailTemplateEnum;
@@ -311,12 +313,11 @@ public class SysBaseAPIFallback implements ISysBaseAPI {
         return null;
     }
 
-    //update-begin---author:chenrui ---date:20231221  for：[issues/#5643]解决分布式下表字典跨库无法查询问题------------
+    // 代码逻辑说明: [issues/#5643]解决分布式下表字典跨库无法查询问题------------
     @Override
     public List<DictModel> translateDictFromTableByKeys(String table, String text, String code, String keys, String dataSource) {
         return null;
     }
-    //update-end---author:chenrui ---date:20231221  for：[issues/#5643]解决分布式下表字典跨库无法查询问题------------
 
     @Override
     public void sendTemplateMessage(MessageDTO message) {
@@ -441,12 +442,27 @@ public class SysBaseAPIFallback implements ISysBaseAPI {
     }
 
     @Override
+    public List<String> queryUserIdsByDeptPostIds(List<String> deptPostIds) {
+        return List.of();
+    }
+
+    @Override
     public List<String> queryUserAccountsByDeptIds(List<String> deptIds) {
         return null;
     }
 
     @Override
     public List<String> queryUserIdsByRoleds(List<String> roleCodes) {
+        return null;
+    }
+
+    @Override
+    public List<String> queryUsernameByIds(List<String> userIds) {
+        return List.of();
+    }
+
+    @Override
+    public List<String> queryUsernameByDepartPositIds(List<String> positionIds) {
         return null;
     }
 
@@ -475,4 +491,33 @@ public class SysBaseAPIFallback implements ISysBaseAPI {
 
     }
 
+    @Override
+    public SysDepartModel queryCompByOrgCode(String orgCode) {
+        return null;
+    }
+
+    @Override
+    public SysDepartModel queryCompByOrgCodeAndLevel(String orgCode, Integer level) {
+        return null;
+    }
+
+    @Override
+    public Object runAiragFlow(AiragFlowDTO airagFlowDTO) {
+        return null;
+    }
+
+    @Override
+    public void uniPushMsgToUser(PushMessageDTO pushMessageDTO) {
+
+    }
+
+    @Override
+    public String getDepartPathNameByOrgCode(String orgCode, String depId) {
+        return "";
+    }
+
+    @Override
+    public List<String> queryUserIdsByCascadeDeptIds(List<String> deptIds) {
+        return null;
+    }
 }

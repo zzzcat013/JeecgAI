@@ -10,7 +10,7 @@ import org.jeecg.modules.openapi.entity.OpenApiLog;
 import org.jeecg.modules.openapi.service.OpenApiLogService;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 
 /**

@@ -1,12 +1,7 @@
 server:
   port: 8080
-  undertow:
-    decode-url: true # 启用URL解码
-    # max-http-post-size: 10MB # 平替 tomcat server.tomcat.max-swallow-siz， undertow该值默认为-1
-    worker-threads: 16  # 4核CPU标准配置
-    buffers:
-      websocket: 8192 # WebSocket缓冲 以字节为单位，这里设置为8 KB
-      io: 16384 # IO操作缓冲 以字节为单位，这里设置为16 KB
+  tomcat:
+    max-swallow-size: -1
   error:
     include-exception: true
     include-stacktrace: ALWAYS
@@ -22,7 +17,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: metrics,jeecghttptrace
+        include: metrics,httpexchanges,jeecghttptrace
 
 spring:
 #  main:
@@ -30,7 +25,9 @@ spring:
 #    lazy-initialization: true
   flyway:
     # 是否启用flyway
-    enabled: true
+    enabled: false
+    # 迁移sql脚本存放路径
+    locations: classpath:flyway/sql/mysql
     # 是否关闭要清除已有库下的表功能,生产环境必须为true,否则会删库，非常重要！！！
     clean-disabled: true
   servlet:
@@ -112,7 +109,7 @@ spring:
     static-locations: classpath:/static/,classpath:/public/
   autoconfigure:
     exclude:
-      - com.alibaba.druid.spring.boot.autoconfigure.DruidDataSourceAutoConfigure
+      - com.alibaba.druid.spring.boot3.autoconfigure.DruidDataSourceAutoConfigure
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   datasource:
     druid:
@@ -144,7 +141,7 @@ spring:
         poolPreparedStatements: true
         maxPoolPreparedStatementPerConnectionSize: 20
         # 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
-        filters: stat,wall,slf4j
+        filters: stat,slf4j
         # 允许SELECT语句的WHERE子句是一个永真条件
         wall:
           selectWhereAlwayTrueCheck: false
@@ -155,7 +152,7 @@ spring:
       datasource:
         master:
           #          url: jdbc:mysql://10.52.101.152:3366/ip363?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-          url: jdbc:mysql://218.26.173.130:3366/ai381?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+          url: jdbc:mysql://218.26.173.130:3366/jeecgai?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           # url: jdbc:mysql://218.26.173.130:3366/kpi?characterEncoding=UTF-8&useUnicode=true&useSSL=false&tinyInt1isBit=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           username: root
           password: Qaz_1234
@@ -175,6 +172,7 @@ spring:
     host: 218.26.173.130
     port: 3360
     password: '71b5ae132d028b15871b1f71b2dc5b63032502142e658b47d4365e81aa520c5d'
+
 #mybatis plus 设置
 mybatis-plus:
   mapper-locations: classpath*:org/jeecg/**/xml/*Mapper.xml
@@ -187,8 +185,8 @@ mybatis-plus:
       # 默认数据库表下划线命名
       table-underline: true
   configuration:
-#    # 这个配置会将执行的sql打印出来，在开发或测试的时候可以用
-#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 这个配置会将执行的sql打印出来，在开发或测试的时候可以用
+    #log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     # 返回类型为Map,显示null对应的字段
     call-setters-on-nulls: true
 #jeecg专用配置
@@ -211,12 +209,17 @@ jeecg:
       user: postgres
       password: postgres
       table: embeddings
+  #  Unipush配置 云函数调用 URL 化地址
+  unicloud:
+    pushUrl:
   # 平台上线安全配置
   firewall:
     # 数据源安全 (开启后，Online报表和图表的数据源为必填)
     dataSourceSafe: false
     # 低代码模式（dev:开发模式，prod:发布模式——关闭所有在线开发配置能力）
     lowCodeMode: dev
+    # 是否允许同一账号多地同时登录 （为 true 时允许一起登录, 为 false 时新登录挤掉旧登录）
+    is-concurrent: true
   # 签名密钥串(前后端要一致，正式发布请自行修改)
   signatureSecret: dd05f1c54d63749eda95f9fa6d49v442a
   #签名拦截接口
@@ -234,6 +237,8 @@ jeecg:
     webapp: /opt/webapp
   shiro:
     excludeUrls: /test/jeecgDemo/demo3,/test/jeecgDemo/redisDemo/**,/bigscreen/category/**,/bigscreen/visual/**,/bigscreen/map/**,/jmreport/bigscreen2/**
+  # 短信发送方式 aliyun阿里云短信 tencent腾讯云短信
+  smsSendType: aliyun
   #阿里云oss存储和大鱼短信秘钥配置
   oss:
     accessKey: ??
@@ -252,6 +257,16 @@ jeecg:
         SMS_465391221:
         # 注册账号短信模板编码
         SMS_175430166:
+  #腾讯短信秘钥配置
+  tencent:
+    # 接入域名
+    endpoint: sms.tencentcloudapi.com
+    secretId: ??
+    secretKey: ??
+    # 应用ID
+    sdkAppId: ??
+    # 地域信息
+    region: ap-beijing
   # 在线预览文件服务器地址配置
   file-view-domain: http://fileview.jeecg.com
   # minio文件上传
@@ -304,6 +319,7 @@ cas:
 #Mybatis输出sql日志
 logging:
   level:
+    org.springframework.context.support.PostProcessorRegistrationDelegate: error
     org.flywaydb: debug
     org.jeecg.modules.system.mapper: info
     org.jeecg.modules.demo.test.mapper: info

@@ -29,7 +29,7 @@
   </div>
 </template>
 <script lang="ts" name="system-notice" setup>
-  import { ref } from 'vue';
+  import { ref, onMounted } from 'vue';
   import { BasicTable, TableAction } from '/@/components/Table';
   import { useModal } from '/@/components/Modal';
   import NoticeModal from './NoticeModal.vue';
@@ -40,6 +40,9 @@
   import { columns, searchFormSchema } from './notice.data';
   import { getList, deleteNotice, batchDeleteNotice,editIzTop, getExportUrl, getImportUrl, doReleaseData, doReovkeData } from './notice.api';
   import { useListPage } from '/@/hooks/system/useListPage';
+  import { useAppStore } from '/@/store/modules/app';
+
+  const appStore = useAppStore();
   const glob = useGlobSetting();
   const [registerModal, { openModal }] = useModal();
   const [register, { openModal: openDetail }] = useModal();
@@ -54,7 +57,8 @@
       columns: columns,
       formConfig: {
         schemas: searchFormSchema,
-      },
+        fieldMapToTime: [['sendTime', ['sendTime_begin', 'sendTime_end'], 'YYYY-MM-DD']]
+      }
     },
     exportConfig: {
       name: '消息通知列表',
@@ -71,9 +75,10 @@
   /**
    * 新增事件
    */
-  function handleAdd() {
+  function handleAdd(record = {}) {
     openModal(true, {
       isUpdate: false,
+      record,
     });
   }
 
@@ -192,4 +197,14 @@
       },
     ];
   }
+
+  onMounted(() => {
+    // 代码逻辑说明: 【JHHB-128】转公告
+    const params = appStore.getMessageHrefParams;
+    if (params?.add) {
+      delete params.add;
+      handleAdd(params);
+      appStore.setMessageHrefParams('');
+    }
+  });
 </script>

@@ -4,16 +4,14 @@
       <a-tabs v-model:activeKey="activeKey" @change="tabChange">
         <a-tab-pane key="1" tab="服务器信息"></a-tab-pane>
         <a-tab-pane key="2" tab="JVM信息" force-render></a-tab-pane>
-        <!-- <a-tab-pane key="3" tab="Tomcat信息"></a-tab-pane> -->
-        <a-tab-pane key="6" tab="Undertow信息"></a-tab-pane>
+         <a-tab-pane key="3" tab="Tomcat信息"></a-tab-pane> 
+<!--        <a-tab-pane key="6" tab="Undertow信息"></a-tab-pane>-->
         <a-tab-pane key="4" tab="磁盘监控">
           <DiskInfo v-if="activeKey == 4" style="height: 100%"></DiskInfo>
         </a-tab-pane>
         <a-tab-pane key="5" tab="内存信息" />
       </a-tabs>
-      <!--  update-begin---author:wangshuai ---date: 20230829 for：性能监控切换到磁盘监控再切回来报错列为空，不能用if判断------------>
       <BasicTable @register="registerTable" :searchInfo="searchInfo" :dataSource="dataSource" v-show="activeKey != 4">
-      <!--  update-end---author:wangshuai ---date: 20230829 for：性能监控切换到磁盘监控再切回来报错列为空，不能用if判断------------>
         <template #tableTitle>
           <div slot="message"
             >上次更新时间：{{ lastUpdateTime }}

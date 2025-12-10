@@ -1,5 +1,8 @@
 package org.jeecg.config.shiro;
 
+import jakarta.annotation.Resource;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.shiro.mgt.DefaultSessionStorageEvaluator;
@@ -8,6 +11,7 @@ import org.apache.shiro.mgt.SecurityManager;
 import org.apache.shiro.spring.LifecycleBeanPostProcessor;
 import org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor;
 import org.apache.shiro.spring.web.ShiroFilterFactoryBean;
+import org.apache.shiro.spring.web.ShiroUrlPathHelper;
 import org.apache.shiro.web.mgt.DefaultWebSecurityManager;
 import org.crazycake.shiro.*;
 import org.jeecg.common.constant.CommonConstant;
@@ -29,12 +33,10 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.filter.DelegatingFilterProxy;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisCluster;
 
-import javax.annotation.Resource;
-import javax.servlet.DispatcherType;
-import javax.servlet.Filter;
 import java.lang.reflect.Method;
 import java.util.*;
 
@@ -111,7 +113,7 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/sys/checkAuth", "anon"); //授权接口排除
         filterChainDefinitionMap.put("/openapi/call/**", "anon"); // 开放平台接口排除
 
-        //update-begin--Author:scott Date:20221116 for：排除静态资源后缀
+        // 代码逻辑说明: 排除静态资源后缀
         filterChainDefinitionMap.put("/", "anon");
         filterChainDefinitionMap.put("/doc.html", "anon");
         filterChainDefinitionMap.put("/**/*.js", "anon");
@@ -126,9 +128,9 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/**/*.ttf", "anon");
         filterChainDefinitionMap.put("/**/*.woff", "anon");
         filterChainDefinitionMap.put("/**/*.woff2", "anon");
+
         filterChainDefinitionMap.put("/**/*.glb", "anon");
         filterChainDefinitionMap.put("/**/*.wasm", "anon");
-        //update-end--Author:scott Date:20221116 for：排除静态资源后缀
 
         filterChainDefinitionMap.put("/druid/**", "anon");
         filterChainDefinitionMap.put("/swagger-ui.html", "anon");
@@ -136,9 +138,7 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/webjars/**", "anon");
         filterChainDefinitionMap.put("/v3/**", "anon");
 
-        // update-begin--Author:sunjianlei Date:20210510 for：排除消息通告查看详情页面（用于第三方APP）
         filterChainDefinitionMap.put("/sys/annountCement/show/**", "anon");
-        // update-end--Author:sunjianlei Date:20210510 for：排除消息通告查看详情页面（用于第三方APP）
 
         //积木报表排除
         filterChainDefinitionMap.put("/jmreport/**", "anon");
@@ -157,7 +157,7 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/drag/onlDragDatasetHead/getTotalDataByCompId", "anon");
         filterChainDefinitionMap.put("/drag/mock/json/**", "anon");
         filterChainDefinitionMap.put("/drag/onlDragDatasetHead/getDictByCodes", "anon");
-
+        filterChainDefinitionMap.put("/drag/onlDragDatasetHead/queryAllById", "anon");
         filterChainDefinitionMap.put("/jimubi/view", "anon");
         filterChainDefinitionMap.put("/jimubi/share/view/**", "anon");
 
@@ -177,7 +177,7 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/sys/version/app3version", "anon");
         //仪表盘（按钮通信）
         filterChainDefinitionMap.put("/dragChannelSocket/**","anon");
-        
+
         //性能监控——安全隐患泄露TOEKN（durid连接池也有）
         //filterChainDefinitionMap.put("/actuator/**", "anon");
         //测试模块排除
@@ -187,12 +187,11 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/error", "anon");
         // 企业微信证书排除
         filterChainDefinitionMap.put("/WW_verify*", "anon");
-
+        
         filterChainDefinitionMap.put("/openapi/call/**", "anon");
 
         filterChainDefinitionMap.put("/hello/**", "anon"); //测试接口排除
         filterChainDefinitionMap.put("/sys/hello/**", "anon"); //测试接口排除
-
 
         // 添加自己的过滤器并且取名为jwt
         Map<String, Filter> filterMap = new HashMap<String, Filter>(1);
@@ -210,7 +209,6 @@ public class ShiroConfig {
         return shiroFilterFactoryBean;
     }
 
-    //update-begin---author:chenrui ---date:20240126  for：【QQYUN-7932】AI助手------------
 
     /**
      * spring过滤装饰器 <br/>
@@ -226,20 +224,19 @@ public class ShiroConfig {
         FilterRegistrationBean registration = new FilterRegistrationBean();
         registration.setFilter(new DelegatingFilterProxy("shiroFilterFactoryBean"));
         registration.setEnabled(true);
-        //update-begin---author:chenrui ---date:20241202  for：[issues/7491]运行时间好长，效率慢 ------------
+        // 代码逻辑说明: [issues/7491]运行耗时长，效率慢 
         registration.addUrlPatterns("/test/ai/chat/send");
-        //update-end---author:chenrui ---date:20241202  for：[issues/7491]运行时间好长，效率慢 ------------
         registration.addUrlPatterns("/airag/flow/run");
         registration.addUrlPatterns("/airag/flow/debug");
         registration.addUrlPatterns("/airag/chat/send");
         registration.addUrlPatterns("/airag/app/debug");
         registration.addUrlPatterns("/airag/app/prompt/generate");
+        registration.addUrlPatterns("/airag/chat/receive/**");
         //支持异步
         registration.setAsyncSupported(true);
         registration.setDispatcherTypes(DispatcherType.REQUEST, DispatcherType.ASYNC);
         return registration;
     }
-    //update-end---author:chenrui ---date:20240126  for：【QQYUN-7932】AI助手------------
 
     @Bean("securityManager")
     public DefaultWebSecurityManager securityManager(ShiroRealm myRealm) {
@@ -360,12 +357,23 @@ public class ShiroConfig {
                 JedisCluster jedisCluster = new JedisCluster(portSet);
                 redisManager.setJedisCluster(jedisCluster);
             }
-            //update-end--Author:scott Date:20210531 for：修改集群模式下未设置redis密码的bug issues/I3QNIC
             manager = redisManager;
         }
         return manager;
     }
 
+    /**
+     * 解决 ShiroRequestMappingConfig 获取 requestMappingHandlerMapping Bean 冲突
+     * spring-boot-autoconfigure:3.4.5 和 spring-boot-actuator-autoconfigure:3.4.5
+     */
+    @Primary
+    @Bean
+    public RequestMappingHandlerMapping overridedRequestMappingHandlerMapping() {
+        RequestMappingHandlerMapping mapping = new RequestMappingHandlerMapping();
+        mapping.setUrlPathHelper(new ShiroUrlPathHelper());
+        return mapping;
+    }
+    
     private List<String> rebuildUrl(String[] bases, String[] uris) {
         List<String> urls = new ArrayList<>();
         for (String base : bases) {

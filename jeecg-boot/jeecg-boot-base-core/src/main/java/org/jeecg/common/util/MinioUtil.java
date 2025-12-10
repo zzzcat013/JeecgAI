@@ -55,13 +55,11 @@ public class MinioUtil {
      */
     public static String upload(MultipartFile file, String bizPath, String customBucket) throws Exception {
         String fileUrl = "";
-        //update-begin-author:wangshuai date:20201012 for: 过滤上传文件夹名特殊字符，防止攻击
+        // 业务路径过滤，防止攻击
         bizPath = StrAttackFilter.filter(bizPath);
-        //update-end-author:wangshuai date:20201012 for: 过滤上传文件夹名特殊字符，防止攻击
 
-        //update-begin-author:liusq date:20210809 for: 过滤上传文件类型
-        SsrfFileTypeFilter.checkUploadFileType(file);
-        //update-end-author:liusq date:20210809 for: 过滤上传文件类型
+        // 文件安全校验，防止上传漏洞文件
+        SsrfFileTypeFilter.checkUploadFileType(file, bizPath);
 
         String newBucket = bucketName;
         if(oConvertUtils.isNotEmpty(customBucket)){
@@ -163,11 +161,10 @@ public class MinioUtil {
     public static String getObjectUrl(String bucketName, String objectName, Integer expires) {
         initMinio(minioUrl, minioName,minioPass);
         try{
-            //update-begin---author:liusq  Date:20220121  for：获取文件外链报错提示method不能为空，导致文件下载和预览失败----
+            // 代码逻辑说明: 获取文件外链报错提示method不能为空，导致文件下载和预览失败----
             GetPresignedObjectUrlArgs objectArgs = GetPresignedObjectUrlArgs.builder().object(objectName)
                     .bucket(bucketName)
                     .expiry(expires).method(Method.GET).build();
-            //update-begin---author:liusq  Date:20220121  for：获取文件外链报错提示method不能为空，导致文件下载和预览失败----
             String url = minioClient.getPresignedObjectUrl(objectArgs);
             return URLDecoder.decode(url,"UTF-8");
         }catch (Exception e){

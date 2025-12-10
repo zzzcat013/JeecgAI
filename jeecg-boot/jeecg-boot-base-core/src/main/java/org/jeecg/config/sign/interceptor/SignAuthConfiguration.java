@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 
 /**
  * 签名 拦截器配置
@@ -41,7 +41,7 @@ public class SignAuthConfiguration implements WebMvcConfigurer {
         registry.addInterceptor(signAuthInterceptor()).addPathPatterns(signUrlsArray);
     }
 
-    //update-begin-author:taoyan date:20220427 for: issues/I53J5E post请求X_SIGN签名拦截校验后报错, request body 为空
+    // 代码逻辑说明: issues/I53J5E post请求X_SIGN签名拦截校验后报错, request body 为空
     @Bean
     public RequestBodyReserveFilter requestBodyReserveFilter(){
         return new RequestBodyReserveFilter();
@@ -66,6 +66,5 @@ public class SignAuthConfiguration implements WebMvcConfigurer {
         registration.addUrlPatterns(signUrlsArray);
         return registration;
     }
-    //update-end-author:taoyan date:20220427 for: issues/I53J5E post请求X_SIGN签名拦截校验后报错, request body 为空
 
 }

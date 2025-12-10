@@ -1,5 +1,7 @@
 package org.jeecg.modules.airag.app.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.CommonConstant;
@@ -15,8 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
 
 /**
@@ -154,6 +154,20 @@ public class AiragChatController {
     @GetMapping(value = "/messages/clear/{conversationId}")
     public Result<?> clearMessage(@PathVariable(value = "conversationId") String conversationId) {
         return chatService.clearMessage(conversationId);
+    }
+
+    /**
+     * 继续接收消息
+     *
+     * @param requestId
+     * @return
+     * @author chenrui
+     * @date 2025/8/11 17:49
+     */
+    @IgnoreAuth
+    @GetMapping(value = "/receive/{requestId}")
+    public SseEmitter receiveByRequestId(@PathVariable(name = "requestId", required = true) String requestId) {
+        return chatService.receiveByRequestId(requestId);
     }
 
 

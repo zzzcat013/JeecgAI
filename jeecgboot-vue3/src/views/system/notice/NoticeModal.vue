@@ -52,6 +52,11 @@
         ...data.record,
       });
       record.value = data.record;
+    } else {
+      //表单赋值
+      await setFieldsValue({
+        ...data.record,
+      });
     }
   });
   //设置标题
@@ -62,13 +67,12 @@
       let values = await validate();
       setModalProps({ confirmLoading: true });
       //提交表单
-      //update-begin-author:liusq---date:20230404--for: [issue#429]新增通知公告提交指定用户参数有undefined ---
+      // 代码逻辑说明: [issue#429]新增通知公告提交指定用户参数有undefined ---
       if(values.msgType==='ALL'){
         values.userIds = '';
       }else{
         values.userIds += ',';
       }
-      //update-end-author:liusq---date:20230404--for: [issue#429]新增通知公告提交指定用户参数有undefined ---
       if (isUpdate.value && record.value.sendStatus != '2') {
         values.sendStatus = '0';
       }

@@ -91,6 +91,23 @@ public interface CommonConstant {
     public static String PREFIX_USER_SHIRO_CACHE  = "shiro:cache:org.jeecg.config.shiro.ShiroRealm.authorizationCache:";
     /** 登录用户Token令牌缓存KEY前缀 */
     String PREFIX_USER_TOKEN  = "prefix_user_token:";
+    /** 登录用户Token令牌作废提示信息，比如 “不允许同一账号多地同时登录，会往这个变量存提示信息” */
+    String PREFIX_USER_TOKEN_ERROR_MSG  = "prefix_user_token:error:msg_";
+
+    /**============================== 【是否允许同一账号多地同时登录】登录客户端类型常量 ==============================*/
+    /** 客户端类型：PC端 */
+    String CLIENT_TYPE_PC = "PC";
+    /** 客户端类型：APP端 */
+    String CLIENT_TYPE_APP = "APP";
+    /** 客户端类型：手机号登录 */
+    String CLIENT_TYPE_PHONE = "PHONE";
+    String PREFIX_USER_TOKEN_PC = "prefix_user_token:single_login:pc:";
+    /** 单点登录：用户在APP端的Token缓存KEY前缀 (username -> token) */
+    String PREFIX_USER_TOKEN_APP = "prefix_user_token:single_login:app:";
+    /** 单点登录：用户在手机号登录的Token缓存KEY前缀 (username -> token) */
+    String PREFIX_USER_TOKEN_PHONE = "prefix_user_token:single_login:phone:";
+    /**============================== 【是否允许同一账号多地同时登录】登录客户端类型常量 ==============================*/
+    
 //    /** Token缓存时间：3600秒即一小时 */
 //    int  TOKEN_EXPIRE_TIME  = 3600;
 
@@ -308,6 +325,10 @@ public interface CommonConstant {
      */
     String SYS_ROLE_ADMIN = "admin";
 
+    /**
+     * 考勤补卡业务状态 （0：处理中）
+     */
+    String SIGN_PATCH_BIZ_STATUS_0 = "0";
     /**
      * 考勤补卡业务状态 （1：同意  2：不同意）
      */
@@ -591,7 +612,6 @@ public interface CommonConstant {
     String ORDER_TYPE_DESC = "DESC";
 
 
-   //update-begin---author:scott ---date:2023-09-10  for：积木报表常量----
    /**
     * 报表允许设计开发的角色
     */
@@ -606,9 +626,7 @@ public interface CommonConstant {
     * 数据隔离模式： 按照租户隔离
     */
    public static final String SAAS_MODE_TENANT = "tenant";
-   //update-end---author:scott ---date::2023-09-10  for：积木报表常量----
  
-   //update-begin---author:wangshuai---date:2024-04-07---for:修改手机号常量---
    /**
     * 修改手机号短信验证码redis-key的前缀
     */
@@ -633,7 +651,6 @@ public interface CommonConstant {
     * 修改手机号
     */
    String UPDATE_PHONE = "updatePhone";
-   //update-end---author:wangshuai---date:2024-04-07---for:修改手机号常量---
     
    /**
     * 修改手机号验证码请求次数超出
@@ -642,11 +659,12 @@ public interface CommonConstant {
 
 
     /**
-     * 自定义首页关联关系(ROLE:表示角色 USER:表示用户)
+     * 自定义首页关联关系(ROLE:表示角色 USER:表示用户 DEFAULT:默认首页)
      *
      */
     String HOME_RELATION_ROLE = "ROLE";
     String HOME_RELATION_USER = "USER";
+    String HOME_RELATION_DEFAULT = "DEFAULT";
 
     /**
      * 是否置顶(0否 1是)
@@ -659,4 +677,68 @@ public interface CommonConstant {
     String FLOW_FOCUS_NOTICE_PREFIX = "flow:runtimeData:focus:notice:";
     //任务缓办时间缓存前缀
     String FLOW_TASK_DELAY_PREFIX = "flow:runtimeData:task:delay:";
+    /**
+     * 用户代理类型：离职：quit 代理：agent
+     */
+    String USER_AGENT_TYPE_QUIT = "quit";
+    String USER_AGENT_TYPE_AGENT = "agent";
+    /**
+     * 督办流程首节点任务taskKey
+     */
+    String SUPERVISE_FIRST_TASK_KEY = "Task_1bhxpt0";
+
+    /**
+     * wps模板预览数据缓存前缀
+     */
+    String EOA_WPS_TEMPLATE_VIEW_DATA ="eoa:wps:templateViewData:";
+
+    /**
+     * wps模板预览版本号缓存前缀
+     */
+    String EOA_WPS_TEMPLATE_VIEW_VERSION ="eoa:wps:templateViewVersion:";
+    /**
+     * 表单设计器oa新增字段
+     * x_oa_timeout_date:逾期时间
+     * x_oa_archive_status:归档状态
+     */
+    String X_OA_TIMEOUT_DATE ="x_oa_timeout_date";
+    String X_OA_ARCHIVE_STATUS ="x_oa_archive_status";
+    /**
+     * 流程状态
+     * 待提交: 1
+     * 处理中: 2
+     * 已完成: 3
+     * 已作废: 4
+     * 已挂起: 5
+     */
+    String BPM_STATUS_1 ="1";
+    String BPM_STATUS_2 ="2";
+    String BPM_STATUS_3 ="3";
+    String BPM_STATUS_4 ="4";
+    String BPM_STATUS_5 ="5";
+
+    /**
+     * 默认租户产品包
+     */
+    String TENANT_PACK_DEFAULT = "default";
+
+    /**
+     * 部门名称redisKey(全路径)
+     */
+    String DEPART_NAME_REDIS_KEY_PRE = "sys:cache:departPathName:";
+
+    /**
+     * 默认用户排序值
+     */
+    Integer DEFAULT_USER_SORT = 1000;
+
+    /**
+     * 发送短信方式：腾讯
+     */
+    String SMS_SEND_TYPE_TENCENT = "tencent";
+
+    /**
+     * 发送短信方式：阿里云
+     */
+    String SMS_SEND_TYPE_ALI_YUN = "aliyun";
 }

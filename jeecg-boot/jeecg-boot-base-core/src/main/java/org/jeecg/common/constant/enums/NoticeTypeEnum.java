@@ -14,7 +14,20 @@ public enum NoticeTypeEnum {
     NOTICE_TYPE_PLAN("日程消息","plan"),
     //暂时没用到
     NOTICE_TYPE_MEETING("会议消息","meeting"),
-    NOTICE_TYPE_SYSTEM("系统消息","system");
+    NOTICE_TYPE_SYSTEM("系统消息","system"),
+    /**
+     * 协同工作
+     * for [JHHB-136]【vue3】协同工作系统消息需要添加一个类型
+     */
+    NOTICE_TYPE_COLLABORATION("协同工作", "collab"),
+    /**
+     * 督办
+     */
+    NOTICE_TYPE_SUPERVISE("督办管理", "supe"),
+    /**
+     * 考勤
+     */
+    NOTICE_TYPE_ATTENDANCE("考勤消息", "attendance");
 
     /**
      * 文件类型名称

@@ -17,7 +17,7 @@ import org.jeecg.modules.system.service.ISysTableWhiteListService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * @Description: 系统表白名单

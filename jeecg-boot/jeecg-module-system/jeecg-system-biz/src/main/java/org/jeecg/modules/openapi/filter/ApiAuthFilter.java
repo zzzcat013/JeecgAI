@@ -1,5 +1,7 @@
 package org.jeecg.modules.openapi.filter;
 
+import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.modules.openapi.entity.OpenApi;
@@ -13,8 +15,6 @@ import org.jeecg.modules.openapi.service.OpenApiService;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.WebApplicationContext;
 
-import javax.servlet.*;
-import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.Arrays;

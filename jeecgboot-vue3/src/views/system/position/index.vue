@@ -53,6 +53,10 @@
         width: 180,
       },
       showIndexColumn: true,
+      defSort: {
+        column: "",
+        order: ""
+      }
     },
     exportConfig: {
       name: '职务列表',
@@ -116,10 +120,9 @@
    */
   async function batchHandleDelete() {
     await batchDeletePosition({ ids: selectedRowKeys.value }, () => {
-      // update-begin--author:liaozhiyang---date:20240223---for：【QQYUN-8334】批量删除之后，按钮未隐藏，选中记录还在
+      // 代码逻辑说明: 【QQYUN-8334】批量删除之后，按钮未隐藏，选中记录还在
       selectedRowKeys.value = [];
       reload();
-      // update-end--author:liaozhiyang---date:20240223---for：【QQYUN-8334】批量删除之后，按钮未隐藏，选中记录还在
     });
   }
 </script>

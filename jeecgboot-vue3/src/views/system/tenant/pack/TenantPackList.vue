@@ -26,6 +26,7 @@
   </BasicModal>
   <TenantPackMenuModal @register="registerPackMenu" @success="success" />
   <TenantPackUserModal @register="registerPackUser" @success="success" />
+  <PackPermissionDrawer @register="registerPackPermDrawer" @success="success"/>
 </template>
 <script lang="ts" setup name="tenant-pack-modal">
   import { reactive, ref, unref } from 'vue';
@@ -38,9 +39,13 @@
   import {Modal} from "ant-design-vue";
   import TenantPackUserModal from './TenantPackUserModal.vue';
   import {useMessage} from "/@/hooks/web/useMessage";
+  import PackPermissionDrawer from "@/views/system/tenant/pack/PackPermissionDrawer.vue";
+  import { useDrawer } from "@/components/Drawer";
 
   const [registerPackMenu, { openModal }] = useModal();
   const [registerPackUser, { openModal: packUserOpenModal }] = useModal();
+  const [registerPackPermDrawer, { openDrawer: openPackPermDrawer }] = useDrawer();
+  
   const tenantId = ref<number>(0);
   // 列表页面公共参数、方法
   const { prefixCls, tableContext } = useListPage({
@@ -94,8 +99,8 @@
         onClick: seeTenantPackUser.bind(null, record),
       },
       {
-        label: '编辑',
-        onClick: handleEdit.bind(null, record),
+        label: '授权',
+        onClick: handleRolePrem.bind(null, record),
         ifShow: ()=>{ return showPackAddAndEdit.value }
       },
     ];
@@ -131,12 +136,15 @@
    * @param 删除
    */
   async function handleDelete(record) {
-    //update-begin---author:wangshuai ---date:20230222  for：系统默认套餐包不允许删除------------
+    // 代码逻辑说明: 系统默认套餐包不允许删除------------
     if(packCode.indexOf(record.packCode) != -1){
         createMessage.warning("默认系统套餐包不允许删除");
        return;
     }
-    //update-end---author:wangshuai ---date:20230222  for：系统默认套餐包不允许删除------------
+    if(record.packCode && record.packCode.indexOf("default") != -1){
+      createMessage.warning("默认套餐包不允许删除");
+      return;
+    }
     await deleteTenantPack({ ids: record.id }, success);
   }
 
@@ -149,6 +157,11 @@
       for (let i = 0; i < value.length; i++) {
         if(packCode.indexOf(value[i].packCode) != -1){
           createMessage.warning("默认系统套餐包不允许删除");
+          return;
+        }
+        // 代码逻辑说明: 默认套餐不允许删除---
+        if(value[i].packCode && value[i].packCode.indexOf("default") != -1){
+          createMessage.warning("默认套餐包不允许删除");
           return;
         }
       }
@@ -206,6 +219,11 @@
   function getDropDownAction(record) {
     return [
       {
+        label: '编辑',
+        onClick: handleEdit.bind(null, record),
+        ifShow: ()=>{ return showPackAddAndEdit.value }
+      },
+      {
         label: '详情',
         onClick: handleDetail.bind(null, record),
       },
@@ -231,5 +249,18 @@
       packType:'custom',
       showFooter: false
     });
+  }
+
+
+  /**
+   * 授权
+   *
+   * @param record
+   */
+  function handleRolePrem(record) {
+    openPackPermDrawer(true,{
+      packId: record.id,
+      permissionIds: record.permissionIds
+    })
   }
 </script>

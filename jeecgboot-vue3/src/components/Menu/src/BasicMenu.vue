@@ -37,6 +37,8 @@
   import { URL_HASH_TAB } from '/@/utils';
   import { getMenus } from '/@/router/menus';
 
+  const MIX_EXTERNAL_WHITELIST = ['/myapps/index'];
+
   export default defineComponent({
     name: 'BasicMenu',
     components: {
@@ -55,15 +57,14 @@
         selectedKeys: [],
         collapsedOpenKeys: [],
       });
-      // update-begin--author:liaozhiyang---date:20230326---for：【QQYUN-8691】顶部菜单模式online不显示菜单名显示默认的auto在线表单
+      // 代码逻辑说明: 【QQYUN-8691】顶部菜单模式online不显示菜单名显示默认的auto在线表单
       createBasicRootMenuContext({ menuState: menuState });
-      // update-end--author:liaozhiyang---date:20230326---for：【QQYUN-8691】顶部菜单模式online不显示菜单名显示默认的auto在线表单
       const { prefixCls } = useDesign('basic-menu');
       const { items, mode, accordion } = toRefs(props);
 
       const { getCollapsed, getTopMenuAlign, getSplit } = useMenuSetting();
 
-      const { currentRoute } = useRouter();
+      const { currentRoute, getRoutes } = useRouter();
 
       const { handleOpenChange, setOpenKeys, getOpenKeys } = useOpenKeys(menuState, items, mode as any, accordion);
 
@@ -114,54 +115,38 @@
           }
         );
 
-      //update-begin-author:taoyan date:2022-6-1 for: VUEN-1144 online 配置成菜单后，打开菜单，显示名称未展示为菜单名称
+      // 代码逻辑说明: VUEN-1144 online 配置成菜单后，打开菜单，显示名称未展示为菜单名称
       async function handleMenuClick({ item, key }: { item: any; key: string; keyPath: string[] }) {
         const { beforeClickFn } = props;
-        // update-begin--author:liaozhiyang---date:20240402---for:【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
+        // 代码逻辑说明: 【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
         if (isUrl(key)) {
           key = key.replace(URL_HASH_TAB, '#');
           window.open(key);
           return;
         }
-        // update-begin--author:liaozhiyang---date:20250114---for:【issues/7706】顶部栏导航内部路由也可以支持采用新浏览器tab打开
-        const findItem = getMatchingMenu(props.items, key);
-        if (findItem?.internalOrExternal == true) {
+        // 代码逻辑说明: 【issues/7706】顶部栏导航内部路由也可以支持采用新浏览器tab打开
+        const menus = await getMenus();
+        const findItem = getMatchingPath(menus, key);
+        if (findItem?.internalOrExternal == true && !findItem?.children?.length) {
+          // 一级菜单当设置了外部打开，只有没有子菜单时才生效
           window.open(location.origin + key);
           return;
         }
-        // update-end--author:liaozhiyang---date:20250114---for:【issues/7706】顶部栏导航内部路由也可以支持采用新浏览器tab打开
-        // update-end--author:liaozhiyang---date:20240402---for:【QQYUN-8773】配置外部网址在顶部菜单模式和搜索打不开
         if (beforeClickFn && isFunction(beforeClickFn)) {
           const flag = await beforeClickFn(key);
           if (!flag) return;
         }
-        // update-begin--author:liaozhiyang---date:20240418---for:【QQYUN-8773】顶部混合导航(顶部左侧组合菜单)一级菜单没有配置redirect默认跳子菜单的第一个
+        // 代码逻辑说明: 【QQYUN-8773】顶部混合导航(顶部左侧组合菜单)一级菜单没有配置redirect默认跳子菜单的第一个
         if (props.type === MenuTypeEnum.MIX) {
-          const menus = await getMenus();
           const menuItem = getMatchingPath(menus, key);
-          if (menuItem && !menuItem.redirect && menuItem.children?.length) {
-            const subMenuItem = getSubMenu(menuItem.children);
-            if (subMenuItem?.path) {
-              const path = subMenuItem.redirect ?? subMenuItem.path;
-              let _key = path;
-              if (isUrl(path)) {
-                window.open(path);
-                // 外部打开emit出去的key不能是url，否则左侧菜单出不来
-                _key = key;
-              }
-              emit('menuClick', _key, { title: subMenuItem.title });
-            } else {
-              emit('menuClick', key, item);
-            }
-          } else {
-            emit('menuClick', key, item);
+          if (handleMixMenuClick(menuItem, key)) {
+            return;
           }
+          emit('menuClick', key, item);
         } else {
           emit('menuClick', key, item);
         }
         // emit('menuClick', key, item);
-        // update-begin--author:liaozhiyang---date:20240418---for:【QQYUN-8773】顶部混合导航(顶部左侧组合菜单)一级菜单没有配置redirect默认跳子菜单的第一个
-        //update-end-author:taoyan date:2022-6-1 for: VUEN-1144 online 配置成菜单后，打开菜单，显示名称未展示为菜单名称
 
         isClickGo.value = true;
         // const parentPath = await getCurrentParentPath(key);
@@ -189,12 +174,12 @@
       /**
        * liaozhiyang
        * 2024-05-18
-       * 获取指定菜单下的第一个菜单
+       * 获取指定菜单下的第一个菜单(忽略隐藏路由)
        */
       function getSubMenu(menus) {
         for (let i = 0, len = menus.length; i < len; i++) {
           const item = menus[i];
-          if (item.path && !item.children?.length) {
+          if (item.path && !item.hideMenu && !item.children?.length) {
             return item;
           } else if (item.children?.length) {
             const result = getSubMenu(item.children);
@@ -244,6 +229,52 @@
         }
         return '';
       };
+      /*
+      * 2025-11-12
+      * liaozhiyang
+      * 顶部混合导航(顶部左侧组合菜单)一级菜单点击事件处理。
+      * 1.没有重定向打开子菜单的第一个
+      * 2.有重定向判断router中是否存在该路由且路由是否有对应的组件，存在则打开，不存在则打开子菜单的第一个
+      */
+      function handleMixMenuClick(menuItem, key) {
+        const hasChildren = menuItem && menuItem.children?.length;
+        // 不存在子菜单，直接返回
+        if (!hasChildren) {
+          return false;
+        }
+        // 存在redirect，则判断router中是否存在该路由且路由是否有对应的组件
+        if (menuItem.redirect) {
+          const allRoutes = getRoutes();
+          const findRedirectRoute = allRoutes.find((item) => item.path === menuItem.redirect);
+          if (findRedirectRoute && findRedirectRoute.components) {
+            return false;
+          }
+        }
+        // 判断子菜单第一个path是否存在
+        const subMenuItem = getSubMenu(menuItem.children);
+        if (!subMenuItem?.path) {
+          return false;
+        }
+        const path = subMenuItem.redirect ?? subMenuItem.path;
+        let nextKey = path;
+        if (isUrl(path)) {
+          // window.open(path);
+          // 外部打开emit出去的key不能是url，否则左侧菜单出不来
+          nextKey = key;
+        }
+        // =====================================================================
+        // TODO: 临时代码 - 需要删除！！！
+        // 这是针对敲敲云首页菜单的特殊处理，后续需要重构或删除
+        // =====================================================================
+        // 是外部打开且是白名单内的菜单，则直接打开
+        if (subMenuItem?.internalOrExternal == true && MIX_EXTERNAL_WHITELIST.includes(path)) {
+          window.open(location.origin + path);
+          return true;
+        }
+        // =====================================================================
+        emit('menuClick', nextKey, { title: subMenuItem.title });
+        return true;
+      }
 
       return {
         handleMenuClick,

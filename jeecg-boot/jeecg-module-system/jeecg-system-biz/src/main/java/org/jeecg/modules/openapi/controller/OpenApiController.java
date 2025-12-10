@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -196,7 +196,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
             }
         }
         URI targetUrl = builder.build().encode().toUri();
-        return restTemplate.exchange(targetUrl.toString(), Objects.requireNonNull(HttpMethod.resolve(method)), httpEntity, Result.class, request.getParameterMap()).getBody();
+        return restTemplate.exchange(targetUrl.toString(), Objects.requireNonNull(HttpMethod.valueOf(method)), httpEntity, Result.class, request.getParameterMap()).getBody();
     }
 
     /**
@@ -207,7 +207,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
      * @return
      */
     private String getToken(String USERNAME, String PASSWORD) {
-        String token = JwtUtil.sign(USERNAME, PASSWORD);
+        String token = JwtUtil.sign(USERNAME, PASSWORD, CommonConstant.CLIENT_TYPE_PC);
         redisUtil.set(CommonConstant.PREFIX_USER_TOKEN + token, token);
         redisUtil.expire(CommonConstant.PREFIX_USER_TOKEN + token, 60);
         return token;
@@ -382,7 +382,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
         SwaggerInfo info = new SwaggerInfo();
 
         info.setDescription("OpenAPI 接口列表");
-        info.setVersion("3.8.2");
+        info.setVersion("3.9.0");
         info.setTitle("OpenAPI 接口列表");
         info.setTermsOfService("https://jeecg.com");
 

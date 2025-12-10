@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.jeecg.common.api.vo.Result;
@@ -26,8 +28,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 
 /**
@@ -91,6 +91,8 @@ public class SysRoleIndexController extends JeecgController<SysRoleIndex, ISysRo
             sysRoleIndex.setRelationType(CommonConstant.HOME_RELATION_ROLE);
         }
         sysRoleIndexService.save(sysRoleIndex);
+        //更新其他全局配置的状态
+        sysRoleIndexService.updateOtherDefaultStatus(sysRoleIndex.getRoleCode(),sysRoleIndex.getStatus(),sysRoleIndex.getId());
         sysRoleIndexService.cleanDefaultIndexCache();
         return Result.OK("添加成功！");
     }
@@ -112,6 +114,8 @@ public class SysRoleIndexController extends JeecgController<SysRoleIndex, ISysRo
             sysRoleIndex.setRelationType(CommonConstant.HOME_RELATION_ROLE);
         }
         sysRoleIndexService.updateById(sysRoleIndex);
+        //更新其他全局配置的状态
+        sysRoleIndexService.updateOtherDefaultStatus(sysRoleIndex.getRoleCode(),sysRoleIndex.getStatus(),sysRoleIndex.getId());
         sysRoleIndexService.cleanDefaultIndexCache();
         return Result.OK("编辑成功!");
     }
@@ -236,7 +240,7 @@ public class SysRoleIndexController extends JeecgController<SysRoleIndex, ISysRo
         String username = JwtUtil.getUserNameByToken(request);
         sysRoleIndex.setRoleCode(username);
         sysRoleIndexService.changeDefHome(sysRoleIndex);
-        //update-begin-author:liusq---date:2025-07-03--for: 切换完成后的homePath获取
+        // 代码逻辑说明: 切换完成后的homePath获取
         String version = request.getHeader(CommonConstant.VERSION);
         String homePath = null;
         SysRoleIndex defIndexCfg = sysUserService.getDynamicIndexByUserRole(username, version);
@@ -249,7 +253,6 @@ public class SysRoleIndexController extends JeecgController<SysRoleIndex, ISysRo
                 homePath = SymbolConstant.SINGLE_SLASH + homePath;
             }
         }
-        //update-end-author:liusq---date:2025-07-03--for:切换完成后的homePath获取
         return Result.OK(homePath);
     }
     /**
@@ -261,7 +264,7 @@ public class SysRoleIndexController extends JeecgController<SysRoleIndex, ISysRo
     public Result<?> getCurrentHome(HttpServletRequest request) {
         String username = JwtUtil.getUserNameByToken(request);
         Object homeType = redisUtil.get(DefIndexConst.CACHE_TYPE + username);
-        return Result.OK(oConvertUtils.getString(homeType,DefIndexConst.HOME_TYPE_SYSTEM));
+        return Result.OK(oConvertUtils.getString(homeType,DefIndexConst.HOME_TYPE_MENU));
     }
 
     /**

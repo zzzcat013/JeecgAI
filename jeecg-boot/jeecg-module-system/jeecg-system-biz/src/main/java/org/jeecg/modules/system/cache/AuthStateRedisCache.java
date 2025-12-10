@@ -1,12 +1,12 @@
 package org.jeecg.modules.system.cache;
 
+import jakarta.annotation.PostConstruct;
 import me.zhyd.oauth.cache.AuthCacheConfig;
 import me.zhyd.oauth.cache.AuthStateCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
-import javax.annotation.PostConstruct;
 import java.util.concurrent.TimeUnit;
 
 

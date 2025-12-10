@@ -5,8 +5,9 @@
       <!--插槽:table标题-->
       <template #tableTitle>
         <a-button type="primary" preIcon="ant-design:plus-outlined" @click="handleCreate"> 新增</a-button>
-        <a-button type="primary" preIcon="ant-design:export-outlined" @click="onExportXls" :disabled="isDisabledAuth('system:user:export')"> 导出</a-button>
-        <j-upload-button type="primary" preIcon="ant-design:import-outlined" @click="onImportXls">导入</j-upload-button>
+        <a-button type="primary" preIcon="ant-design:export-outlined" @click="onExportXls" > 导出</a-button>
+<!--        <j-upload-button type="primary" preIcon="ant-design:import-outlined" @click="onImportXls" v-auth="'system:user:import'">导入</j-upload-button>-->
+        <import-excel-progress :upload-url="getImportUrl" @success="reload"></import-excel-progress>
         <a-button type="primary" @click="openModal(true, {})" preIcon="ant-design:hdd-outlined"> 回收站</a-button>
         <a-dropdown v-if="selectedRowKeys.length > 0">
           <template #overlay>
@@ -23,10 +24,14 @@
                 <Icon icon="ant-design:unlock-outlined"></Icon>
                 解冻
               </a-menu-item>
+              <a-menu-item v-if="hasPermission('system:user:resetPassword')" key="4" @click="batchResetPassword()">
+                <Icon icon="ant-design:reload-outlined"></Icon>
+                重置密码
+              </a-menu-item>
             </a-menu>
           </template>
           <a-button
-            >批量操作
+          >批量操作
             <Icon icon="mdi:chevron-down"></Icon>
           </a-button>
         </a-dropdown>
@@ -40,12 +45,8 @@
     <UserDrawer @register="registerDrawer" @success="handleSuccess" />
     <!--修改密码-->
     <PasswordModal @register="registerPasswordModal" @success="reload" />
-    <!--用户代理-->
-    <UserAgentModal @register="registerAgentModal" @success="reload" />
     <!--回收站-->
     <UserRecycleBinModal @register="registerModal" @success="reload" />
-    <!-- 离职受理人弹窗 -->
-    <UserQuitAgentModal @register="registerQuitAgentModal" @success="reload" />
     <!-- 离职人员列弹窗 -->
     <UserQuitModal @register="registerQuitModal" @success="reload" />
   </div>
@@ -58,20 +59,20 @@
   import UserDrawer from './UserDrawer.vue';
   import UserRecycleBinModal from './UserRecycleBinModal.vue';
   import PasswordModal from './PasswordModal.vue';
-  import UserAgentModal from './UserAgentModal.vue';
   import JThirdAppButton from '/@/components/jeecg/thirdApp/JThirdAppButton.vue';
-  import UserQuitAgentModal from './UserQuitAgentModal.vue';
   import UserQuitModal from './UserQuitModal.vue';
   import { useDrawer } from '/@/components/Drawer';
   import { useListPage } from '/@/hooks/system/useListPage';
   import { useModal } from '/@/components/Modal';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { columns, searchFormSchema } from './user.data';
-  import { listNoCareTenant, deleteUser, batchDeleteUser, getImportUrl, getExportUrl, frozenBatch } from './user.api';
-  import {usePermission} from "/@/hooks/web/usePermission";
+  import { listNoCareTenant, deleteUser, batchDeleteUser, getImportUrl, getExportUrl, frozenBatch, resetPassword } from './user.api';
+  import { usePermission } from '/@/hooks/web/usePermission';
+  import ImportExcelProgress from './components/ImportExcelProgress.vue';
 
   const { createMessage, createConfirm } = useMessage();
-  const { isDisabledAuth } = usePermission();
+  const { isDisabledAuth, hasPermission } = usePermission();
+  
   //注册drawer
   const [registerDrawer, { openDrawer }] = useDrawer();
   //回收站model
@@ -103,6 +104,10 @@
       beforeFetch: (params) => {
         return Object.assign({ column: 'createTime', order: 'desc' }, params);
       },
+      defSort: {
+        column: "",
+        order: ""
+      },
     },
     exportConfig: {
       name: '用户列表',
@@ -114,7 +119,7 @@
   });
 
   //注册table数据
-  const [registerTable, { reload, updateTableDataRecord }, { rowSelection, selectedRows, selectedRowKeys }] = tableContext;
+  const [registerTable, { reload, updateTableDataRecord, clearSelectedRowKeys }, { rowSelection, selectedRows, selectedRowKeys }] = tableContext;
 
   /**
    * 新增事件
@@ -186,12 +191,6 @@
     openPasswordModal(true, { username });
   }
   /**
-   * 打开代理人弹窗
-   */
-  function handleAgentSettings(userName) {
-    openAgentModal(true, { userName });
-  }
-  /**
    * 冻结解冻
    */
   async function handleFrozen(record, status) {
@@ -219,6 +218,28 @@
       },
     });
   }
+  /**
+   * 批量重置密码
+   */
+  function batchResetPassword() {
+    let hasAdmin = selectedRows.value.filter((item) => item.username == 'admin');
+    if (unref(hasAdmin).length > 0) {
+      createMessage.warning('所选用户中包含管理员，管理员账号不允许重置密码！！');
+      return;
+    }
+    if (selectedRows.value.length > 0) {
+      createConfirm({
+        iconType: 'warning',
+        title: '确认操作',
+        content: '是否重置选中的账号密码?',
+        onOk: async () => {
+          const usernames = selectedRows.value.map((item) => item.username).join(',');
+          await resetPassword({ usernames: usernames }, ()=>{reload();clearSelectedRowKeys();});
+        },
+      });
+    }
+  }
+
 
   /**
    *同步钉钉和微信回调
@@ -279,21 +300,9 @@
           confirm: handleFrozen.bind(null, record, 1),
         },
       },
-      {
-        label: '代理人',
-        onClick: handleAgentSettings.bind(null, record.username),
-      },
     ];
   }
 
-  /**
-   * 离职
-   * @param userName
-   */
-  function handleQuit(userName) {
-    //打开离职代理人弹窗
-    openQuitAgentModal(true, { userName });
-  }
 </script>
 
 <style scoped></style>

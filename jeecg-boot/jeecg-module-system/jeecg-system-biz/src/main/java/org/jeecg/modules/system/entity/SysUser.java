@@ -211,4 +211,65 @@ public class SysUser implements Serializable {
      */
     @TableField(exist = false)
     private boolean izBindThird;
+
+    /**
+     * 个性签名
+     */
+    private String sign;
+
+    /**
+     * 是否开启个性签名
+     */
+    private Integer signEnable;
+
+    /**
+     * 主岗位
+     */
+    @Excel(name="主岗位",width = 15,dictTable ="sys_depart",dicText = "depart_name",dicCode = "id")
+    @Dict(dictTable ="sys_depart",dicText = "depart_name",dicCode = "id")
+    private String mainDepPostId;
+
+    /**
+     * 兼职岗位
+     */
+    @Excel(name="兼职岗位",width = 15,dictTable ="sys_depart",dicText = "depart_name",dicCode = "id")
+    @Dict(dictTable ="sys_depart",dicText = "depart_name",dicCode = "id")
+    @TableField(exist = false)
+    private String otherDepPostId;
+
+    /**
+     * 职务(字典)
+     */
+    @Excel(name = "职务", width = 15, dicCode = "user_position")
+    @Dict(dicCode = "user_position")
+    private String positionType;
+
+    /**
+     * 上一次修改密码的时间
+     */
+    @JsonFormat(timezone = "GMT+8", pattern = "yyyy-MM-dd HH:mm:ss")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date lastPwdUpdateTime;
+
+    /**
+     * 登录时，选择的部门，临时用，不持久化数据库(数据库字段不存在)
+     */
+    @TableField(exist = false)
+    private String loginOrgCode;
+
+    /**
+     * 排序
+     */
+    private Integer sort;
+    
+    /**
+     * 是否隐藏联系方式 0否1是
+     */
+    private String izHideContact;
+
+    /**
+     * 所属部门的id
+     */
+    @TableField(exist = false)
+    private String belongDepIds;
 }

@@ -1,14 +1,19 @@
 package org.jeecg.modules.system.service.impl;
 
+import cn.hutool.core.io.IoUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.compress.archivers.zip.Zip64Mode;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.shiro.SecurityUtils;
 import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.system.vo.LoginUser;
+import org.jeecg.common.util.FileDownloadUtils;
 import org.jeecg.common.util.oConvertUtils;
+import org.jeecg.config.JeecgBaseConfig;
 import org.jeecg.config.mybatis.MybatisPlusSaasConfig;
 import org.jeecg.modules.system.entity.SysAnnouncement;
 import org.jeecg.modules.system.entity.SysAnnouncementSend;
@@ -22,7 +27,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.*;
+import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
@@ -51,7 +60,9 @@ public class SysAnnouncementServiceImpl extends ServiceImpl<SysAnnouncementMappe
 	private SysAnnouncementSendMapper sysAnnouncementSendMapper;
 	@Autowired
 	private ISysAnnouncementSendService sysAnnouncementSendService;
-	
+	@Autowired
+	private JeecgBaseConfig jeecgBaseConfig;
+
 	@Transactional(rollbackFor = Exception.class)
 	@Override
 	public void saveAnnouncement(SysAnnouncement sysAnnouncement) {
@@ -62,12 +73,11 @@ public class SysAnnouncementServiceImpl extends ServiceImpl<SysAnnouncementMappe
 			sysAnnouncementMapper.insert(sysAnnouncement);
 			// 2.插入用户通告阅读标记表记录
 			String userId = sysAnnouncement.getUserIds();
-            //update-begin-author:liusq---date:2023-10-31--for:[issues/5503]【公告】通知无法接收
+            // 代码逻辑说明: [issues/5503]【公告】通知无法接收
 			if(StringUtils.isNotBlank(userId) && userId.endsWith(",")){
 				userId = userId.substring(0, (userId.length()-1));
 			}
 			String[] userIds = userId.split(",");
-            //update-end-author:liusq---date:2023-10-31--for:[issues/5503]【公告】通知无法接收
 			String anntId = sysAnnouncement.getId();
 			Date refDate = new Date();
 			for(int i=0;i<userIds.length;i++) {
@@ -205,7 +215,7 @@ public class SysAnnouncementServiceImpl extends ServiceImpl<SysAnnouncementMappe
 //		});
 		
 		LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
-		log.info(" 获取登录人 LoginUser id: {}", sysUser.getId());
+		log.debug(" 获取登录人 LoginUser id: {}", sysUser.getId());
 		Page<SysAnnouncement> page = new Page<SysAnnouncement>(pageNo,pageSize);
 		List<SysAnnouncement> list = baseMapper.queryAllMessageList(page, sysUser.getId(), fromUser, starFlag, busType, msgCategory,beginDate, endDate, noticeType);
 		return list;
@@ -251,4 +261,64 @@ public class SysAnnouncementServiceImpl extends ServiceImpl<SysAnnouncementMappe
 		}
 	}
 
+	/**
+	 * 批量下载文件
+	 * @param id
+	 * @param request
+	 * @param response
+	 */
+	@Override
+	public void downLoadFiles(String id, HttpServletRequest request, HttpServletResponse response) {
+		// 参数校验
+		if (oConvertUtils.isEmpty(id)) {
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			return;
+		}
+
+		// 获取文章信息
+		SysAnnouncement sysAnnouncement = this.baseMapper.selectById(id);
+		if (oConvertUtils.isEmpty(sysAnnouncement)) {
+			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+			return;
+		}
+		//设置HTTP响应头：准备文件下载
+		response.reset();
+		response.setCharacterEncoding("utf-8");
+		response.setContentType("application/force-download");
+		ZipArchiveOutputStream zous = null;
+		try {
+			// 生成ZIP文件名：使用文章标题+时间戳避免重名
+			String title = sysAnnouncement.getTitile() + new Date().getTime();
+			String zipName = URLEncoder.encode( title + ".zip", "UTF-8").replaceAll("\\+", "%20");
+			response.setHeader("Content-Disposition", "attachment;filename*=utf-8''" + zipName);
+			// 创建ZIP输出流：直接输出到HTTP响应流
+			zous = new ZipArchiveOutputStream(response.getOutputStream());
+			zous.setUseZip64(Zip64Mode.AsNeeded);// 支持大文件
+
+			// 批量下载文件
+			String[] fileUrls = sysAnnouncement.getFiles().split(",");
+			// 遍历所有文件URL
+			for (int i = 0; i < fileUrls.length; i++) {
+				String fileUrl = fileUrls[i].trim();
+				if (oConvertUtils.isEmpty(fileUrl)) {
+					continue;
+				}
+				// 生成ZIP内文件名：避免重名，添加序号
+				String fileName = FileDownloadUtils.generateFileName(fileUrl, i, fileUrls.length);
+				String uploadUrl = jeecgBaseConfig.getPath().getUpload();
+				// 下载单个文件并添加到ZIP
+				FileDownloadUtils.downLoadSingleFile(fileUrl,fileName,uploadUrl, zous);
+			}
+			// 完成ZIP写入
+			zous.finish();
+			// 刷新缓冲区确保数据发送
+			response.flushBuffer();
+		} catch (IOException e) {
+			log.error("文件下载失败"+e.getMessage(), e);
+			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+		} finally {
+			// 确保流关闭，防止资源泄漏
+			IoUtil.close(zous);
+		}
+	}
 }

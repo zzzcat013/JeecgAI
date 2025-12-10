@@ -1,6 +1,7 @@
 package org.jeecg.modules.system.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -102,11 +103,10 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
 
     @Override
     public String getAccessToken() {
-        //update-begin---author:wangshuai ---date:20230224  for：[QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
+        // 代码逻辑说明: [QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
         SysThirdAppConfig config = this.getWeChatThirdAppConfig();
         String corpId = config.getClientId();
         String secret = config.getClientSecret();
-        //update-end---author:wangshuai ---date:20230224  for：[QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
         AccessToken accessToken = JwAccessTokenAPI.getAccessToken(corpId, secret);
         if (accessToken != null) {
             return accessToken.getAccesstoken();
@@ -117,11 +117,10 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
 
     /** 获取APPToken，新版企业微信的秘钥是分开的 */
     public String getAppAccessToken(SysThirdAppConfig config) {
-        //update-begin---author:wangshuai ---date:20230224  for：[QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
+        // 代码逻辑说明: [QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
         String corpId = config.getClientId();
         // 如果没有配置APP秘钥，就说明是老企业，可以通用秘钥
         String secret = config.getClientSecret();
-        //update-end---author:wangshuai ---date:20230224  for：[QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
 
         AccessToken accessToken = JwAccessTokenAPI.getAccessToken(corpId, secret);
         if (accessToken != null) {
@@ -281,9 +280,8 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
                 if (sysDepart != null) {
                     //  执行更新操作
                     SysDepart updateSysDepart = this.qwDepartmentToSysDepart(departmentTree, sysDepart);
-                    //update-begin---author:wangshuai---date:2024-04-10---for:【issues/6017】企业微信同步部门时没有最顶层的部门名，同步用户时，用户没有部门信息---
+                    // 代码逻辑说明: 【issues/6017】企业微信同步部门时没有最顶层的部门名，同步用户时，用户没有部门信息---
                     if (sysParentId != null && !"0".equals(sysParentId)) {
-                    //update-end---author:wangshuai---date:2024-04-10---for:【issues/6017】企业微信同步部门时没有最顶层的部门名，同步用户时，用户没有部门信息---
                         updateSysDepart.setParentId(sysParentId);
                     }
                     try {
@@ -600,13 +598,12 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
             user.setIs_leader_in_dept(new Integer[]{0});
         }
         // 职务翻译
-        //update-begin---author:wangshuai ---date:20230220  for：[QQYUN-3980]组织管理中 职位功能 职位表加租户id 加职位-用户关联表------------
+        // 代码逻辑说明: [QQYUN-3980]组织管理中 职位功能 职位表加租户id 加职位-用户关联表------------
         List<SysPosition> positionList = sysPositionService.getPositionList(sysUser.getId());
         if(null != positionList && positionList.size()>0){
             String positionName = positionList.stream().map(SysPosition::getName).collect(Collectors.joining(SymbolConstant.COMMA));
             user.setPosition(positionName);
         }
-        //update-end---author:wangshuai ---date:20230220  for：[QQYUN-3980]组织管理中 职位功能 职位表加租户id 加职位-用户关联表------------
         if (sysUser.getSex() != null) {
             user.setGender(sysUser.getSex().toString());
         }
@@ -624,11 +621,10 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         // 座机号
         user.setTelephone(sysUser.getTelephone());
         // --- 企业微信没有逻辑删除的功能
-        // update-begin--Author:sunjianlei Date:20210520 for：本地逻辑删除的用户，在企业微信里禁用 -----
+        // 代码逻辑说明: 本地逻辑删除的用户，在企业微信里禁用 -----
         if (CommonConstant.DEL_FLAG_1.equals(sysUser.getDelFlag())) {
             user.setEnable(0);
         }
-        // update-end--Author:sunjianlei Date:20210520 for：本地逻辑删除的用户，在企业微信里冻结 -----
 
         return user;
     }
@@ -846,7 +842,7 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
      * @param verifyConfig 是否验证配置（未启用的APP会拒绝发送）
      * @return
      */
-    public JSONObject sendTextCardMessage(SysAnnouncement announcement, boolean verifyConfig) {
+    public JSONObject sendTextCardMessage(SysAnnouncement announcement,String mobileOpenUrl, boolean verifyConfig) {
         SysThirdAppConfig config = this.getWeChatThirdAppConfig();
         if (verifyConfig && null == config) {
             return null;
@@ -882,9 +878,29 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         textCard.setTouser(this.getTouser(usernameString, isToAll));
         TextCardEntity entity = new TextCardEntity();
         entity.setTitle(announcement.getTitile());
-        entity.setDescription(oConvertUtils.getString(announcement.getMsgAbstract(),"空"));
-        String baseUrl = null;
+        
+        //update-begin---author:scott ---date:2025-08-05  for：【QQYUN-13257】【h5】催办、抄送消息，在企业微信中显示json乱码---
+        // 判断announcement.getMsgAbstract()值是json格式
+        if(oConvertUtils.isJson(announcement.getMsgAbstract()) && oConvertUtils.isNotEmpty(mobileOpenUrl)){
+            entity.setDescription(announcement.getMsgContent());
+            entity.setUrl(mobileOpenUrl);
+        }else{
+            entity.setDescription(oConvertUtils.getString(announcement.getMsgAbstract(),"空"));
+            entity.setUrl(geQywxtAnnouncementUrl(announcement));
+        }
+        
+        textCard.setTextcard(entity);
+        return JwMessageAPI.sendTextCardMessage(textCard, accessToken);
+    }
 
+    
+    /**
+     * 获取企业微信的公告链接
+     *
+     * @return
+     */
+    private String geQywxtAnnouncementUrl(SysAnnouncement announcement){
+        String baseUrl = null;
         //优先通过请求获取basepath，获取不到读取 jeecg.domainUrl.pc
         try {
             baseUrl = RestUtil.getBaseUrl();
@@ -893,10 +909,7 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
             baseUrl =  jeecgBaseConfig.getDomainUrl().getPc();
             //e.printStackTrace();
         }
-
-        entity.setUrl(baseUrl + "/sys/annountCement/show/" + announcement.getId());
-        textCard.setTextcard(entity);
-        return JwMessageAPI.sendTextCardMessage(textCard, accessToken);
+       return baseUrl + "/sys/annountCement/show/" + announcement.getId();
     }
 
     private String getTouser(String origin, boolean toAll) {
@@ -944,10 +957,9 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         if(ObjectUtil.isEmpty(count) || 0 == count){
             throw new JeecgBootException("租户不存在！");
         }
-        //update-begin---author:wangshuai ---date:20230224  for：[QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
+        // 代码逻辑说明: [QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
         SysThirdAppConfig config = configMapper.getThirdConfigByThirdType(tenantId, MessageTypeEnum.QYWX.getType());
         String accessToken = this.getAppAccessToken(config);
-        //update-end---author:wangshuai ---date:20230224  for：[QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
         if (accessToken == null) {
             return null;
         }

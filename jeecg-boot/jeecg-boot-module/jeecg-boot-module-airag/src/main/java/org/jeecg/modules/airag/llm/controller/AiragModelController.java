@@ -15,6 +15,7 @@ import org.jeecg.common.system.base.controller.JeecgController;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.util.AssertUtils;
 import org.jeecg.common.util.TokenUtils;
+import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.config.mybatis.MybatisPlusSaasConfig;
 import org.jeecg.modules.airag.llm.consts.LLMConsts;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
@@ -25,8 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -77,6 +78,12 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
         AssertUtils.assertNotEmpty("模型名称不能为空", airagModel.getName());
         AssertUtils.assertNotEmpty("模型类型不能为空", airagModel.getModelType());
         AssertUtils.assertNotEmpty("基础模型不能为空", airagModel.getModelName());
+        // 默认未激活
+        if(oConvertUtils.isObjectEmpty(airagModel.getActivateFlag())){
+            airagModel.setActivateFlag(0);
+        } else {
+            airagModel.setActivateFlag(1);
+        }
         airagModelService.save(airagModel);
         return Result.OK("添加成功！");
     }
@@ -164,7 +171,7 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
         AssertUtils.assertNotEmpty("基础模型不能为空", airagModel.getModelName());
         try {
             if(LLMConsts.MODEL_TYPE_LLM.equals(airagModel.getModelType())){
-                aiChatHandler.completions(airagModel, Collections.singletonList(UserMessage.from("test connection")), null);
+                aiChatHandler.completions(airagModel, Collections.singletonList(UserMessage.from("To test whether it can be successfully called, simply return success")), null);
             }else{
                 AiModelOptions aiModelOptions = EmbeddingHandler.buildModelOptions(airagModel);
                 EmbeddingModel embeddingModel = AiModelFactory.createEmbeddingModel(aiModelOptions);
@@ -172,9 +179,12 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
             }
         }catch (Exception e){
             log.error("测试模型连接失败", e);
-            return Result.error("测试模型连接失败" + e.getMessage());
+            return Result.error("测试模型连接失败，请检查模型配置是否正确！");
         }
-        return Result.OK("测试模型连接成功");
+        // 测试成功激活数据
+        airagModel.setActivateFlag(1);
+        airagModelService.updateById(airagModel);
+        return Result.OK("");
     }
 
 }

@@ -1,6 +1,15 @@
 server:
   port: 5001
 spring:
+  data:
+    redis:
+      ##redis 单机环境配置
+      host: localhost
+      port: 6379
+      database: 0
+      password:
+      ssl:
+        enabled: false
   application:
     name: seata-order
   cloud:
