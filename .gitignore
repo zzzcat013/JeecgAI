@@ -2,7 +2,7 @@
 **/.idea
 *.iml
 rebel.xml
-.DS_Store
+**/.DS_Store
 
 ## backend
 **/target

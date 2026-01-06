@@ -1,3 +1,4 @@
+中文 | [English](./README.en-US.md)
 
 JeecgBoot AI低代码平台
 ===============
