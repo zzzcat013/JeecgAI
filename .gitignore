@@ -3,6 +3,10 @@
 *.iml
 rebel.xml
 **/.DS_Store
+**/.trae
+**/.vercel
+
+jeecg-boot/jeecg-module-system/jeecg-system-start/uploads
 
 ## backend
 **/target
