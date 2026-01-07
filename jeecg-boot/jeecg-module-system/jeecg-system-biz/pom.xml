@@ -13,6 +13,11 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.jeecgframework.boot3</groupId>
+			<artifactId>jeecg-boot-base-core</artifactId>
+			<version>${jeecgboot.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jeecgframework.boot3</groupId>
 			<artifactId>jeecg-system-local-api</artifactId>
 		</dependency>
 		<dependency>

@@ -17,6 +17,8 @@
         <template v-if="column.key==='action'">
           <a-space>
             <a-button type="link" @click="openPreview(record)">预览</a-button>
+            <a-button type="link" @click="toMd(record)">AI转MD</a-button>
+            <a-button type="link" v-if="record.mdConverted" @click="openMdPreview(record)">MD结果</a-button>
             <a-button type="link" @click="openEdit(record)">编辑</a-button>
             <a-popconfirm title="确定删除?" @confirm="() => del(record)">
               <a-button type="link">删除</a-button>
@@ -55,7 +57,10 @@
       <template #title>
         <div class="modal-title" @mousedown="onTitleMouseDown">
           <span>{{ currentTitle || '预览' }}</span>
-          <a-button type="link" @click="toggleFull">{{ isFull ? '退出全屏' : '全屏' }}</a-button>
+          <a-space>
+            <a-button type="link" @click="toggleFull">{{ isFull ? '退出全屏' : '全屏' }}</a-button>
+            <a-button type="link" @click="downloadOrigin">下载原件</a-button>
+          </a-space>
         </div>
       </template>
       <div class="preview-container">
@@ -71,11 +76,15 @@
             <a-button type="primary" :href="previewLink" download>下载文件</a-button>
           </div>
         </div>
+        <div v-else-if="isMarkdownResult">
+           <div v-if="!mdEditing" class="markdown-body" v-html="mdHtml" style="height:100%;overflow:auto"></div>
+           <a-textarea v-else v-model:value="mdContent" style="width:100%;height:100%;resize:none" />
+        </div>
         <div v-else-if="isMarkdown">
           <div class="markdown-body" v-html="mdHtml" style="height:100%;overflow:auto"></div>
         </div>
         <div v-else-if="isDocx">
-          <div class="docx-body" v-html="docxHtml" style="height:100%;overflow:auto;padding:16px"></div>
+          <div ref="docxEl" class="docx-body" style="height:100%;overflow:auto;padding:16px"></div>
         </div>
         <div v-else-if="isText">
           <pre class="preview-pre" style="height:100%;overflow:auto">{{ textContent }}</pre>
@@ -85,19 +94,29 @@
         </div>
       </div>
     </a-modal>
+
+    <!-- 独立 Markdown 编辑器 -->
+    <MarkdownEditor
+      v-if="mdEditorShow"
+      :id="mdEditorId"
+      :title="mdEditorTitle"
+      @close="onMdEditorClose"
+      @saved="onMdEditorSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, shallowRef } from 'vue';
 import TypeCascader from '../components/TypeCascader.vue';
 import { pageDoc } from '../api/docfile.api';
 import { removeDoc, updateDoc, previewUrl } from '../api/docmanage.api';
 import { message } from 'ant-design-vue';
 import MarkdownIt from 'markdown-it';
 import { defHttp } from '/@/utils/http/axios';
-import mammoth from 'mammoth';
-import { filterXSS } from 'xss';
+// mammoth & xss 暂不使用，保留备用
+import { renderAsync } from 'docx-preview';
+import MarkdownEditor from '../components/MarkdownEditor.vue';
 
 const typeSel = ref<{ l1?: string; l2?: string; l3?: string }>({});
 const q = ref<{ title?: string; fileYear?: string }>({ title: '', fileYear: '' });
@@ -139,9 +158,13 @@ const previewOpen = ref(false);
 const previewLink = ref('');
 const textContent = ref('');
 const mdHtml = ref('');
-const docxHtml = ref('');
+const mdContent = ref('');
+const mdEditing = ref(false);
+const isMarkdownResult = ref(false);
+const docxEl = ref<HTMLElement | null>(null);
 const currentType = ref('');
 const currentTitle = ref('');
+const currentId = ref('');
 const isFull = ref(false);
 const modalStyle = computed(() => (isFull.value ? { top: '0', height: '100vh' } : {}));
 const modalBodyStyle = computed(() => ({ padding: 0, height: isFull.value ? 'calc(100vh - 50px)' : '80vh' }));
@@ -156,27 +179,57 @@ const isDocx = computed(() => currentType.value.toLowerCase() === 'docx');
 const isText = computed(() => ['txt','log','csv'].includes(currentType.value.toLowerCase()));
 const isOffice = computed(() => ['doc','ppt','pptx','xls','xlsx'].includes(currentType.value.toLowerCase()));
 
+const previewMdUrl = (id: string) => `${(window as any)._CONFIG['domianURL'] || '/jeecg-boot'}/ai5g/doc/preview-md/${id}`;
+
+async function openMdPreview(rec: any) {
+  mdEditorId.value = rec.id;
+  mdEditorTitle.value = (rec.displayName || rec.originalName || '') + ' (MD结果)';
+  mdEditorShow.value = true;
+}
+
 async function openPreview(rec: any) {
   try {
     currentType.value = (rec.fileType || '').toLowerCase();
     currentTitle.value = rec.displayName || rec.originalName || '';
+    currentId.value = rec.id;
     if (isMarkdown.value || isText.value) {
-      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob' }, { isReturnNativeResponse: true, isTransformResponse: false });
+      console.log('Preview URL (Text/MD):', previewUrl(rec.id));
+      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob', timeout: 120000 }, { isReturnNativeResponse: true, isTransformResponse: false });
       const blob: Blob = resp?.data as Blob;
       const txt = await blob.text();
       if (isMarkdown.value) mdHtml.value = md.render(txt);
       else textContent.value = txt;
       previewLink.value = '';
-    } else if (isDocx.value) {
-      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob' }, { isReturnNativeResponse: true, isTransformResponse: false });
+    } else if (isDocx.value || isOffice.value) {
+      console.log('Preview URL (Office):', previewUrl(rec.id));
+      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob', timeout: 120000 }, { isReturnNativeResponse: true, isTransformResponse: false });
+
+      const ct = String(resp?.headers?.['content-type'] || resp?.headers?.['Content-Type'] || '').toLowerCase();
       const blob: Blob = resp?.data as Blob;
-      const ab = await blob.arrayBuffer();
-      const result = await mammoth.convertToHtml({ arrayBuffer: ab }, { convertImage: mammoth.images.inline() });
-      const html = result?.value || '文档内容解析失败';
-      docxHtml.value = filterXSS(html);
-      previewLink.value = '';
+      if (ct.includes('application/pdf')) {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = URL.createObjectURL(blob);
+        previewLink.value = objectUrl;
+        currentType.value = 'pdf';
+      } else if (isDocx.value) {
+        previewLink.value = '';
+        if (docxEl.value) {
+          docxEl.value.innerHTML = '';
+          await renderAsync(blob, docxEl.value, undefined, {
+            inWrapper: true,
+            ignoreWidth: false,
+            ignoreHeight: false,
+            className: 'docx-preview',
+            breakPages: true,
+          });
+        }
+      } else {
+        // Excel/PPT Fallback to download if not PDF
+        previewLink.value = URL.createObjectURL(blob);
+        // currentType is still office, so it will show fallback download button
+      }
     } else {
-      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob' }, { isReturnNativeResponse: true, isTransformResponse: false });
+      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob', timeout: 120000 }, { isReturnNativeResponse: true, isTransformResponse: false });
       const blob: Blob = resp?.data as Blob;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(blob);
@@ -192,7 +245,6 @@ function closePreview() {
   previewOpen.value = false;
   textContent.value = '';
   mdHtml.value = '';
-  docxHtml.value = '';
   isFull.value = false;
   currentTitle.value = '';
   if (objectUrl) {
@@ -203,6 +255,21 @@ function closePreview() {
 
 function toggleFull() {
   isFull.value = !isFull.value;
+}
+
+async function downloadOrigin() {
+  try {
+    const resp: any = await defHttp.get({ url: `/ai5g/doc/download/${currentId.value}`, responseType: 'blob' }, { isReturnNativeResponse: true, isTransformResponse: false });
+    const blob: Blob = resp?.data as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = currentTitle.value || 'file';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e: any) {
+    message.error(e?.message || '下载失败');
+  }
 }
 
 function onTitleMouseDown(e: MouseEvent) {
@@ -231,6 +298,21 @@ async function del(rec: any) {
   try { await removeDoc(rec.id); message.success('删除成功'); load(); } catch (e: any) { message.error(e?.message || '删除失败'); }
 }
 
+async function toMd(rec: any) {
+  try {
+    message.loading({ content: '正在转换Markdown...', key: 'md' });
+    const r = await defHttp.post({ url: `/ai5g/doc/convert/${rec.id}` }, { isTransformResponse: false });
+    if (r?.success) {
+      message.success({ content: '转换成功', key: 'md' });
+      load();
+    } else {
+      message.error({ content: r?.message || '转换失败', key: 'md' });
+    }
+  } catch (e: any) {
+    message.error({ content: e?.message || '请求失败', key: 'md' });
+  }
+}
+
 const editOpen = ref(false);
 const editForm = ref<{ id?: string; displayName?: string; remark?: string; fileYear?: string | number; processStatus?: string }>({});
 function openEdit(rec: any) { editForm.value = { id: rec.id, displayName: rec.displayName, remark: rec.remark, fileYear: rec.fileYear, processStatus: rec.processStatus }; editOpen.value = true; }
@@ -241,6 +323,22 @@ async function submitEdit() {
     editOpen.value = false;
     load();
   } catch (e: any) { message.error(e?.message || '保存失败'); }
+}
+
+// 独立 Markdown 编辑器
+const mdEditorShow = ref(false);
+const mdEditorId = ref('');
+const mdEditorTitle = ref('');
+
+
+
+function onMdEditorClose() {
+  mdEditorShow.value = false;
+}
+
+function onMdEditorSaved() {
+  // 可选：刷新列表或提示
+  message.success('Markdown 已保存');
 }
 
 load();
