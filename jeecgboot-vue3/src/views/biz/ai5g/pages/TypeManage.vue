@@ -15,7 +15,8 @@
     <a-table :columns="columns" :data-source="rows" row-key="id" :pagination="false">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key==='action'">
-          <a-space>
+          <a-space size="small">
+            <a-button type="link" @click="openEdit(record)">编辑</a-button>
             <a-popconfirm title="确定删除?" @confirm="() => del(record)">
               <a-button type="link">删除</a-button>
             </a-popconfirm>
@@ -44,12 +45,33 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal v-model:open="editOpen" title="编辑类型" @ok="submitEdit" @cancel="editOpen=false">
+      <a-form :model="editForm" layout="vertical">
+        <a-form-item label="层级">
+          <a-select v-model:value="editForm.level" disabled>
+            <a-select-option :value="1">一级</a-select-option>
+            <a-select-option :value="2">二级</a-select-option>
+            <a-select-option :value="3">三级</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="代码">
+          <a-input v-model:value="editForm.code" disabled />
+        </a-form-item>
+        <a-form-item label="父级代码" v-if="editForm.level>1">
+          <a-input v-model:value="editForm.parentCode" disabled />
+        </a-form-item>
+        <a-form-item label="名称">
+          <a-input v-model:value="editForm.name" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
   </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { listTypes, saveType, removeType, type DocTypeItem } from '../api/doctype.api';
+import { listTypes, saveType, removeType, updateType, type DocTypeItem } from '../api/doctype.api';
 import { message } from 'ant-design-vue';
 
 const qLevel = ref<number>(1);
@@ -85,6 +107,29 @@ async function submitAdd() {
     await saveType(addForm.value);
     message.success('保存成功');
     addOpen.value = false;
+    await load();
+  } catch (e: any) {
+    message.error(e?.message || '保存失败');
+  }
+}
+
+const editOpen = ref(false);
+const editForm = ref<DocTypeItem>({ id: '', level: 1, code: '', name: '', parentCode: '' } as any);
+
+function openEdit(rec: DocTypeItem) {
+  editForm.value = { id: rec.id, level: rec.level, code: rec.code, name: rec.name, parentCode: rec.parentCode } as any;
+  editOpen.value = true;
+}
+
+async function submitEdit() {
+  try {
+    if (!editForm.value.id) {
+      message.error('缺少ID');
+      return;
+    }
+    await updateType({ id: editForm.value.id as any, name: editForm.value.name });
+    message.success('保存成功');
+    editOpen.value = false;
     await load();
   } catch (e: any) {
     message.error(e?.message || '保存失败');

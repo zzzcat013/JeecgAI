@@ -15,14 +15,24 @@
           <span v-else>—</span>
         </template>
         <template v-if="column.key==='action'">
-          <a-space>
+          <a-space size="small">
             <a-button type="link" @click="openPreview(record)">预览</a-button>
-            <a-button type="link" @click="toMd(record)">AI转MD</a-button>
-            <a-button type="link" v-if="record.mdConverted" @click="openMdPreview(record)">MD结果</a-button>
             <a-button type="link" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm title="确定删除?" @confirm="() => del(record)">
-              <a-button type="link">删除</a-button>
-            </a-popconfirm>
+            <a-dropdown>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="md-convert" @click="toMd(record)">AI转MD</a-menu-item>
+                  <a-menu-item v-if="record.mdConverted" key="md-result" @click="openMdPreview(record)">MD结果</a-menu-item>
+                  <a-menu-item key="import-kb" @click="openImportToKb(record)">导入知识库</a-menu-item>
+                  <a-menu-item key="delete">
+                    <a-popconfirm title="确定删除?" @confirm="() => del(record)">
+                      <a>删除</a>
+                    </a-popconfirm>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button type="link">更多</a-button>
+            </a-dropdown>
           </a-space>
         </template>
       </template>
@@ -103,6 +113,21 @@
       @close="onMdEditorClose"
       @saved="onMdEditorSaved"
     />
+
+    <!-- 导入到知识库 -->
+    <a-modal v-model:open="importKbOpen" title="导入到知识库" :footer="null" :width="560" @cancel="importKbOpen=false">
+      <a-form layout="vertical">
+        <a-form-item label="选择知识库">
+          <a-select v-model:value="selectedKbId" placeholder="请选择知识库" :options="kbOptions" />
+        </a-form-item>
+        <a-form-item>
+          <a-space>
+            <a-button type="primary" :loading="importLoading" @click="confirmImportToKb">导入</a-button>
+            <a-button @click="importKbOpen=false">取消</a-button>
+          </a-space>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -330,6 +355,13 @@ const mdEditorShow = ref(false);
 const mdEditorId = ref('');
 const mdEditorTitle = ref('');
 
+// 导入知识库
+const importKbOpen = ref(false);
+const importLoading = ref(false);
+const selectedKbId = ref('');
+const kbOptions = ref<{ label: string; value: string }[]>([]);
+let pendingImportDoc: { id: string; title: string; content: string } | null = null;
+
 
 
 function onMdEditorClose() {
@@ -339,6 +371,58 @@ function onMdEditorClose() {
 function onMdEditorSaved() {
   // 可选：刷新列表或提示
   message.success('Markdown 已保存');
+}
+
+async function openImportToKb(rec: any) {
+  try {
+    message.loading({ content: '加载MD内容...', key: 'imp' });
+    const resp: any = await defHttp.get({ url: `/ai5g/doc/preview-md/${rec.id}`, responseType: 'blob', timeout: 30000 }, { isReturnNativeResponse: true, isTransformResponse: false });
+    const txt = await (resp.data as Blob).text();
+    pendingImportDoc = { id: rec.id, title: rec.displayName || rec.originalName || '文档', content: txt };
+
+    // 加载知识库列表
+    const list: any = await defHttp.get({ url: '/airag/knowledge/list', params: { pageNo: 1, pageSize: 1000 } }, { isTransformResponse: false });
+    const records = list?.result?.records || list?.result || [];
+    kbOptions.value = (records || []).map((k: any) => ({ label: k.name || k.title || k.id, value: k.id }));
+    selectedKbId.value = kbOptions.value.length ? kbOptions.value[0].value : '';
+
+    importKbOpen.value = true;
+    message.destroy('imp');
+  } catch (e: any) {
+    message.error({ content: e?.message || '加载失败', key: 'imp' });
+  }
+}
+
+async function confirmImportToKb() {
+  if (!selectedKbId.value) { message.warn('请选择知识库'); return; }
+  if (!pendingImportDoc) { message.error('缺少文档数据'); return; }
+  try {
+    importLoading.value = true;
+    // 规范标题长度，避免数据库长度约束
+    let sanitizedTitle = (pendingImportDoc.title || '文档').trim();
+    if (sanitizedTitle.length > 100) sanitizedTitle = sanitizedTitle.slice(0, 100);
+    // 检查是否已存在同名文档，存在则更新；否则新增（一次写入完整内容）
+    const existList: any = await defHttp.get({ url: '/airag/knowledge/doc/list', params: { knowledgeId: selectedKbId.value, title: sanitizedTitle, pageNo: 1, pageSize: 1 } }, { isTransformResponse: false });
+    const existId = existList?.result?.records?.[0]?.id || existList?.result?.[0]?.id;
+    const payload: any = {
+      id: existId,
+      knowledgeId: selectedKbId.value,
+      title: sanitizedTitle,
+      type: 'md',
+      content: pendingImportDoc.content,
+    };
+    const r: any = await defHttp.post({ url: '/airag/knowledge/doc/edit', data: payload }, { isTransformResponse: false });
+    importLoading.value = false;
+    if (r?.success) {
+      message.success('导入成功');
+      importKbOpen.value = false;
+    } else {
+      message.error(r?.message || '导入失败');
+    }
+  } catch (e: any) {
+    importLoading.value = false;
+    message.error(e?.message || '导入失败');
+  }
 }
 
 load();

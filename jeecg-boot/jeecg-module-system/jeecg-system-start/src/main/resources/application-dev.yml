@@ -196,19 +196,24 @@ jeecg:
   # AI集成
   ai-chat:
     enabled: true
-    model: deepseek-chat
-    apiKey: sk-efb4b89c08e842e094dece30e4baac0f
-    apiHost: https://api.deepseek.com
+    model: glm-4.7
+    apiKey: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
+    apiHost: https://open.bigmodel.cn
     timeout: 60
   # AIRag向量库
   ai-rag:
     embed-store:
-      host: 127.0.0.1
-      port: 5432
+      host: 218.26.173.130
+      port: 15432
       database: postgres
       user: postgres
-      password: postgres
+      password: Qaz_1234
       table: embeddings
+    know:
+      # 是否开启mineru
+      enable-miner-u: true
+      # conda的环境，在3.1中创建的
+      conda-env: "mineru"
   #  Unipush配置 云函数调用 URL 化地址
   unicloud:
     pushUrl:

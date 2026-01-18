@@ -1201,7 +1201,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
      */
     private static void sendMessage2Client(SseEmitter emitter, EventData eventData) {
         try {
-            log.info("发送消息:{}", eventData.getRequestId());
+            log.debug("发送消息:{}", eventData.getRequestId());
             String eventStr = JSONObject.toJSONString(eventData);
             log.debug("[AI应用]接收LLM返回消息:{}", eventStr);
             emitter.send(SseEmitter.event().data(eventStr));
