@@ -18,6 +18,12 @@
             <artifactId>jeecg-module-biz</artifactId>
             <version>${jeecgboot.version}</version>
         </dependency>
+        <!-- 基础核心模块，提供工具类 oConvertUtils 等 -->
+        <dependency>
+            <groupId>org.jeecgframework.boot3</groupId>
+            <artifactId>jeecg-boot-base-core</artifactId>
+            <version>${jeecgboot.version}</version>
+        </dependency>
         <!-- SYSTEM 系统管理模块 -->
         <dependency>
             <groupId>org.jeecgframework.boot3</groupId>
