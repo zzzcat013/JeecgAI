@@ -5,7 +5,7 @@ rebel.xml
 **/.DS_Store
 **/.trae
 **/.vercel
-
+jeecg-boot/uploads
 jeecg-boot/jeecg-module-system/jeecg-system-start/uploads
 
 ## backend
