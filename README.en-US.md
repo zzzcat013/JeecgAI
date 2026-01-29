@@ -7,12 +7,12 @@
 JEECG BOOT AI Low Code Platform
 ===============
 
-Current version: 3.9.0 (Release date: 2025-12-01)
+Current version: 3.9.1 (Release date: 2026-01-28)
 
 
 [![AUR](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg)](https://github.com/zhangdaiscott/jeecg-boot/blob/master/LICENSE)
 [![](https://img.shields.io/badge/Author-guojusoft-orange.svg)](http://www.jeecg.com)
-[![](https://img.shields.io/badge/version-3.9.0-brightgreen.svg)](https://github.com/zhangdaiscott/jeecg-boot)
+[![](https://img.shields.io/badge/version-3.9.1-brightgreen.svg)](https://github.com/zhangdaiscott/jeecg-boot)
 [![GitHub stars](https://img.shields.io/github/stars/zhangdaiscott/jeecg-boot.svg?style=social&label=Stars)](https://github.com/zhangdaiscott/jeecg-boot)
 [![GitHub forks](https://img.shields.io/github/forks/zhangdaiscott/jeecg-boot.svg?style=social&label=Fork)](https://github.com/zhangdaiscott/jeecg-boot)
 
@@ -301,6 +301,41 @@ AI APP: https://help.jeecg.com/aigc
 
 
 ##### PC
+
+##### AI Model and Application Management
+
+![](https://oscimg.oschina.net/oscnet/up-0b1779e923566ccebb2d5a9cc9220c78b4a.png)
+
+![](https://oscimg.oschina.net/oscnet/up-c8956df1d37d66b2d40136afaeca677628b.png)
+
+![](https://oscimg.oschina.net/oscnet/up-8c348eeafd89673ca8cd1a2705014e3ac04.png)
+
+AI Workflow Orchestration
+
+![](https://oscimg.oschina.net/oscnet/up-2343657de2c7ac8010bc471470d084075ae.png)
+
+MCP and Tool Management
+
+![](https://oscimg.oschina.net/oscnet/up-8119d5dbc72e534236a3d042e11534c52ad.png)
+
+AI Knowledge Base (Supports various document formats, with excellent markdown compatibility)
+
+![](https://oscimg.oschina.net/oscnet/up-e2e9c118982ea366ed7f2b9827d4bb46c5d.png)
+
+AI Toolbox
+
+![](https://oscimg.oschina.net/oscnet/up-bf2a808d22a11fd83e577ad74741d97884b.png)
+
+AI Chat Assistant
+
+![](https://oscimg.oschina.net/oscnet/up-2a51accc2ff0b647e0ee058a58d291fe811.png)
+
+![](https://oscimg.oschina.net/oscnet/up-ea1069c2a92a3ab2963d88763016cb037c2.png)
+
+![](https://oscimg.oschina.net/oscnet//65298d5710b4e6039a5f802b5f8505c5.png)
+
+
+
 ![](https://oscimg.oschina.net/oscnet/up-000530d95df337b43089ac77e562494f454.png)
 
 ![输入图片说明](https://static.oschina.net/uploads/img/201904/14155402_AmlV.png "在这里输入图片标题")

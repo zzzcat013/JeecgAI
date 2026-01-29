@@ -3,13 +3,13 @@
 JeecgBoot AI低代码平台
 ===============
 
-当前最新版本： 3.9.0（发布日期：2025-12-01） 
+当前最新版本： 3.9.1（发布日期：2026-01-28） 
 
 
 [![AUR](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg)](https://github.com/jeecgboot/JeecgBoot/blob/master/LICENSE)
 [![](https://img.shields.io/badge/Author-北京国炬软件-orange.svg)](https://jeecg.com)
 [![](https://img.shields.io/badge/blog-技术博客-orange.svg)](https://jeecg.blog.csdn.net)
-[![](https://img.shields.io/badge/version-3.9.0-brightgreen.svg)](https://github.com/jeecgboot/JeecgBoot)
+[![](https://img.shields.io/badge/version-3.9.1-brightgreen.svg)](https://github.com/jeecgboot/JeecgBoot)
 [![GitHub stars](https://img.shields.io/github/stars/zhangdaiscott/jeecg-boot.svg?style=social&label=Stars)](https://github.com/jeecgboot/JeecgBoot)
 [![GitHub forks](https://img.shields.io/github/forks/zhangdaiscott/jeecg-boot.svg?style=social&label=Fork)](https://github.com/jeecgboot/JeecgBoot)
 
@@ -20,17 +20,15 @@ JeecgBoot AI低代码平台
 
 <h3 align="center">企业级AI低代码平台</h3>
 
-JeecgBoot 是一款融合代码生成与AI应用的低代码开发平台，助力企业快速实现低代码开发和构建AI应用。平台支持MCP和插件扩展，提供聊天式业务操作(如“一句话创建用户”)，大幅提升开发效率与用户便捷性。
-
-采用前后端分离架构（Ant Design&Vue3，SpringBoot3，SpringCloud Alibaba，Mybatis-plus），强大代码生成器实现前后端一键生成，无需手写代码。 
+JeecgBoot 新一代企业级AI智能体与低代码平台结合的`AI低代码平台`，助力企业快速实现低代码开发和构建AI应用。平台支持MCP和插件扩展，提供聊天式业务操作(如“一句话创建用户”)，大幅提升开发效率与用户便捷性。 前后端分离架构（Ant Design&Vue3，SpringBoot3，SpringCloud Alibaba，Mybatis-plus），强大代码生成器实现前后端一键生成，无需手写代码。 
 平台引领AI低代码开发模式：AI生成→在线编码→代码生成→手工合并，解决Java项目80%重复工作，提升效率，节省成本，兼顾灵活性。 
 具备强大且颗粒化的权限控制，支持按钮权限和数据权限设置，满足大型业务系统需求。功能涵盖在线表单、表单设计、流程设计、门户设计、报表与大屏设计、OA办公、AI应用、AI知识库、大模型管理、AI流程编排、AI聊天，支持ChatGPT、DeepSeek、Ollama等多种AI大模型。
 
-`傻瓜式报表:` JimuReport是一款自主研发的强大开源企业级Web报表工具。它通过零编码的拖拽式操作，赋能用户如同搭积木般轻松构建各类复杂报表，全面满足企业数据可视化与分析需求，助力企业级数据产品的高效打造与应用。
+`AI智能报表:` JimuReport是一款自主研发的强大开源企业级Web报表工具。它通过零编码的拖拽式操作，赋能用户如同搭积木般轻松构建各类复杂报表，全面满足企业数据可视化与分析需求，助力企业级数据产品的高效打造与应用。
 
-`傻瓜式大屏:` JimuBI一款自主研发的强大的大屏和仪表盘设计工具。专注数字孪生与数据可视化，支持交互式大屏、仪表盘、门户和移动端，实现“一次开发，多端适配”。 大屏设计类Word风格，支持多屏切换，自由拖拽，轻松打造炫酷动态界面。
+`AI智能大屏:` JimuBI一款自主研发的强大的大屏和仪表盘设计工具。专注数字孪生与数据可视化，支持交互式大屏、仪表盘、门户和移动端，实现“一次开发，多端适配”。 大屏设计类Word风格，支持多屏切换，自由拖拽，轻松打造炫酷动态界面。
 
-`成熟AI应用功能:` 提供一套完善AI应用平台: 涵盖AI应用管理、AI模型管理、智能对话助手、知识库问答、流程编排与设计器、AI建表、MCP插件配置等功能。平台兼容主流大模型，包括ChatGPT、DeepSeek、Ollama、智普、千问等，助力企业高效构建智能化应用，推动低代码开发与AI深度融合。
+`AI应用平台:` 盖AI应用管理、AI模型管理、智能对话助手、知识库问答、流程编排与设计器、AI建表、MCP插件配置等功能。平台兼容主流大模型，包括ChatGPT、DeepSeek、Ollama、智普、千问等，助力企业高效构建智能化应用，推动低代码开发与AI深度融合。
 
 `JEECG宗旨是:` JEECG旨在通过OnlineCoding平台实现简单功能的零代码快速搭建，同时针对复杂功能采用代码生成器生成代码并手工合并，打造智能且灵活的低代码开发模式，有效解决了当前低代码产品普遍缺乏灵活性的问题，提升开发效率的同时兼顾系统的扩展性和定制化能力。
 
@@ -85,10 +83,9 @@ JeecgBoot低代码平台兼容所有J2EE项目开发，支持信创国产化，�
 技术文档
 -----------------------------------
 
-- 官方网站：  [http://www.jeecg.com](http://www.jeecg.com)
 - 在线演示：  [平台演示](https://boot3.jeecg.com) | [APP演示](https://jeecg.com/appIndex)
-- 入门指南：  [快速入门](http://www.jeecg.com/doc/quickstart)  | [代码生成使用](https://help.jeecg.com/java/codegen/online) | [开发文档](https://help.jeecg.com)  | [AI应用手册](https://help.jeecg.com/aigc) | [视频教程](http://jeecg.com/doc/video)
-- AI编程实战视频：  [JEECG低代码与Cursor+GitHub Copilot实现AI高效编程实战](https://www.bilibili.com/video/BV11XyaBVEoH)
+- 官方网站：  [http://www.jeecg.com](http://www.jeecg.com)
+- 入门指南：  [快速入门](http://www.jeecg.com/doc/quickstart)  | [开发文档](https://help.jeecg.com)  | [AI应用手册](https://help.jeecg.com/aigc) | [视频教程](http://jeecg.com/doc/video)
 - 技术支持：  [反馈问题](https://github.com/jeecgboot/JeecgBoot/issues/new?template=bug_report.md)    | [低代码体验一分钟](https://jeecg.blog.csdn.net/article/details/106079007) 
 - QQ交流群 ： 964611995、⑩716488839(满)、⑨808791225(满)、其他(满)
 
@@ -110,8 +107,11 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 
 为什么选择JeecgBoot?
 -----------------------------------
-- 1.采用最新主流前后分离框架（Spring Boot3 + MyBatis + Shiro/SpringAuthorizationServer + Ant Design4 + Vue3），容易上手；代码生成器依赖性低，灵活的扩展能力，可快速实现二次开发。
-- 2.前端大版本换代，最新版采用 Vue3.0 + TypeScript + Vite6 + Ant Design Vue4 等新技术方案。
+> 界内首款AI低代码开发平台，同时具备AI应用平台和低代码平台，通过AI驱动低代码开发！
+> 开源界"小普元"超越传统商业平台。引领低代码开发模式(OnlineCoding-> 代码生成器 -> 手工MERGE)，低代码开发同时又支持灵活编码， 可以帮助解决Java项目70%的重复工作，让开发更多关注业务。既能快速提高开发效率，节省成本，同时又不失灵活性。
+
+- 1.提供了一套完善的AI应用管理系统模块，是一套类似`Dify`的`AIGC应用开发平台`+`知识库问答`，是一款基于LLM大语言模型AI应用平台和 RAG 的知识库问答系统。 其直观的界面结合了 AI 流程编排、RAG 管道、知识库管理、模型管理、对接向量库、实时运行可观察等，让您可以快速从原型到生产，拥有AI服务能力
+- 2.采用最新主流前后分离框架（Spring Boot3 + MyBatisPlus + Vue3.0 + TypeScript + Vite6 + Ant Design Vue4 ）等新技术方案。便于学习容易上手，代码生成器依赖性低，灵活的扩展能力，可快速实现二次开发。
 - 3.支持微服务Spring Cloud Alibaba（Nacos、Gateway、Sentinel、Skywalking），提供简易机制，支持单体和微服务自由切换（这样可以满足各类项目需求）。
 - 4.开发效率高，支持在线建表和AI建表，提供强大代码生成器，单表、树列表、一对多、一对一等数据模型，增删改查功能一键生成，菜单配置直接使用。
 - 5.代码生成器提供强大模板机制，支持自定义模板，目前提供四套风格模板（单表两套、树模型一套、一对多三套）。
@@ -157,7 +157,7 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 
 
 
-技术架构：
+技术架构
 -----------------------------------
 
 #### 前端
@@ -228,24 +228,36 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 - 15、CAS 单点登录   √
 - 16、路由限流   √
 
-#### 微服务架构图
-![微服务架构图](https://jeecgos.oss-cn-beijing.aliyuncs.com/files/jeecgboot_springcloud2022.png "在这里输入图片标题")
 
 
 
-### Jeecg Boot 产品功能蓝图
-![功能蓝图](https://jeecgos.oss-cn-beijing.aliyuncs.com/upload/test/Jeecg-Boot-lantu202005_1590912449914.jpg "在这里输入图片标题")
-
-
-
-####  系统功能架构图
-
-![](https://oscimg.oschina.net/oscnet/up-1569487b95a07dbc3599fb1349a2e3aaae1.png)
-
-
-
-### 开源版功能清单
+### 功能清单
 ```
+├─AI应用平台
+│  ├─AI模型管理
+│  ├─AI应用管理
+│  ├─AI知识库
+│  ├─AI流程编排
+│  ├─AI聊天助手(支持图片、文件)
+│  ├─AI聊天助手支持嵌入第三方、支持移动端
+│  ├─MCP插件管理
+│  ├─提示词管理
+│  ├─支持各种常见模型ChatGPT和DeepSeek、ollama等
+├─AI应用门户
+│  ├─ Chat2BI 图表生成智能体
+│  ├─ AI绘图智能体
+│  ├─ 看图说话
+│  ├─ 图像识别
+│  ├─ 帮我写作
+├─工具箱
+│  ├─OCR识别
+│  ├─AI 海报
+│  ├─AI 写作
+│  ├─AI 简历
+├─AI辅助功能
+│  ├─AI建表（Online表单）
+│  ├─AI生成报表（Online报表）
+│  ├─AI生成大屏
 ├─系统管理
 │  ├─用户管理
 │  ├─角色管理
@@ -272,18 +284,6 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 │  ├─系统编码规则
 │  ├─系统校验规则
 │  ├─APP版本管理
-├─AI应用平台
-│  ├─AI知识库问答系统
-│  ├─AI大模型管理
-│  ├─AI流程编排
-│  ├─AI流程设计器
-│  ├─AI对话支持图片
-│  ├─AI对话助手(智能问答)
-│  ├─AI建表（Online表单）
-│  ├─AI聊天窗口支持嵌入第三方
-│  ├─AI聊天窗口支持移动端
-│  ├─支持常见大模型ChatGPT和DeepSeek、ollama等等
-│  ├─AI OCR示例
 ├─数据可视化
 │  ├─报表设计器(支持打印设计）
 │  ├─大屏设和仪表盘设计
@@ -394,6 +394,50 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 
 ### 系统效果
 
+
+##### AI模型与应用管理
+
+![](https://oscimg.oschina.net/oscnet/up-0b1779e923566ccebb2d5a9cc9220c78b4a.png)
+
+![](https://oscimg.oschina.net/oscnet/up-c8956df1d37d66b2d40136afaeca677628b.png)
+
+![](https://oscimg.oschina.net/oscnet/up-8c348eeafd89673ca8cd1a2705014e3ac04.png)
+
+AI流程编排
+
+![](https://oscimg.oschina.net/oscnet/up-2343657de2c7ac8010bc471470d084075ae.png)
+
+MCP和工具管理
+
+![](https://oscimg.oschina.net/oscnet/up-8119d5dbc72e534236a3d042e11534c52ad.png)
+
+AI知识库（支持各种文档格式，尤其markdown适配很好）
+
+![](https://oscimg.oschina.net/oscnet/up-e2e9c118982ea366ed7f2b9827d4bb46c5d.png)
+
+AI工具箱
+
+![](https://oscimg.oschina.net/oscnet/up-bf2a808d22a11fd83e577ad74741d97884b.png)
+
+AI聊天助手
+
+![](https://oscimg.oschina.net/oscnet/up-2a51accc2ff0b647e0ee058a58d291fe811.png)
+
+![](https://oscimg.oschina.net/oscnet/up-ea1069c2a92a3ab2963d88763016cb037c2.png)
+
+![](https://oscimg.oschina.net/oscnet//65298d5710b4e6039a5f802b5f8505c5.png)
+
+
+AI绘图
+
+![](https://oscimg.oschina.net/oscnet/up-a03658e8580be04d69821601de9dc5dc52d.png)
+
+AI写文章
+
+![](https://oscimg.oschina.net/oscnet/up-e3ee5b1fe497308805aa5e324b72994af79.png)
+
+
+
 ##### PC端
 ![](https://oscimg.oschina.net/oscnet/up-000530d95df337b43089ac77e562494f454.png)
 
@@ -413,21 +457,6 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 ![](https://oscimg.oschina.net/oscnet/up-16c07e000278329b69b228ae3189814b8e9.png)
 
 
-##### AI功能
-
-AI聊天助手
-
-![](https://oscimg.oschina.net/oscnet//65298d5710b4e6039a5f802b5f8505c5.png)
-
-AI建表
-
-![](https://oscimg.oschina.net/oscnet/up-381423599f219a67def45dfd9a99df8ef3f.png)
-
-![](https://oscimg.oschina.net/oscnet/up-1508c2b0708c365605f68893044ee11f20d.png)
-
-AI写文章
-
-![](https://oscimg.oschina.net/oscnet/up-e3ee5b1fe497308805aa5e324b72994af79.png)
 
 
 #####  仪表盘设计器
@@ -498,6 +527,21 @@ AI写文章
 
 
 
+
+
+#### 微服务架构图
+![微服务架构图](https://jeecgos.oss-cn-beijing.aliyuncs.com/files/jeecgboot_springcloud2022.png "在这里输入图片标题")
+
+
+
+### Jeecg Boot 产品功能蓝图
+![功能蓝图](https://jeecgos.oss-cn-beijing.aliyuncs.com/upload/test/Jeecg-Boot-lantu202005_1590912449914.jpg "在这里输入图片标题")
+
+
+
+####  系统功能架构图
+
+![](https://oscimg.oschina.net/oscnet/up-1569487b95a07dbc3599fb1349a2e3aaae1.png)
 
 
 
