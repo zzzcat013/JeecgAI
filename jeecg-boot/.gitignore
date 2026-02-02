@@ -6,6 +6,9 @@ rebel.xml
 ## backend
 **/target
 **/logs
+**/uploads
+.vercel
+.trae
 
 ## front
 **/*.lock
