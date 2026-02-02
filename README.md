@@ -20,7 +20,9 @@ JeecgBoot AI低代码平台
 
 <h3 align="center">企业级AI低代码平台</h3>
 
-JeecgBoot 新一代企业级AI智能体与低代码平台结合的`AI低代码平台`，助力企业快速实现低代码开发和构建AI应用。平台支持MCP和插件扩展，提供聊天式业务操作(如“一句话创建用户”)，大幅提升开发效率与用户便捷性。 前后端分离架构（Ant Design&Vue3，SpringBoot3，SpringCloud Alibaba，Mybatis-plus），强大代码生成器实现前后端一键生成，无需手写代码。 
+JeecgBoot 新一代企业级AI智能体与低代码平台结合的`AI低代码平台`，助力企业快速实现低代码开发和构建AI应用。平台支持MCP和插件扩展，提供聊天式业务操作(如“一句话创建用户”)，大幅提升开发效率与用户便捷性。 
+
+前后端分离架构（Ant Design&Vue3，SpringBoot3，SpringCloud Alibaba，Mybatis-plus），强大代码生成器实现前后端一键生成，无需手写代码。 
 平台引领AI低代码开发模式：AI生成→在线编码→代码生成→手工合并，解决Java项目80%重复工作，提升效率，节省成本，兼顾灵活性。 
 具备强大且颗粒化的权限控制，支持按钮权限和数据权限设置，满足大型业务系统需求。功能涵盖在线表单、表单设计、流程设计、门户设计、报表与大屏设计、OA办公、AI应用、AI知识库、大模型管理、AI流程编排、AI聊天，支持ChatGPT、DeepSeek、Ollama等多种AI大模型。
 
