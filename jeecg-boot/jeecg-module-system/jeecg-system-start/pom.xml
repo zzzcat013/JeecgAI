@@ -67,6 +67,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 指定工作目录为项目根目录 (即 jeecg-boot) -->
+                    <workingDirectory>${project.basedir}/../../</workingDirectory>
+                </configuration>
             </plugin>
         </plugins>
     </build>
