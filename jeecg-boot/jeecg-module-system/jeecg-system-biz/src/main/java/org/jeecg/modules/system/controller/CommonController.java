@@ -194,20 +194,28 @@ public class CommonController {
         }
         
         try {
+            // update-begin--Author:sunjianlei  Date:20210629 for： v-3.6 路径遍历漏洞修复 --------------
             imgPath = imgPath.replace("..", "").replace("../","");
             if (imgPath.endsWith(SymbolConstant.COMMA)) {
                 imgPath = imgPath.substring(0, imgPath.length() - 1);
             }
-            // 代码逻辑说明: 检查下载文件类型--------------
-            SsrfFileTypeFilter.checkDownloadFileType(imgPath);
+            // update-end--Author:sunjianlei  Date:20210629 for： v-3.6 路径遍历漏洞修复 --------------
 
             String filePath = uploadpath + File.separator + imgPath;
             File file = new File(filePath);
-            if(!file.exists()){
+            if (!file.exists()) {
+                // update-begin--Author:scott  Date:20211226 for： 解决上传文件名包含逗号，预览404问题 --------------
+                if (imgPath.endsWith(SymbolConstant.COMMA)) {
+                    imgPath = imgPath.substring(0, imgPath.length() - 1);
+                    filePath = uploadpath + File.separator + imgPath;
+                    file = new File(filePath);
+                }
+            }
+            if (!file.exists()) {
+                log.error("本地文件不存在: 期望路径=[{}], uploadpath配置=[{}], 请求相对路径=[{}]", file.getAbsolutePath(), uploadpath, imgPath);
                 response.setStatus(404);
                 log.warn("文件["+imgPath+"]不存在..");
                 return;
-                //throw new RuntimeException();
             }
             // 设置强制下载不打开
             response.setContentType("application/force-download");

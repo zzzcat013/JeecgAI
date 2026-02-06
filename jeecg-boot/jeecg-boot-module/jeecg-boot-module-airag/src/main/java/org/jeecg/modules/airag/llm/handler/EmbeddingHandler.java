@@ -23,6 +23,7 @@ import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.tika.parser.AutoDetectParser;
 import org.jeecg.ai.factory.AiModelFactory;
 import org.jeecg.ai.factory.AiModelOptions;
@@ -49,6 +50,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -141,6 +143,28 @@ public class EmbeddingHandler implements IEmbeddingHandler {
     private static final Pattern PATTERN_MD_IMAGE = Pattern.compile("!\\[(.*?)]\\((.*?)\\)");
 
     /**
+     * 正则匹配: html图片src属性
+     * src="xxx"
+     */
+    private static final Pattern PATTERN_HTML_SRC = Pattern.compile("src\\s*=\\s*['\"]([^'\"]*?)['\"]");
+
+    @Autowired
+    @Lazy
+    private org.jeecg.modules.airag.llm.service.IAiragKnowledgeDocService airagKnowledgeDocService;
+
+    /**
+     * 更新文档处理步骤描述
+     */
+    private void updateDocStep(AiragKnowledgeDoc doc, String step) {
+        log.info("文档处理进度: [{}] {}", doc.getId(), step);
+        String metadataStr = doc.getMetadata();
+        JSONObject metadata = oConvertUtils.isEmpty(metadataStr) ? new JSONObject() : JSONObject.parseObject(metadataStr);
+        metadata.put("buildStep", step);
+        doc.setMetadata(metadata.toJSONString());
+        airagKnowledgeDocService.updateById(doc);
+    }
+
+    /**
      * 向量化文档
      *
      * @param knowId
@@ -161,10 +185,10 @@ public class EmbeddingHandler implements IEmbeddingHandler {
             switch (doc.getType()) {
                 case KNOWLEDGE_DOC_TYPE_FILE:
                     //解析文件
-                    if (knowConfigBean.isEnableMinerU()) {
-                        parseFileByMinerU(doc);
-                    }
+                    updateDocStep(doc, "正在提取文档内容...");
                     content = parseFile(doc);
+                    // 保存解析后的内容到数据库，方便核查
+                    doc.setContent(content);
                     break;
                 case KNOWLEDGE_DOC_TYPE_WEB:
                     // TODO author: chenrui for:读取网站内容 date:2025/2/18
@@ -178,6 +202,7 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         //update-end---author:chenrui ---date:20250307  for：[QQYUN-11443]【AI】是不是应该把标题也生成到向量库里，标题一般是有意义的------------
 
         // 向量化 date:2025/2/18
+        updateDocStep(doc, "正在进行向量化构建...");
         AiragModel model = getEmbedModelData(airagKnowledge.getEmbedId());
         AiModelOptions modelOp = buildModelOptions(model);
         EmbeddingModel embeddingModel = AiModelFactory.createEmbeddingModel(modelOp);
@@ -576,26 +601,57 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         // 提取文档内容
         File docFile = new File(filePath);
         if (docFile.exists()) {
-            Document document = new TikaDocumentParser(AutoDetectParser::new, null, null, null).parse(docFile);
-            if (null != document) {
-                String content = document.text();
-                // 判断是否md文档
-                String fileType = FilenameUtils.getExtension(docFile.getName());
-                if ("md".contains(fileType)) {
+            String content = null;
+            String fileType = FilenameUtils.getExtension(docFile.getName()).toLowerCase();
+            
+            // 尝试使用扩展解析器解析
+            Map<String, IDocumentParser> parsers = SpringContextUtils.getApplicationContext().getBeansOfType(IDocumentParser.class);
+            for (IDocumentParser parser : parsers.values()) {
+                if (parser.support(fileType)) {
+                    log.info("使用扩展解析器解析文件: {}", parser.getClass().getSimpleName());
+                    // 传递 knowConfigBean 作为配置
+                    content = parser.parse(docFile, knowConfigBean);
+                    if (oConvertUtils.isNotEmpty(content)) {
+                        break;
+                    }
+                }
+            }
+
+            // 如果扩展解析器未返回内容，走默认逻辑
+            if (oConvertUtils.isEmpty(content)) {
+                // 如果是 md 文件，直接读取内容，避免 Tika 解析可能出现的问题
+                if ("md".equals(fileType)) {
+                    try {
+                        content = org.apache.commons.io.FileUtils.readFileToString(docFile, StandardCharsets.UTF_8);
+                    } catch (IOException e) {
+                        log.error("读取 md 文件失败: {}", filePath, e);
+                    }
+                } else {
+                    Document document = new TikaDocumentParser(AutoDetectParser::new, null, null, null).parse(docFile);
+                    if (null != document) {
+                        content = document.text();
+                    }
+                }
+            }
+
+            if (oConvertUtils.isNotEmpty(content)) {
+                // 判断是否md文档进行图片替换
+                if ("md".equals(fileType)) {
                     // 如果是md文件，查找所有图片语法，如果是本地图片，替换成网络图片
                     String baseUrl = "#{domainURL}/sys/common/static/";
                     String sourcePath = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH);
                     if(oConvertUtils.isNotEmpty(sourcePath)) {
                         String escapedPath = uploadpath;
-                        //update-begin---author:wangshuai---date:2025-06-03---for:【QQYUN-12636】【AI知识库】文档库上传 本地local 文档中的图片不展示---
-                        /*if (File.separator.equals("\\")){
-                            escapedPath = uploadpath.replace("//", "\\\\");
-                        }*/
-                        //update-end---author:wangshuai---date:2025-06-03---for:【QQYUN-12636】【AI知识库】文档库上传 本地local 文档中的图片不展示---
-                        sourcePath = sourcePath.replaceFirst("^" + escapedPath, "").replace("\\", "/");
+                        sourcePath = sourcePath.replaceFirst("^" + Pattern.quote(escapedPath), "").replace("\\", "/");
+                        // 确保 sourcePath 不以 / 开头，因为后面会拼接 baseUrl
+                        if (sourcePath.startsWith("/")) {
+                            sourcePath = sourcePath.substring(1);
+                        }
+                        
                         String docFilePath = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH);
                         docFilePath = FilenameUtils.getPath(docFilePath);
                         docFilePath = docFilePath.replace("\\", "/");
+                        
                         StringBuffer sb = replaceImageUrl(content, baseUrl + sourcePath + "/", baseUrl + docFilePath);
                         content = sb.toString();
                     }
@@ -608,28 +664,29 @@ public class EmbeddingHandler implements IEmbeddingHandler {
 
     @NotNull
     private static StringBuffer replaceImageUrl(String content, String abstractBaseUrl, String relativeBaseUrl) {
-        // 正则表达式匹配md文件中的图片语法 ![alt text](image url)
+        // 1. 处理 Markdown 图片语法 ![alt text](image url)
         Matcher matcher = PATTERN_MD_IMAGE.matcher(content);
-
         StringBuffer sb = new StringBuffer();
         while (matcher.find()) {
             String imageUrl = matcher.group(2);
-            // 检查是否是本地图片路径
-            if (!imageUrl.startsWith("http")) {
-                // 替换成网络图片路径
-                String networkImageUrl = abstractBaseUrl + imageUrl;
-                if(imageUrl.startsWith("/")) {
-                    // 绝对路径
-                    networkImageUrl = abstractBaseUrl + imageUrl;
-                }else{
-                    // 相对路径
-                    networkImageUrl = relativeBaseUrl + imageUrl;
-                }
-                // 修改图片路径中//->/，但保留http://和https://
-                networkImageUrl = networkImageUrl.replaceAll("(?<!http:)(?<!https:)//", "/");
-                matcher.appendReplacement(sb, "![" + matcher.group(1) + "](" + networkImageUrl + ")");
+            String replacement = resolveNetworkUrl(imageUrl, abstractBaseUrl, relativeBaseUrl);
+            matcher.appendReplacement(sb, "![" + matcher.group(1) + "](" + replacement + ")");
+        }
+        matcher.appendTail(sb);
+        String processedContent = sb.toString();
+
+        // 2. 处理 HTML 图片 src 属性
+        matcher = PATTERN_HTML_SRC.matcher(processedContent);
+        sb = new StringBuffer();
+        while (matcher.find()) {
+            String imageUrl = matcher.group(1);
+            // 简单判断是否为图片资源，避免误替换其他 src
+            if (isImageResource(imageUrl)) {
+                String replacement = resolveNetworkUrl(imageUrl, abstractBaseUrl, relativeBaseUrl);
+                matcher.appendReplacement(sb, "src=\"" + replacement + "\"");
             } else {
-                matcher.appendReplacement(sb, "![" + matcher.group(1) + "](" + imageUrl + ")");
+                // 不替换
+                matcher.appendReplacement(sb, matcher.group(0));
             }
         }
         matcher.appendTail(sb);
@@ -637,61 +694,39 @@ public class EmbeddingHandler implements IEmbeddingHandler {
     }
 
     /**
-     * 通过MinerU解析文件
-     *
-     * @param doc
-     * @author chenrui
-     * @date 2025/4/1 17:37
+     * 解析网络图片地址
      */
-    private void parseFileByMinerU(AiragKnowledgeDoc doc) {
-        String metadata = doc.getMetadata();
-        AssertUtils.assertNotEmpty("请先上传文件", metadata);
-        JSONObject metadataJson = JSONObject.parseObject(metadata);
-        if (!metadataJson.containsKey(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH)) {
-            throw new JeecgBootException("请先上传文件");
-        }
-        String filePath = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH);
-        AssertUtils.assertNotEmpty("请先上传文件", filePath);
-        filePath = ensureFile(filePath);
-
-        File docFile = new File(filePath);
-        String fileType = FilenameUtils.getExtension(filePath);
-        if (!docFile.exists()
-                || "txt".equalsIgnoreCase(fileType)
-                || "md".equalsIgnoreCase(fileType)) {
-            return ;
-        }
-
-        String command = "magic-pdf";
-        if (oConvertUtils.isNotEmpty(knowConfigBean.getCondaEnv())) {
-            command = "conda run -n " + knowConfigBean.getCondaEnv() + " " + command;
-        }
-
-        String outputPath = docFile.getParentFile().getAbsolutePath();
-        String[] args = {
-                "-p", docFile.getAbsolutePath(),
-                "-o", outputPath,
-        };
-
-        try {
-            String execLog = CommandExecUtil.execCommand(command, args);
-            log.info("执行命令行:" + command + " args:" + Arrays.toString(args) + "\n log::" + execLog);
-            // 如果成功,替换文件路径和静态资源路径
-            String fileBaseName = FilenameUtils.getBaseName(docFile.getName());
-            String newFileDir = outputPath + File.separator + fileBaseName + File.separator + "auto" + File.separator ;
-            // 先检查文件是否存在,存在才替换
-            File convertedFile = new File(newFileDir + fileBaseName + ".md");
-            if (convertedFile.exists()) {
-                log.info("文件转换成md成功,替换文件路径和静态资源路径");
-                newFileDir = newFileDir.replaceFirst("^" + uploadpath, "");
-                metadataJson.put(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH, newFileDir + fileBaseName + ".md");
-                metadataJson.put(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH, newFileDir);
-                doc.setMetadata(metadataJson.toJSONString());
+    private static String resolveNetworkUrl(String imageUrl, String abstractBaseUrl, String relativeBaseUrl) {
+        // 检查是否是本地图片路径
+        if (!imageUrl.startsWith("http")) {
+            // 替换成网络图片路径
+            String networkImageUrl;
+            if(imageUrl.startsWith("/")) {
+                // 绝对路径
+                networkImageUrl = abstractBaseUrl + imageUrl;
+            }else{
+                // 相对路径
+                networkImageUrl = relativeBaseUrl + imageUrl;
             }
-        } catch (IOException e) {
-            log.error("文件转换md失败,使用传统提取方案{}", e.getMessage(), e);
+            // 修改图片路径中//->/，但保留http://和https://
+            return networkImageUrl.replaceAll("(?<!http:)(?<!https:)//", "/");
         }
+        return imageUrl;
     }
+
+    /**
+     * 判断是否为图片资源
+     */
+    private static boolean isImageResource(String url) {
+        if (oConvertUtils.isEmpty(url)) return false;
+        String lowerUrl = url.toLowerCase();
+        return lowerUrl.endsWith(".png") || lowerUrl.endsWith(".jpg") || 
+               lowerUrl.endsWith(".jpeg") || lowerUrl.endsWith(".gif") || 
+               lowerUrl.endsWith(".svg") || lowerUrl.endsWith(".bmp") || 
+               lowerUrl.endsWith(".webp") || lowerUrl.contains("/aigc/");
+    }
+
+    // parseFileByMinerU 方法已迁移至业务模块，此处删除
 
     /**
      * 确保文件存在
@@ -718,7 +753,17 @@ public class EmbeddingHandler implements IEmbeddingHandler {
             filePath = tempFilePath;
         } else {
             //本地文件
-            filePath = uploadpath + File.separator + filePath;
+            // 如果已经是绝对路径，且包含 uploadpath，则直接使用
+            File file = new File(filePath);
+            if (file.isAbsolute() && file.exists()) {
+                return filePath;
+            }
+            
+            // 如果不以 uploadpath 开头，则拼接
+            String normalizedUploadPath = new File(uploadpath).getAbsolutePath();
+            if (!file.getAbsolutePath().startsWith(normalizedUploadPath)) {
+                filePath = uploadpath + File.separator + filePath;
+            }
         }
         return filePath;
     }

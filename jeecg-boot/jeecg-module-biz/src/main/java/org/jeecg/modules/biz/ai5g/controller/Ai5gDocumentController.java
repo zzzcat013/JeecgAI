@@ -1,6 +1,8 @@
 package org.jeecg.modules.biz.ai5g.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.modules.biz.ai5g.util.MineruClientUtil;
+import org.jeecg.common.util.oConvertUtils;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.pdf.PDFParser;
@@ -43,6 +45,8 @@ public class Ai5gDocumentController {
   private IBizDocFileService bizDocFileService;
   @Autowired
   private org.jeecg.modules.biz.ai5g.service.IBizDocTypeService bizDocTypeService;
+  @Autowired
+  private org.springframework.core.env.Environment environment;
 
   private static final Set<String> ALLOW_EXT = new HashSet<>(Arrays.asList("pdf","doc","docx","xlsx","xls","csv"));
 
@@ -181,93 +185,251 @@ public class Ai5gDocumentController {
       return Result.error("当前上传模式非本地，暂不支持后台Markdown转换");
     }
     
-    String ft = doc.getFileType() == null ? "" : doc.getFileType().toLowerCase();
-    
-    try {
-      java.io.File src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
-      if (!src.exists()) return Result.error("源文件不存在");
-      String mdRel = doc.getStoragePath().replaceAll("\\.[^./\\\\]+$", "") + ".md";
-      java.io.File mdFile = new java.io.File(uploadpath + java.io.File.separator + mdRel);
-      mdFile.getParentFile().mkdirs();
-
-      boolean converted = false;
-      
-      if ("csv".equals(ft)) {
-          // CSV Special handling
-          try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(src), java.nio.charset.StandardCharsets.UTF_8));
-               java.io.BufferedWriter bw = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(mdFile), java.nio.charset.StandardCharsets.UTF_8))) {
-            String line;
-            boolean headerWritten = false;
-            while ((line = br.readLine()) != null) {
-              String[] cells = line.split(",", -1);
-              String row = "|" + String.join("|", cells) + "|";
-              bw.write(row);
-              bw.newLine();
-              if (!headerWritten) {
-                String sep = "|" + Arrays.stream(cells).map(c -> "---").reduce((a,b)-> a+"|"+b).orElse("") + "|";
-                bw.write(sep);
-                bw.newLine();
-                headerWritten = true;
-              }
+    // 异步执行转换任务
+    new Thread(() -> {
+        try {
+            // 更新状态为处理中
+            doc.setProcessStatus("processing");
+            bizDocFileService.updateById(doc);
+            
+            String ft = doc.getFileType() == null ? "" : doc.getFileType().toLowerCase();
+            
+            java.io.File src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
+            if (!src.exists()) {
+                log.error("源文件不存在: {}", src.getAbsolutePath());
+                doc.setProcessStatus("failed");
+                doc.setRemark("源文件不存在");
+                bizDocFileService.updateById(doc);
+                return;
             }
-          }
-          converted = true;
-      } else if (java.util.Arrays.asList("docx", "doc", "odt", "html", "epub").contains(ft)) {
-          // Use Pandoc for these formats
-          converted = tryPandocConvert(src, mdFile, ft);
-      } else if (java.util.Arrays.asList("xls", "xlsx").contains(ft)) {
-          // XLS/XLSX -> CSV -> Markdown Table
-          // LibreOffice converts "foo.xlsx" to "foo.csv" in the outdir.
-          String baseName = src.getName().substring(0, src.getName().lastIndexOf('.'));
-          java.io.File tempCsv = new java.io.File(src.getParent(), baseName + ".csv");
-          
-          boolean toCsv = trySofficeCliConvert(src, tempCsv, "csv");
-          if (toCsv && tempCsv.exists()) {
-              // Now read tempCsv and write to mdFile
-              try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(tempCsv), java.nio.charset.StandardCharsets.UTF_8));
-                   java.io.BufferedWriter bw = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(mdFile), java.nio.charset.StandardCharsets.UTF_8))) {
-                String line;
-                boolean headerWritten = false;
-                while ((line = br.readLine()) != null) {
-                  // Simple CSV split
-                  String[] cells = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-                  for(int i=0; i<cells.length; i++) {
-                      cells[i] = cells[i].replaceAll("^\"|\"$", "").replace("\"\"", "\""); 
-                  }
-                  
-                  String row = "|" + String.join("|", cells) + "|";
-                  bw.write(row);
-                  bw.newLine();
-                  if (!headerWritten) {
-                    String sep = "|" + Arrays.stream(cells).map(c -> "---").reduce((a,b)-> a+"|"+b).orElse("") + "|";
-                    bw.write(sep);
+            
+            String mdRel = doc.getStoragePath().replaceAll("\\.[^./\\\\]+$", "") + ".md";
+            java.io.File mdFile = new java.io.File(uploadpath + java.io.File.separator + mdRel);
+            mdFile.getParentFile().mkdirs();
+
+            boolean converted = false;
+            
+            if ("csv".equals(ft)) {
+                // CSV Special handling
+                try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(src), java.nio.charset.StandardCharsets.UTF_8));
+                     java.io.BufferedWriter bw = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(mdFile), java.nio.charset.StandardCharsets.UTF_8))) {
+                  String line;
+                  boolean headerWritten = false;
+                  while ((line = br.readLine()) != null) {
+                    String[] cells = line.split(",", -1);
+                    String row = "|" + String.join("|", cells) + "|";
+                    bw.write(row);
                     bw.newLine();
-                    headerWritten = true;
+                    if (!headerWritten) {
+                      String sep = "|" + Arrays.stream(cells).map(c -> "---").reduce((a,b)-> a+"|"+b).orElse("") + "|";
+                      bw.write(sep);
+                      bw.newLine();
+                      headerWritten = true;
+                    }
                   }
                 }
-              }
-              converted = true;
-              tempCsv.delete();
-          }
-      } else if ("pdf".equals(ft)) {
-          // Use Tika for PDF
-          converted = tryTikaConvert(src, mdFile);
-      } else {
-          return Result.error("暂不支持该文件类型转换为 Markdown");
-      }
+                converted = true;
+            } else if (java.util.Arrays.asList("docx", "doc", "odt", "html", "epub", "pdf", "ppt", "pptx").contains(ft)) {
+                // 统一使用 MinerU 解析 (优先远程，失败回退到本地，再失败回退到 Tika/Pandoc)
+                // 1. Office 格式预转 PDF (MinerU 只认 PDF)
+                java.io.File mineruInputFile = src;
+                boolean isOffice = java.util.Arrays.asList("docx", "doc", "ppt", "pptx").contains(ft);
+                
+                if (isOffice) {
+                    log.info("检测到 Office 文档 ({}), 正在通过 LibreOffice 预转为 PDF...", ft);
+                    String baseName = src.getName().substring(0, src.getName().lastIndexOf('.'));
+                    java.io.File pdfFile = new java.io.File(src.getParent(), baseName + ".pdf");
+                    
+                    // 尝试转 PDF
+                    boolean toPdf = trySofficeCliConvert(src, pdfFile, "pdf");
+                    if (toPdf && pdfFile.exists()) {
+                        mineruInputFile = pdfFile;
+                    } else {
+                        log.warn("Office 预转 PDF 失败，将尝试使用 Tika/Pandoc 兜底");
+                        isOffice = false; // 标记转换失败，后续不走 MinerU
+                    }
+                }
+                
+                // 2. 尝试 MinerU 远程解析
+                String mineruUrl = environment.getProperty("jeecg.airag.know.mineru-url");
+                if (isOffice || "pdf".equals(ft)) {
+                   if (org.jeecg.common.util.oConvertUtils.isNotEmpty(mineruUrl)) {
+                        log.info("使用 MinerU 远程服务解析: {}", mineruUrl);
+                  com.alibaba.fastjson.JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile);
+                  if (mineruRes != null && org.jeecg.common.util.oConvertUtils.isNotEmpty(mineruRes.getString("content"))) {
+                      try {
+                                org.apache.commons.io.FileUtils.writeStringToFile(mdFile, mineruRes.getString("content"), java.nio.charset.StandardCharsets.UTF_8);
+                                converted = true;
+                            } catch (Exception e) {
+                                log.error("保存 MinerU 结果失败", e);
+                            }
+                        }
+                    }
+                    
+                    // 3. 尝试 MinerU 本地命令
+                    if (!converted) {
+                        converted = tryMineruLocalConvert(mineruInputFile, mdFile);
+                    }
+                }
+                
+                // 4. 兜底方案 (Pandoc 或 Tika)
+                if (!converted) {
+                    if (java.util.Arrays.asList("docx", "doc", "odt", "html", "epub").contains(ft)) {
+                         converted = tryPandocConvert(src, mdFile, ft);
+                    } else if ("pdf".equals(ft)) {
+                         converted = tryTikaConvert(src, mdFile);
+                    }
+                }
+                
+                // 清理临时 PDF
+                if (mineruInputFile != src && mineruInputFile.exists()) {
+                    mineruInputFile.delete();
+                }
 
-      if (converted && mdFile.exists()) {
-          doc.setMdConverted(true);
-          doc.setMdPath(mdRel);
-          bizDocFileService.updateById(doc);
-          return Result.OK(doc);
-      } else {
-          return Result.error("转换失败");
+            } else if (java.util.Arrays.asList("xls", "xlsx").contains(ft)) {
+                // XLS/XLSX -> CSV -> Markdown Table
+                // LibreOffice converts "foo.xlsx" to "foo.csv" in the outdir.
+                String baseName = src.getName().substring(0, src.getName().lastIndexOf('.'));
+                java.io.File tempCsv = new java.io.File(src.getParent(), baseName + ".csv");
+                
+                boolean toCsv = trySofficeCliConvert(src, tempCsv, "csv");
+                if (toCsv && tempCsv.exists()) {
+                    // Now read tempCsv and write to mdFile
+                    try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(tempCsv), java.nio.charset.StandardCharsets.UTF_8));
+                         java.io.BufferedWriter bw = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(mdFile), java.nio.charset.StandardCharsets.UTF_8))) {
+                      String line;
+                      boolean headerWritten = false;
+                      while ((line = br.readLine()) != null) {
+                        // Simple CSV split
+                        String[] cells = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+                        for(int i=0; i<cells.length; i++) {
+                            cells[i] = cells[i].replaceAll("^\"|\"$", "").replace("\"\"", "\""); 
+                        }
+                        
+                        String row = "|" + String.join("|", cells) + "|";
+                        bw.write(row);
+                        bw.newLine();
+                        if (!headerWritten) {
+                          String sep = "|" + Arrays.stream(cells).map(c -> "---").reduce((a,b)-> a+"|"+b).orElse("") + "|";
+                          bw.write(sep);
+                          bw.newLine();
+                          headerWritten = true;
+                        }
+                      }
+                    }
+                    converted = true;
+                    tempCsv.delete();
+                }
+            } else {
+                doc.setProcessStatus("failed");
+                doc.setRemark("暂不支持该文件类型转换为 Markdown");
+                bizDocFileService.updateById(doc);
+                return;
+            }
+
+            if (converted && mdFile.exists()) {
+                doc.setMdConverted(true);
+                doc.setMdPath(mdRel);
+                doc.setProcessStatus("success");
+                bizDocFileService.updateById(doc);
+            } else {
+                doc.setProcessStatus("failed");
+                doc.setRemark("转换失败");
+                bizDocFileService.updateById(doc);
+            }
+        } catch (Exception e) {
+            log.error("convert to md error", e);
+            doc.setProcessStatus("failed");
+            doc.setRemark("转换异常: " + e.getMessage());
+            bizDocFileService.updateById(doc);
+        }
+    }).start();
+
+    return Result.OK("转换任务已提交，请稍候查看结果");
+  }
+
+  private boolean tryMineruLocalConvert(java.io.File src, java.io.File mdFile) {
+      try {
+          String condaEnv = environment.getProperty("jeecg.airag.know.conda-env", "mineru");
+          String outputPath = src.getParentFile().getAbsolutePath();
+          
+          // Office 预转换 PDF (MinerU 仅支持 PDF)
+          java.io.File mineruInputFile = src;
+          String fileType = src.getName().substring(src.getName().lastIndexOf('.') + 1).toLowerCase();
+          boolean isOffice = java.util.Arrays.asList("docx", "doc", "xlsx", "xls", "pptx", "ppt").contains(fileType);
+          
+          if (isOffice) {
+              log.info("检测到 Office 文档 ({}), 正在通过 LibreOffice 预转为 PDF...", fileType);
+              String sofficeCommand = "/Applications/LibreOffice.app/Contents/MacOS/soffice";
+              if (!new java.io.File(sofficeCommand).exists()) {
+                  sofficeCommand = "soffice";
+              }
+              String baseName = src.getName().substring(0, src.getName().lastIndexOf('.'));
+              
+              java.util.List<String> sofficeCmd = new java.util.ArrayList<>();
+              sofficeCmd.add(sofficeCommand);
+              sofficeCmd.add("--headless");
+              sofficeCmd.add("--convert-to");
+              sofficeCmd.add("pdf");
+              sofficeCmd.add("--outdir");
+              sofficeCmd.add(outputPath);
+              sofficeCmd.add(src.getAbsolutePath());
+              
+              java.lang.Process p = new java.lang.ProcessBuilder(sofficeCmd).start();
+              p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
+              
+              java.io.File generatedPdf = new java.io.File(outputPath + java.io.File.separator + baseName + ".pdf");
+              if (generatedPdf.exists()) {
+                  mineruInputFile = generatedPdf;
+              } else {
+                  log.warn("Office 预转 PDF 失败，跳过 MinerU 解析");
+                  return false;
+              }
+          }
+
+          java.util.List<String> command = new java.util.ArrayList<>();
+          command.add("conda");
+          command.add("run");
+          command.add("-n");
+          command.add(condaEnv);
+          command.add("mineru");
+          command.add("-p");
+          command.add(mineruInputFile.getAbsolutePath());
+          command.add("-o");
+          command.add(outputPath);
+
+          log.info("Executing local MinerU: {}", String.join(" ", command));
+          java.lang.ProcessBuilder pb = new java.lang.ProcessBuilder(command);
+          pb.redirectErrorStream(true);
+          java.lang.Process p = pb.start();
+          
+          try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+              String line;
+              while ((line = reader.readLine()) != null) {
+                  log.info("MinerU CLI Output: {}", line);
+              }
+          }
+          
+          boolean finished = p.waitFor(300, java.util.concurrent.TimeUnit.SECONDS);
+          if (!finished) {
+              p.destroyForcibly();
+              return false;
+          }
+
+          if (p.exitValue() == 0) {
+              // MinerU creates output in a subfolder: {outputPath}/{baseName}/auto/{baseName}.md
+              String baseName = src.getName().substring(0, src.getName().lastIndexOf('.'));
+              java.io.File generatedMd = new java.io.File(outputPath + java.io.File.separator + baseName + java.io.File.separator + "auto" + java.io.File.separator + baseName + ".md");
+              if (generatedMd.exists()) {
+                  org.apache.commons.io.FileUtils.copyFile(generatedMd, mdFile);
+                  return true;
+              }
+          }
+          return false;
+      } catch (Exception e) {
+          log.error("Local MinerU conversion error", e);
+          return false;
       }
-    } catch (Exception e) {
-      log.error("convert to md error", e);
-      return Result.error("转换失败: " + e.getMessage());
-    }
   }
 
   private boolean tryTikaConvert(java.io.File src, java.io.File mdFile) {
@@ -512,51 +674,75 @@ public class Ai5gDocumentController {
     String soffice = "/Applications/LibreOffice.app/Contents/MacOS/soffice";
     if (!new java.io.File(soffice).exists()) soffice = "soffice";
     
-    // Create a temporary directory for UserInstallation to avoid lock issues
-    String userInstallDir = System.getProperty("java.io.tmpdir") + java.io.File.separator + "LO_User_" + System.currentTimeMillis();
+    // 为了避免 macOS 下的沙盒权限问题，将文件复制到系统临时目录进行转换
+    String tmpDir = System.getProperty("java.io.tmpdir");
+    String safeBaseName = "soffice_convert_" + System.currentTimeMillis();
+    java.io.File tmpSrc = new java.io.File(tmpDir, safeBaseName + "_" + src.getName());
+    java.io.File tmpOutDir = new java.io.File(tmpDir, safeBaseName + "_out");
+    tmpOutDir.mkdirs();
     
-    java.lang.ProcessBuilder pb = new java.lang.ProcessBuilder(
-        soffice,
-        "-env:UserInstallation=file://" + userInstallDir,
-        "--headless",
-        "--invisible",
-        "--nologo",
-        "--nodefault",
-        "--nofirststartwizard",
-        "--nolockcheck",
-        "--convert-to", format,
-        src.getAbsolutePath(),
-        "--outdir", targetFile.getParentFile().getAbsolutePath()
-    );
-    pb.redirectErrorStream(true);
-    log.info("Executing CLI command: {}", String.join(" ", pb.command()));
-    
-    java.lang.Process p = pb.start();
-    
-    // Read output
-    try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
-        String line;
-        while ((line = reader.readLine()) != null) {
-            log.info("CLI Output: {}", line);
+    try {
+        org.apache.commons.io.FileUtils.copyFile(src, tmpSrc);
+        
+        // Create command list
+        java.util.List<String> command = new java.util.ArrayList<>();
+        command.add(soffice);
+        
+        // 始终指定临时的 UserInstallation 目录，解决并发和权限问题 (macOS/Linux 均适用)
+        String userInstallDir = tmpDir + java.io.File.separator + "LO_User_" + System.currentTimeMillis();
+        command.add("-env:UserInstallation=file://" + userInstallDir);
+        
+        command.add("--headless");
+        command.add("--invisible");
+        command.add("--nologo");
+        command.add("--nodefault");
+        command.add("--nofirststartwizard");
+        command.add("--nolockcheck");
+        command.add("--convert-to");
+        command.add(format);
+        command.add(tmpSrc.getAbsolutePath());
+        command.add("--outdir");
+        command.add(tmpOutDir.getAbsolutePath());
+
+        java.lang.ProcessBuilder pb = new java.lang.ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        log.info("Executing CLI command (in tmp): {}", String.join(" ", pb.command()));
+        
+        java.lang.Process p = pb.start();
+        
+        // Read output
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                log.info("CLI Output: {}", line);
+            }
         }
+        
+        boolean finished = p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS);
+        if (!finished) {
+          log.error("CLI command timed out");
+          try { p.destroyForcibly(); } catch (Exception ignore) {}
+          return false;
+        }
+        int code = p.exitValue();
+        log.info("CLI exit code: {}", code);
+        
+        if (code == 0) {
+            // 查找生成的文件
+            String baseName = src.getName().substring(0, src.getName().lastIndexOf('.'));
+            // LibreOffice 可能会处理文件名中的特殊字符，所以我们遍历目录找文件
+            java.io.File[] convertedFiles = tmpOutDir.listFiles((dir, name) -> name.endsWith("." + format));
+            if (convertedFiles != null && convertedFiles.length > 0) {
+                org.apache.commons.io.FileUtils.copyFile(convertedFiles[0], targetFile);
+                return true;
+            }
+        }
+        return false;
+    } finally {
+        // 清理临时文件
+        if (tmpSrc.exists()) tmpSrc.delete();
+        if (tmpOutDir.exists()) org.apache.commons.io.FileUtils.deleteDirectory(tmpOutDir);
     }
-    
-    boolean finished = p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS);
-    if (!finished) {
-      log.error("CLI command timed out");
-      try { p.destroyForcibly(); } catch (Exception ignore) {}
-      return false;
-    }
-    int code = p.exitValue();
-    log.info("CLI exit code: {}", code);
-    
-    // If format is pdf, LibreOffice creates file.pdf. If we asked for file.docx, it creates file.docx.
-    // However, we need to ensure the targetFile is what we expect. 
-    // The --outdir puts it in the dir with the SAME basename as source but new extension.
-    // If targetFile has different name, we might need to rename.
-    // For now, our logic assumes standard naming.
-    
-    return code == 0;
   }
 
   @PutMapping("/update")

@@ -25,13 +25,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.jeecg.modules.airag.llm.util.AiragZipUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -42,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.commons.io.FileUtils;
 
 import static org.jeecg.modules.airag.llm.consts.LLMConsts.*;
 
@@ -177,9 +176,15 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
                     Map<String, Object> metadata = embeddingHandler.embeddingDocument(knowId, doc);
                     // 更新数据 date:2025/2/18
                     if (null != metadata) {
-                        doc.setStatus(KNOWLEDGE_DOC_STATUS_COMPLETE);
-                        this.updateById(doc);
-                        log.info("重建文档成功, 知识库id: {}, 文档id: {}", knowId, doc.getId());
+                        if (Boolean.TRUE.equals(metadata.get("waitConfirm"))) {
+                            doc.setStatus(KNOWLEDGE_DOC_STATUS_WAIT_CONFIRM);
+                            this.updateById(doc);
+                            log.info("重建文档发现图片，进入等待确认状态, 知识库id: {}, 文档id: {}", knowId, doc.getId());
+                        } else {
+                            doc.setStatus(KNOWLEDGE_DOC_STATUS_COMPLETE);
+                            this.updateById(doc);
+                            log.info("重建文档成功, 知识库id: {}, 文档id: {}", knowId, doc.getId());
+                        }
                     } else {
                         this.handleDocBuildFailed(doc, "向量化失败");
                         log.info("重建文档失败, 知识库id: {}, 文档id: {}", knowId, doc.getId());
@@ -289,33 +294,117 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
 
     @Transactional(rollbackFor = {java.lang.Exception.class})
     @Override
+    public Result<?> packageAndImportFromLocal(String knowId, String localPath, String originDocId) {
+        log.info("执行本地打包导入: knowId={}, localPath={}, originDocId={}", knowId, localPath, originDocId);
+        AssertUtils.assertNotEmpty("请先选择知识库", knowId);
+        AssertUtils.assertNotEmpty("请输入本地目录路径", localPath);
+        
+        File localDir = new File(localPath);
+        if (!localDir.exists() || !localDir.isDirectory()) {
+            return Result.error("本地目录不存在或不是文件夹: " + localPath);
+        }
+
+        String tempZipPath = uploadpath + File.separator + "tmp" + File.separator + "pkg_" + System.currentTimeMillis() + ".zip";
+        File tempZipFile = new File(tempZipPath);
+        tempZipFile.getParentFile().mkdirs();
+
+        try {
+            File imagesRoot = new File(uploadpath + File.separator + "temp" + File.separator + "images");
+            if (imagesRoot.exists() && imagesRoot.isDirectory()) {
+                File targetAigc = new File(localPath + File.separator + "aigc");
+                FileUtils.forceMkdir(targetAigc);
+                Collection<File> imgs = FileUtils.listFiles(imagesRoot, new String[]{"png","jpg","jpeg","gif","svg","bmp","webp"}, false);
+                for (File img : imgs) {
+                    FileUtils.copyFileToDirectory(img, targetAigc);
+                }
+            }
+            // 1. 打包目录
+            boolean success = AiragZipUtils.packageToKnowledgeZip(localPath, tempZipPath);
+            if (!success) {
+                return Result.error("打包本地目录失败");
+            }
+
+            // 2. 导入 ZIP
+            Result<?> result = importDocumentFromZipFile(knowId, tempZipFile);
+            
+            // 3. 如果是从特定文档触发的，且导入成功，则删除原文档
+            if (result.isSuccess() && oConvertUtils.isNotEmpty(originDocId)) {
+                log.info("本地打包导入成功，准备删除原文档: {}", originDocId);
+                boolean removed = this.removeById(originDocId);
+                log.info("原文档删除结果: {}, id={}", removed, originDocId);
+            }
+            
+            return result;
+        } catch (Exception e) {
+            log.error("本地打包导入失败", e);
+            return Result.error("操作失败: " + e.getMessage());
+        } finally {
+            if (tempZipFile.exists()) {
+                tempZipFile.delete();
+            }
+        }
+    }
+
+    @Transactional(rollbackFor = {java.lang.Exception.class})
+    @Override
     public Result<?> importDocumentFromZip(String knowId, MultipartFile zipFile) {
         AssertUtils.assertNotEmpty("请先选择知识库", knowId);
         AssertUtils.assertNotEmpty("请上传文件", zipFile);
+        
+        String bizPath = knowId + File.separator + UUIDGenerator.generate();
+        try {
+            String uploadedZipPath = CommonUtils.uploadLocal(zipFile, bizPath, uploadpath);
+            File file = new File(uploadpath + File.separator + uploadedZipPath);
+            return importDocumentFromZipFile(knowId, file);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return Result.error("导入失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从本地 ZIP 文件导入文档库
+     */
+    private Result<?> importDocumentFromZipFile(String knowId, File zipFile) {
         long startTime = System.currentTimeMillis();
-        log.info("开始上传知识库文档(zip), 知识库id: {}, 文件名: {}", knowId, zipFile.getOriginalFilename());
+        log.info("开始导入文档库(zip), 知识库id: {}, 文件名: {}", knowId, zipFile.getName());
 
         try {
-            String bizPath = knowId + File.separator + UUIDGenerator.generate();
-            String workDir = uploadpath + File.separator + bizPath + File.separator;
+            String shortKnow = knowId != null && knowId.length() > 8 ? knowId.substring(knowId.length() - 8) : knowId;
+            String shortId = UUIDGenerator.generate().replaceAll("[^a-zA-Z0-9]", "").substring(0, 8);
+            String bizPath = "kb" + File.separator + shortKnow + File.separator + shortId;
+            
+            // 处理 uploadpath 是相对路径的情况
+            String tempUploadPath = uploadpath;
+            if (!new File(uploadpath).isAbsolute()) {
+                // 1. 获取当前 user.dir (即命令启动目录)
+                // 在您的场景下，user.dir 就是 /Users/zhangxj/Desktop/source/java/jeecgAI/JeecgAI/jeecg-boot
+                String userDir = System.getProperty("user.dir");
+                tempUploadPath = new File(userDir, uploadpath).getAbsolutePath();
+                
+                // 2. 移除之前画蛇添足的 "jeecg-module-system/jeecg-system-start" 判断逻辑
+                // 因为既然您在 jeecg-boot 根目录启动，CommonController 看到的 user.dir 也是 jeecg-boot 根目录
+                // 所以它也会去 jeecg-boot/uploads 下找文件
+                // 我们只需要简单直接地拼在 user.dir 下即可
+            }
+            final String absoluteUploadPath = tempUploadPath;
+            
+            // 确保 workDir 是基于 uploadpath 的绝对路径
+            String workDir = new File(absoluteUploadPath, bizPath).getAbsolutePath() + File.separator;
+            
+            // 确保目录存在！否则解压可能失败或解压到别处
+            new File(workDir).mkdirs();
+            
             String sourcesPath = workDir + "files";
 
-            SsrfFileTypeFilter.checkUploadFileType(zipFile);
-            // 通过filePath 检查文件是不是压缩包(zip)
-            String zipFileName = FilenameUtils.getBaseName(zipFile.getOriginalFilename());
-            String fileExt = FilenameUtils.getExtension(zipFile.getOriginalFilename());
-            if (null == fileExt || !fileExt.equalsIgnoreCase("zip")) {
-                throw new JeecgBootException("请上传zip压缩包");
-            }
-            String uploadedZipPath = CommonUtils.uploadLocal(zipFile, bizPath, uploadpath);
             // 解压缩文件
             List<AiragKnowledgeDoc> docList = new ArrayList<>();
-            AtomicInteger fileCount = new AtomicInteger(0);
-            unzipFile(uploadpath + File.separator + uploadedZipPath, sourcesPath, uploadedFile -> {
-                // 仅支持txt、pdf、docx、pptx、html、md文件
+            // 传入 sourcesPath 给 lambda 表达式使用
+            final String finalSourcesPath = sourcesPath;
+            
+            unzipFile(zipFile.getAbsolutePath(), sourcesPath, uploadedFile -> {
                 String fileName = uploadedFile.getName();
                 if (!SUPPORT_DOC_TYPE.contains(FilenameUtils.getExtension(fileName).toLowerCase())) {
-                    log.warn("不支持的文件类型: {}", fileName);
                     return;
                 }
                 String baseName = FilenameUtils.getBaseName(fileName);
@@ -325,34 +414,65 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
                 doc.setType(LLMConsts.KNOWLEDGE_DOC_TYPE_FILE);
                 doc.setStatus(LLMConsts.KNOWLEDGE_DOC_STATUS_DRAFT);
 
-                String relativePath;
-                if (File.separator.equals("\\")) {
-                    // Windows path handling
-                    String escapedPath = uploadpath.replace("//", "\\\\");
-                    escapedPath = escapedPath.replace("/", "\\\\");
-                    relativePath = uploadedFile.getPath().replaceFirst("^" + escapedPath, "");
+                // 计算相对路径：bizPath + /files/ + 相对文件路径
+                // 先计算文件在 sourcesPath 下的相对路径
+                // 使用绝对路径进行计算，避免相对路径的歧义
+                String absUploadedFile = uploadedFile.getAbsolutePath();
+                String absSourcesPath = new File(finalSourcesPath).getAbsolutePath();
+                
+                String relativeInSource = "";
+                if (absUploadedFile.startsWith(absSourcesPath)) {
+                    relativeInSource = absUploadedFile.substring(absSourcesPath.length());
                 } else {
-                    // Unix path handling
-                    relativePath = uploadedFile.getPath().replaceFirst("^" + uploadpath, "");
+                    // Fallback: 如果路径不匹配，尝试直接用文件名
+                    relativeInSource = File.separator + fileName;
                 }
+                
+                // 确保以 / 开头
+                if (!relativeInSource.startsWith(File.separator)) {
+                    relativeInSource = File.separator + relativeInSource;
+                }
+                
+                // 拼接完整相对路径：knowId/uuid/files/doc.md
+                // 注意：数据库存储的路径是相对于 uploadpath 的
+                // 1. 如果 uploadpath 是绝对路径，那么 fullRelativePath = workDir(abs) - uploadpath(abs) + relativeInSource
+                // 2. 如果 uploadpath 是相对路径(uploads)，那么 CommonController 找文件是去 {user.dir}/uploads/xxx
+                //    所以数据库里应该存 xxx，即相对于 {user.dir}/uploads 的路径
+                
+                String fullRelativePath = bizPath + File.separator + "files" + relativeInSource;
+                
+                // 确保不以 / 开头（CommonController 拼接时是用 uploadpath + File.separator + imgPath）
+                // 如果 imgPath 以 / 开头，File.separator 也是 /，就会变成 //，虽然大多数系统兼容，但最好去掉
+                if (fullRelativePath.startsWith(File.separator)) {
+                    fullRelativePath = fullRelativePath.substring(1);
+                }
+                
+                // 统一转为 Unix 风格路径，因为数据库通常存 /
+                fullRelativePath = fullRelativePath.replace("\\", "/").replaceAll("//+", "/");
+                
+                // 同样的逻辑处理 sourcesPath 的相对路径记录
+                String relativeSourcePath = bizPath + File.separator + "files";
+                relativeSourcePath = relativeSourcePath.replace("\\", "/").replaceAll("//+", "/");
+
                 JSONObject metadata = new JSONObject();
-                metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH, relativePath);
-                metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH, sourcesPath);
+                metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH, fullRelativePath);
+                metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH, relativeSourcePath);
                 doc.setMetadata(metadata.toJSONString());
                 docList.add(doc);
             });
+            
             AssertUtils.assertNotEmpty("压缩包中没有符合要求的文档", docList);
-            // 保存数据
             this.saveBatch(docList);
-            // 重建文档
+            
             String docIds = docList.stream().map(AiragKnowledgeDoc::getId).filter(oConvertUtils::isObjectNotEmpty).collect(Collectors.joining(","));
             rebuildDocument(docIds);
+            
+            log.info("导入文档库(zip)成功, 耗时: {}ms", (System.currentTimeMillis() - startTime));
+            return Result.ok("导入成功");
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            throw new RuntimeException(e);
+            log.error("ZIP 导入解析失败", e);
+            throw new JeecgBootException("ZIP 导入解析失败: " + e.getMessage());
         }
-        log.info("上传知识库文档(zip)成功, 知识库id: {}, 文件名: {}, 耗时: {}ms", knowId, zipFile.getOriginalFilename(), (System.currentTimeMillis() - startTime));
-        return Result.ok("上传成功");
     }
 
     /**
@@ -467,4 +587,19 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
         return totalCopied;
     }
 
+    @Override
+    public Result<?> confirmSingleImport(String docId) {
+        AssertUtils.assertNotEmpty("文档id不能为空", docId);
+        AiragKnowledgeDoc doc = this.getById(docId);
+        AssertUtils.assertNotEmpty("文档不存在", doc);
+
+        String metadataStr = doc.getMetadata();
+        JSONObject metadata = oConvertUtils.isEmpty(metadataStr) ? new JSONObject() : JSONObject.parseObject(metadataStr);
+        metadata.put("skipImageCheck", true);
+        doc.setMetadata(metadata.toJSONString());
+        doc.setStatus(KNOWLEDGE_DOC_STATUS_DRAFT);
+        this.updateById(doc);
+
+        return this.rebuildDocument(docId);
+    }
 }

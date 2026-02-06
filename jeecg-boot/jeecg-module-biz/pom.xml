@@ -10,7 +10,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>org.jeecgframework.boot</groupId>
+    <groupId>org.jeecgframework.boot3</groupId>
     <artifactId>jeecg-module-biz</artifactId>
     <version>3.9.1</version>
 
@@ -36,6 +36,12 @@
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parser-pdf-module</artifactId>
             <version>2.9.1</version>
+        </dependency>
+        <!-- airag 模块依赖 (用于实现 IDocumentParser 接口) -->
+        <dependency>
+            <groupId>org.jeecgframework.boot3</groupId>
+            <artifactId>jeecg-boot-module-airag</artifactId>
+            <version>${jeecgboot.version}</version>
         </dependency>
     </dependencies>
 

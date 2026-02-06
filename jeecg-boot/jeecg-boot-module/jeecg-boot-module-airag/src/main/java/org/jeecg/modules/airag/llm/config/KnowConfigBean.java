@@ -28,4 +28,9 @@ public class KnowConfigBean {
      */
     private String condaEnv = null;
 
+    /**
+     * MinerU 远程服务地址 (例如 http://10.52.7.21:7810/)
+     */
+    private String mineruUrl = null;
+
 }
