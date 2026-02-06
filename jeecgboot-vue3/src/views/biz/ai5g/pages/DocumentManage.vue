@@ -14,6 +14,14 @@
           <a-tag v-if="record.latest" color="blue">最新</a-tag>
           <span v-else>—</span>
         </template>
+        <template v-if="column.key==='processStatus'">
+          <a-tag v-if="record.processStatus === 'processing'" color="processing">
+             <template #icon><loading-outlined /></template> 处理中
+          </a-tag>
+          <a-tag v-else-if="record.processStatus === 'success'" color="success">成功</a-tag>
+          <a-tag v-else-if="record.processStatus === 'failed'" color="error">失败</a-tag>
+          <span v-else>{{ record.processStatus }}</span>
+        </template>
         <template v-if="column.key==='action'">
           <a-space size="small">
             <a-button type="link" @click="openPreview(record)">预览</a-button>
@@ -142,6 +150,11 @@ import { defHttp } from '/@/utils/http/axios';
 // mammoth & xss 暂不使用，保留备用
 import { renderAsync } from 'docx-preview';
 import MarkdownEditor from '../components/MarkdownEditor.vue';
+import { LoadingOutlined } from '@ant-design/icons-vue';
+import BizKnowledgeDocListModal from '../components/BizKnowledgeDocListModal.vue';
+import BizKnowledgeDocTextModal from '../components/BizKnowledgeDocTextModal.vue';
+import BizTextDescModal from '../components/BizTextDescModal.vue';
+import BizLocalImportModal from '../components/BizLocalImportModal.vue';
 
 const typeSel = ref<{ l1?: string; l2?: string; l3?: string }>({});
 const q = ref<{ title?: string; fileYear?: string }>({ title: '', fileYear: '' });
@@ -151,7 +164,7 @@ const cols = [
   { title: '名称', dataIndex: 'displayName', key: 'displayName' },
   { title: '类型', dataIndex: 'fileType', key: 'fileType' },
   { title: '版本', dataIndex: 'version', key: 'version' },
-  { title: 'latest', dataIndex: 'latest', key: 'latest' },
+  { title: '最新', dataIndex: 'latest', key: 'latest' },
   { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime' },
   { title: '类别路径', dataIndex: 'categoryPath', key: 'categoryPath' },
   { title: '年份', dataIndex: 'fileYear', key: 'fileYear' },
@@ -161,6 +174,9 @@ const cols = [
 ];
 
 function onTypeChange(v: { l1?: string; l2?: string; l3?: string }) { typeSel.value = v; }
+
+// 轮询定时器
+let pollTimer: any = null;
 
 async function load() {
   try {
@@ -174,10 +190,39 @@ async function load() {
       fileYear: q.value.fileYear ? Number(q.value.fileYear) : undefined,
     } as any);
     rows.value = r?.records || r;
+    
+    // 检查是否有正在处理中的任务，如果有则开启轮询
+    const hasProcessing = rows.value.some((item: any) => item.processStatus === 'processing');
+    if (hasProcessing) {
+        startPolling();
+    } else {
+        stopPolling();
+    }
   } catch (e: any) {
     message.error(e?.message || '查询失败');
+    stopPolling();
   }
 }
+
+function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+        load();
+    }, 3000); // 每3秒轮询一次
+}
+
+function stopPolling() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+}
+
+// 组件销毁时清除定时器
+import { onUnmounted } from 'vue';
+onUnmounted(() => {
+    stopPolling();
+});
 
 const previewOpen = ref(false);
 const previewLink = ref('');
