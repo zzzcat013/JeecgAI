@@ -179,7 +179,15 @@ componentMap.set('JInputSelect', JInputSelect);
 componentMap.set('JSelectDepartPost', JSelectDepartPost);
 componentMap.set('JSelectUserByDeptPost', JSelectUserByDeptPost);
 
-
+componentMap.set('OnlineSelectCascade', createAsyncComponent(() => {
+  return import('@jeecg/online').then(mod => mod.OnlineSelectCascade);
+}));
+componentMap.set('LinkTableCard', createAsyncComponent(() => {
+  return import('@jeecg/online').then(mod => mod.LinkTableCard);
+}));
+componentMap.set('LinkTableSelect', createAsyncComponent(() => {
+  return import('@jeecg/online').then(mod => mod.LinkTableSelect);
+}));
 
 export function add(compName: ComponentType, component: Component) {
   componentMap.set(compName, component);

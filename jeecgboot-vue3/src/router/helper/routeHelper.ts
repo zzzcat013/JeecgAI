@@ -9,6 +9,7 @@ import { getTenantId, getToken } from "/@/utils/auth";
 import { URL_HASH_TAB, _eval } from '/@/utils';
 //引入online lib路由
 import { packageViews } from '/@/utils/monorepo/dynamicRouter';
+import { loadPackageComponent } from '/@/utils/monorepo/registerPackages';
 import {useI18n} from "/@/hooks/web/useI18n";
 
 export type LayoutMapKey = 'LAYOUT';
@@ -119,6 +120,12 @@ function dynamicImport(dynamicViewsModules: Record<string, () => Promise<Recorda
       'Please do not create `.vue` and `.TSX` files with the same file name in the same hierarchical directory under the views folder. This will cause dynamic introduction failure'
     );
     return;
+  }
+  // online/aiflow 本地未找到，尝试从懒加载包中按需加载
+  if (component.startsWith('/super/online') || component.startsWith('/super/airag')) {
+    return () => {
+      return loadPackageComponent(component).then((factory) => (factory ? factory() : Promise.reject(`组件 ${component} 未找到`)));
+    };
   }
 }
 

@@ -20,3 +20,4 @@ os_del_doc.cmd
 derby.log
 .cursor
 .history
+.claude

@@ -6,10 +6,6 @@ import { ref, onUnmounted, unref, nextTick, watch } from 'vue';
 import { isProdMode } from '/@/utils/env';
 import { error } from '/@/utils/log';
 import { getDynamicProps, getValueType, getValueTypeBySchema } from '/@/utils';
-import { add } from "/@/components/Form/src/componentMap";
-//集成online专用控件
-import { OnlineSelectCascade, LinkTableCard, LinkTableSelect } from  '@jeecg/online';
-
 export declare type ValidateFields = (nameList?: NamePath[], options?: ValidateOptions) => Promise<Recordable>;
 
 type Props = Partial<DynamicProps<FormProps>>;
@@ -18,11 +14,6 @@ export function useForm(props?: Props): UseFormReturnType {
   const formRef = ref<Nullable<FormActionType>>(null);
   const loadedRef = ref<Nullable<boolean>>(false);
 
-  //集成online专用控件
-  add("OnlineSelectCascade", OnlineSelectCascade)
-  add("LinkTableCard", LinkTableCard)
-  add("LinkTableSelect", LinkTableSelect)
-  
   async function getForm() {
     const form = unref(formRef);
     if (!form) {
