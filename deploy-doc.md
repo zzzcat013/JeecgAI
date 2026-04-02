@@ -20,6 +20,11 @@
 ```
 /opt/jeecg/
 ├── docker-compose.yml              # Docker编排文件
+├── uploads/                        # 上传文件目录（挂载到容器）
+│   ├── doc/                        # 文档文件
+│   ├── kb/                         # 知识库文件
+│   ├── mineru/                     # MinerU模型缓存
+│   └── temp/                       # 临时文件
 ├── jeecgboot-vue3/                 # 前端项目
 │   ├── dist/                       # 前端构建产物
 │   └── docker/
@@ -108,6 +113,8 @@ services:
       - 8080:8080
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./uploads:/jeecg-boot/uploads
     networks:
       - jeecg-boot
 
@@ -132,6 +139,7 @@ networks:
 - 使用外部数据库、Redis、pgvector（不包含在docker-compose中）
 - 后端使用 `dev` profile，读取 `application-dev.yml` 配置
 - 前端端口映射为 8866（非默认80端口）
+- uploads 目录挂载到容器，用于存储上传文件（约3.4G）
 
 ### 4.2 application-dev.yml 关键配置
 
@@ -266,8 +274,17 @@ cd jeecg-boot && mvn clean package -DskipTests && cd ..
 rsync -avz --delete jeecgboot-vue3/ root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/
 rsync -avz --delete jeecg-boot/ root@218.26.173.130:/opt/jeecg/jeecg-boot/
 
-# 3. 重新构建并启动
+# 3. 同步 uploads 目录（如有新增文件）
+rsync -avz jeecg-boot/uploads/ root@218.26.173.130:/opt/jeecg/uploads/
+
+# 4. 重新构建并启动
 ssh root@218.26.173.130 "cd /opt/jeecg && docker compose up -d --build"
+```
+
+或使用一键部署脚本：
+```bash
+cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
+./deploy.sh
 ```
 
 ## 九、备注

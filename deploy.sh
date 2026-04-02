@@ -98,6 +98,10 @@ if [ "$BACKEND" = true ]; then
     rsync -avz --delete jeecg-boot/ root@${REMOTE_HOST}:${REMOTE_DIR}/jeecg-boot/
 fi
 
+# 同步 uploads 目录（增量同步，不删除服务器上的文件）
+log_info "同步 uploads 目录..."
+rsync -avz jeecg-boot/uploads/ root@${REMOTE_HOST}:${REMOTE_DIR}/uploads/
+
 # 重启容器
 log_info "重新构建并启动容器..."
 ssh root@${REMOTE_HOST} "cd ${REMOTE_DIR} && docker compose up -d --build"
