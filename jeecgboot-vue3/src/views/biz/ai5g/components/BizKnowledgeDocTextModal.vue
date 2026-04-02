@@ -14,8 +14,8 @@
 
   import BasicForm from '@/components/Form/src/BasicForm.vue';
   import { useForm } from '@/components/Form';
-  import { docTextSchema } from '../AiKnowledgeBase.data';
-  import { knowledgeSaveDoc, queryById } from '../AiKnowledgeBase.api';
+  import { docTextSchema } from '../api/AiKnowledgeBase.data';
+  import { knowledgeSaveDoc, queryById } from '../api/AiKnowledgeBase.api';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { useGlobSetting } from "@/hooks/setting";
 

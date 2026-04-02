@@ -25,7 +25,7 @@
 <script lang="ts" setup>
   import { ref, reactive } from 'vue';
   import { BasicModal, useModalInner } from '@/components/Modal';
-  import { knowledgeImportLocal } from '../AiKnowledgeBase.api';
+  import { knowledgeImportLocal } from '../api/AiKnowledgeBase.api';
   import { useMessage } from '@/hooks/web/useMessage';
 
   const emit = defineEmits(['success', 'register']);

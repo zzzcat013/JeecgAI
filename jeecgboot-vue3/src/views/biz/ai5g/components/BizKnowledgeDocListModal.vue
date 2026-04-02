@@ -130,7 +130,7 @@
                         </a-tooltip>
                       </div>
                       <div v-else-if="item.status==='draft'" class="card-text-status">
-                        <img src="../icon/draft.png" style="width: 16px;height: 16px" />
+                        <Icon icon="ant-design:file-outlined" size="16" color="#999"></Icon>
                         <span class="ml-2">草稿</span>
                       </div>
                       <div v-else-if="item.status==='wait_confirm'" class="card-text-status">
@@ -273,13 +273,13 @@
   import { onBeforeMount, computed, ref, unref, h } from 'vue';
   import BasicModal from '@/components/Modal/src/BasicModal.vue';
   import { useModal, useModalInner } from '@/components/Modal';
-  import { knowledgeDocList, knowledgeDeleteBatchDoc, knowledgeDeleteAllDoc, knowledgeRebuildDoc, knowledgeEmbeddingHitTest, knowledgeConfirmSingle } from '../AiKnowledgeBase.api';
-  import { doDeleteAllDoc } from '../AiKnowledgeBase.api.util';
+  import { knowledgeDocList, knowledgeDeleteBatchDoc, knowledgeDeleteAllDoc, knowledgeRebuildDoc, knowledgeEmbeddingHitTest, knowledgeConfirmSingle } from '../api/AiKnowledgeBase.api';
+  import { doDeleteAllDoc } from '../api/AiKnowledgeBase.api.util';
   import { ActionItem, BasicTable, TableAction } from '@/components/Table';
   import { useListPage } from '@/hooks/system/useListPage';
-  import AiragKnowledgeDocTextModal from './AiragKnowledgeDocTextModal.vue';
-  import AiragLocalImportModal from './AiragLocalImportModal.vue';
-  import AiTextDescModal from './AiTextDescModal.vue';
+  import AiragKnowledgeDocTextModal from './BizKnowledgeDocTextModal.vue';
+  import AiragLocalImportModal from './BizLocalImportModal.vue';
+  import AiTextDescModal from './BizTextDescModal.vue';
   import { useMessage } from '@/hooks/web/useMessage';
   import { LoadingOutlined } from '@ant-design/icons-vue';
   import {Avatar, message, Modal, Pagination} from 'ant-design-vue';
