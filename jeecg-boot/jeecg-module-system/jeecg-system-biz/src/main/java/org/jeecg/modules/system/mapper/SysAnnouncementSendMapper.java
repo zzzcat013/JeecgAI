@@ -62,4 +62,13 @@ public interface SysAnnouncementSendMapper extends BaseMapper<SysAnnouncementSen
      * @return
      */
     List<String> getReadAnnSendByUserId(@Param("ids") List<String> ids, @Param("userId") String userId);
+
+	/**
+	 * 根据业务id、业务类型和用户id获取未读消息
+	 * @param busId
+	 * @param busType
+	 * @param userId
+	 * @return
+	 */
+	List<String> getUnReadAnnByBusAndUserId(@Param("busId")String busId, @Param("busType")String busType, @Param("userId")String userId);
 }

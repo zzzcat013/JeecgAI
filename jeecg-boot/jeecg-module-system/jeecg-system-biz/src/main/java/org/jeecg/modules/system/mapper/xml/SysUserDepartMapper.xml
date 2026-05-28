@@ -19,6 +19,8 @@
 			<bind name="bindRealname" value="'%'+realname+'%'"/>
 			and a.realname like #{bindRealname}
 		</if>
+		ORDER BY
+		a.sort,a.create_time desc
 	</select>
 
 	<!-- 根据部门查询部门用户 分页 -->

@@ -1,6 +1,6 @@
 import { BasicColumn, FormSchema } from '/@/components/Table';
 import { render } from '/@/utils/common/renderUtils';
-import { JCronValidator } from '/@/components/Form';
+import JCronValidator from '/@/components/Form/src/jeecg/components/JEasyCron/validator';
 
 export const columns: BasicColumn[] = [
   {

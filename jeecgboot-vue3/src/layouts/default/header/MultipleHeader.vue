@@ -154,6 +154,10 @@
     // 【JEECG作为乾坤子应用】
     &--qiankun-micro {
       position: absolute;
+
+      :deep(.@{namespace}-layout-header--qiankun-micro) {
+        width: 100%;
+      }
     }
 
   }

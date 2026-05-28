@@ -29,7 +29,7 @@ export default defineComponent({
           effectList.value.push(topLayer);
         }
       },
-      { deep: true, immediate: true }
+      { immediate: true }
     );
 
     // 条件渲染内容 span

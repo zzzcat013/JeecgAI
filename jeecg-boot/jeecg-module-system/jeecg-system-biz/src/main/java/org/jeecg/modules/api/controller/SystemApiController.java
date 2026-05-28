@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -194,6 +195,17 @@ public class SystemApiController {
     @GetMapping("/getDepartParentIdsByDepIds")
     Set<String> getDepartParentIdsByDepIds(@RequestParam("depIds") Set<String> depIds){
         return sysBaseApi.getDepartParentIdsByDepIds(depIds);
+    }
+
+    /**
+     * 通过 userIds 查询部门ID列表
+     *
+     * @param userIds
+     * @return key = userId; value = 用户拥有的部门ID列表
+     */
+    @GetMapping("/getDepartIdsByUserIds")
+    Map<String, List<String>> getDepartIdsByUserIds(@RequestParam("userIds") Collection<String> userIds) {
+        return sysBaseApi.getDepartIdsByUserIds(userIds);
     }
 
     /**
@@ -1124,4 +1136,20 @@ public class SystemApiController {
     public void uniPushMsgToUser(@RequestBody PushMessageDTO pushMessageDTO){
        sysBaseApi.uniPushMsgToUser(pushMessageDTO);
     }
+
+    /**
+     * 根据用户名查询用户主部门信息。
+     * <p>
+     * 逻辑：取用户的主岗位（mainDepPostId），再查询该岗位节点在 sys_depart 中的父节点，
+     * 父节点即为用户的主部门，返回其信息。
+     * <p>
+     *
+     * @param username 用户账号
+     * @return 主部门信息，若用户未配置主岗位则返回 {@code null}
+     */
+    @GetMapping("/queryMainDepartByUsername")
+    SysDepartModel queryMainDepartByUsername(@RequestParam("username") String username) {
+        return sysBaseApi.queryMainDepartByUsername(username);
+    }
+
 }

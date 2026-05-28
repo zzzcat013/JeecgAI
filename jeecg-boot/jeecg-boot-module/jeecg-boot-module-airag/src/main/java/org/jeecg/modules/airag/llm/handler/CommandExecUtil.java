@@ -5,9 +5,7 @@ import org.apache.commons.lang.ArrayUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * @Description: 命令行执行工具类
@@ -36,6 +34,42 @@ public class CommandExecUtil {
     }
 
     /**
+     * 禁止在参数中出现的 Shell 元字符（适用于 Windows cmd 和 Unix shell）
+     */
+    private static final Pattern SHELL_INJECTION_PATTERN =
+            Pattern.compile("[&|;<>`$!\\\\\\r\\n]");
+
+    /**
+     * 禁止文件名中出现的危险字符（防止通过文件名注入命令）
+     */
+    private static final Pattern FILENAME_INJECTION_PATTERN =
+            Pattern.compile("[&|;<>`$!\"'\\r\\n]");
+
+    /**
+     * 校验单个命令参数，拒绝包含 Shell 注入字符的参数
+     *
+     * @param arg 待校验参数
+     * @throws IllegalArgumentException 若参数包含危险字符
+     */
+    public static void validateArg(String arg) {
+        if (arg != null && SHELL_INJECTION_PATTERN.matcher(arg).find()) {
+            throw new IllegalArgumentException("命令参数包含非法字符，已拒绝执行: " + arg);
+        }
+    }
+
+    /**
+     * 校验文件路径，拒绝包含危险字符（防止文件名注入）
+     *
+     * @param filePath 待校验文件路径
+     * @throws IllegalArgumentException 若文件路径包含危险字符
+     */
+    public static void validateFilePath(String filePath) {
+        if (filePath != null && FILENAME_INJECTION_PATTERN.matcher(filePath).find()) {
+            throw new IllegalArgumentException("文件路径包含非法字符，已拒绝处理: " + filePath);
+        }
+    }
+
+    /**
      * 执行命令行
      *
      * @param command 脚本目录
@@ -50,22 +84,17 @@ public class CommandExecUtil {
         }
 
         if (null != args && args.length > 0) {
+            // 校验每一个用户可控的参数，防止命令注入
+            for (String arg : args) {
+                validateArg(arg);
+            }
             command = (String[]) ArrayUtils.addAll(command, args);
         }
 
-        // windows系统处理文件夹空格问题
-        if (System.getProperty("os.name").toLowerCase().startsWith("windows")) {
-            List<String> commandNew = new ArrayList<>(command.length + 2);
-            commandNew.addAll(Arrays.asList("cmd.exe", "/c"));
-            for (String tempCommand : command) {
-                if (tempCommand.contains(" ")) {
-                    tempCommand = "\"" + tempCommand.replaceAll("\"", "'") + "\"";
-                }
-                commandNew.add(tempCommand);
-            }
-            command = commandNew.toArray(new String[0]);
-        }
-
+        // 直接使用 ProcessBuilder，不经过系统 Shell（防止 Shell 注入）
+        // 注意：不再使用 cmd.exe /c 或 /bin/sh -c，参数数组由 JVM 直接传递给操作系统
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(false);
 
         Process process = null;
         try {

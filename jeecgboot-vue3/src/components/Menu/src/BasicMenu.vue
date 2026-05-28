@@ -186,6 +186,12 @@
             if (result) {
               return result;
             }
+            // update-begin--author:liaozhiyang---date:20250401---for：【issues/9405】修复顶部混合导航模式下点击一级菜单时,如果最后一级是隐藏路由显示不对
+            // 子菜单全部是隐藏路由时，返回上一级作为导航目标
+            if (item.path && !item.hideMenu) {
+              return item;
+            }
+            // update-end--author:liaozhiyang---date:20250401---for：【issues/9405】修复顶部混合导航模式下点击一级菜单时,如果最后一级是隐藏路由显示不对
           }
         }
         return null;

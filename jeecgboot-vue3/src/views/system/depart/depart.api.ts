@@ -147,7 +147,7 @@ export const getPositionByDepartId = (params) => defHttp.get({ url: Api.getPosit
  * 根据部门id获取岗位上下级关系
  * @param params
  */
-export const getRankRelation = (params) => defHttp.get({ url: Api.getRankRelation, params }, { isTransformResponse: false });
+export const getRankRelation = (params) => defHttp.get({ url: Api.getRankRelation, params,timeout: 2 * 60 * 1000 }, { isTransformResponse: false });
 
 /**
  * 根据部门或岗位编码获取通讯录成员

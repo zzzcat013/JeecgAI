@@ -131,8 +131,15 @@ function createCellRender(type: JVxeTypes, component: Component = <Component>com
 
 function createRender(type, component, renderType) {
   return function (renderOptions, params) {
+    // update-begin--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
+    // 为每个 cell 生成唯一 key，防止相邻列（值相同但 options 不同）被错误复用
+    const rowId = params.row?.id ?? params.rowIndex ?? '';
+    const colId = params.column?.property ?? params.column?.id ?? '';
+    const cellKey = `cell-${rowId}-${colId}`;
+    // update-end--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
     return [
       h(component, {
+        key: cellKey,
         type: type,
         params: params,
         renderOptions: renderOptions,

@@ -12,7 +12,7 @@ import org.jeecg.common.util.CommonUtils;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.airag.wordtpl.consts.WordTitleEnum;
 import org.jeecg.modules.airag.wordtpl.dto.*;
-import org.jeecg.modules.airag.wordtpl.entity.EoaWordTemplate;
+import org.jeecg.modules.airag.wordtpl.entity.AigcWordTemplate;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -57,7 +57,7 @@ public class WordTplUtils {
      * @author chenrui
      * @date 2025/7/9 11:14
      */
-    public void generateWordTemplate(EoaWordTemplate template, ByteArrayOutputStream outputStream) {
+    public void generateWordTemplate(AigcWordTemplate template, ByteArrayOutputStream outputStream) {
         AssertUtils.assertNotEmpty("模版数据不能为空", template);
         XWPFDocument doc = new XWPFDocument();
 
@@ -100,7 +100,7 @@ public class WordTplUtils {
      * @author chenrui
      * @date 2025/7/10 17:52
      */
-    private static void renderHeaderAndFooter(EoaWordTemplate template, XWPFDocument doc) {
+    private static void renderHeaderAndFooter(AigcWordTemplate template, XWPFDocument doc) {
         //页眉
         JSONArray header = JSON.parseArray(template.getHeader());
         if (oConvertUtils.isObjectNotEmpty(header)) {
@@ -172,7 +172,7 @@ public class WordTplUtils {
      * @author chenrui
      * @date 2025/7/4 14:00
      */
-    private void renderDocumentBody(XWPFDocument doc, EoaWordTemplate template) {
+    private void renderDocumentBody(XWPFDocument doc, AigcWordTemplate template) {
 
         // TODO author: chenrui for:整理图表???? date:2025/7/4
 
@@ -337,9 +337,9 @@ public class WordTplUtils {
         }
     }
 
-    public EoaWordTemplate parseWordFile(InputStream wordFileIs) throws Exception {
+    public AigcWordTemplate parseWordFile(InputStream wordFileIs) throws Exception {
         AssertUtils.assertNotEmpty("请上传word文档", wordFileIs);
-        EoaWordTemplate template = new EoaWordTemplate();
+        AigcWordTemplate template = new AigcWordTemplate();
         XWPFDocument xwpfDocument = new XWPFDocument(wordFileIs);
         CTSectPr sectPr = xwpfDocument.getDocument().getBody().getSectPr();
         if (sectPr != null) {
@@ -969,7 +969,7 @@ public class WordTplUtils {
 
 
     public static void main(String[] args) {
-        EoaWordTemplate template = new EoaWordTemplate();
+        AigcWordTemplate template = new AigcWordTemplate();
         template.setHeight(1123);
         template.setWidth(794);
         template.setPaperDirection("vertical");

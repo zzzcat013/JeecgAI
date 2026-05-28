@@ -27,9 +27,9 @@
         >
       </div>
       <div v-if="searchInfo.logType == 4">
-        <div style="margin-bottom: 5px">
-          <a-badge status="success" style="vertical-align: middle" />
-          <span class="error-box" style="vertical-align: middle">异常堆栈:{{ record.requestParam }}</span>
+        <div class="error-section">
+          <div class="error-label"><a-badge status="error" /> 异常堆栈:</div>
+          <pre class="error-box">{{ record.requestParam }}</pre>
         </div>
       </div>
     </template>
@@ -105,19 +105,42 @@
   }
 </script>
 <style lang="less" scoped>
-  .error-box {
-    white-space: break-spaces;
+  .error-section {
+    .error-label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #ff4d4f;
+    }
   }
+
+  .error-box {
+    margin: 0;
+    padding: 12px 16px;
+    background: #fafafa;
+    border: 1px solid #f0f0f0;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 400px;
+    overflow-y: auto;
+    color: #595959;
+  }
+
   .table-title-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
   }
+
   .export-btn {
     margin-left: auto;
   }
-  :deep(.jeecg-basic-table-header__toolbar){
-    width:100px !important;
+
+  :deep(.jeecg-basic-table-header__toolbar) {
+    width: 100px !important;
   }
 </style>

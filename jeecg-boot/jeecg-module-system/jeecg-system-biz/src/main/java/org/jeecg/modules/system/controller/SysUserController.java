@@ -39,6 +39,7 @@ import org.jeecg.modules.system.service.*;
 import org.jeecg.modules.system.util.ImportSysUserCache;
 import org.jeecg.modules.system.vo.SysDepartUsersVO;
 import org.jeecg.modules.system.vo.SysUserExportVo;
+import org.jeecg.modules.system.vo.SysUserGroupVO;
 import org.jeecg.modules.system.vo.SysUserRoleVO;
 import org.jeecg.modules.system.vo.lowapp.DepartAndUserInfo;
 import org.jeecg.modules.system.vo.lowapp.UpdateDepartInfo;
@@ -80,6 +81,9 @@ public class SysUserController {
 
 	@Autowired
 	private ISysUserRoleService sysUserRoleService;
+
+	@Autowired
+	private ISysUgroupUserService sysUgroupUserService;
 
 	@Autowired
 	private ISysUserDepartService sysUserDepartService;
@@ -637,14 +641,23 @@ public class SysUserController {
      * @return
      */
     @RequestMapping(value = "/queryByNames", method = RequestMethod.GET)
-    public Result<Collection<SysUser>> queryByNames(@RequestParam(name = "userNames") String userNames) {
-        Result<Collection<SysUser>> result = new Result<>();
+    public Result<List<Map<String, Object>>> queryByNames(@RequestParam(name = "userNames") String userNames) {
+        Result<List<Map<String, Object>>> result = new Result<>();
         String[] names = userNames.split(",");
-        QueryWrapper<SysUser> queryWrapper=new QueryWrapper();
-        queryWrapper.lambda().in(true,SysUser::getUsername,names);
-        Collection<SysUser> userRole = sysUserService.list(queryWrapper);
+        //update-begin---author:zzl ---date:2026-04-03  for：只返回username和realname字段----
+        List<SysUser> userList = sysUserService.lambdaQuery()
+                .in(SysUser::getUsername, names)
+                .select(SysUser::getUsername, SysUser::getRealname)
+                .list();
+        List<Map<String, Object>> dataList = userList.stream().map(user -> {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("username", user.getUsername());
+            map.put("realname", user.getRealname());
+            return map;
+        }).collect(java.util.stream.Collectors.toList());
         result.setSuccess(true);
-        result.setResult(userRole);
+        result.setResult(dataList);
+        //update-end---author:zzl ---date:2026-04-03  for：只返回username和realname字段----
         return result;
     }
 
@@ -776,7 +789,100 @@ public class SysUserController {
         }
         return result;
     }
+    /**
+     * 给指定用户组添加用户
+     *
+     * @param
+     * @return
+     */
+    @RequestMapping(value = "/addSysUserGroup", method = RequestMethod.POST)
+    public Result<String> addSysUserGroup(@RequestBody SysUserGroupVO sysUserGroupVO) {
+        Result<String> result = new Result<String>();
+        try {
+            String groupId = sysUserGroupVO.getGroupId();
+            for(String sysUserId : sysUserGroupVO.getUserIdList()) {
+                SysUgroupUser sysUgroupUser = new SysUgroupUser(sysUserId,groupId);
+                QueryWrapper<SysUgroupUser> queryWrapper = new QueryWrapper<SysUgroupUser>();
+                queryWrapper.eq("group_id", groupId).eq("user_id",sysUserId);
+                SysUgroupUser one = sysUgroupUserService.getOne(queryWrapper);
+                if(one==null){
+                    sysUgroupUserService.save(sysUgroupUser);
+                }
 
+            }
+            result.setMessage("添加成功!");
+            result.setSuccess(true);
+            return result;
+        }catch(Exception e) {
+            log.error(e.getMessage(), e);
+            result.setSuccess(false);
+            result.setMessage("出错了: " + e.getMessage());
+            return result;
+        }
+    }
+    /**
+     *   删除指定用户组的用户关系
+     * @param
+     * @return
+     */
+    @RequestMapping(value = "/deleteGroupUser", method = RequestMethod.DELETE)
+    public Result<SysUgroupUser> deleteGroupUser(@RequestParam(name="groupId") String groupId,
+                                                 @RequestParam(name="userId",required=true) String userId
+    ) {
+        Result<SysUgroupUser> result = new Result<SysUgroupUser>();
+        try {
+            QueryWrapper<SysUgroupUser> queryWrapper = new QueryWrapper<SysUgroupUser>();
+            queryWrapper.eq("group_id", groupId).eq("user_id",userId);
+            sysUgroupUserService.remove(queryWrapper);
+            result.success("删除成功!");
+        }catch(Exception e) {
+            log.error(e.getMessage(), e);
+            result.error500("删除失败！");
+        }
+        return result;
+    }
+    /**
+     * 批量删除指定用户组下的用户关系
+     *
+     * @param
+     * @return
+     */
+    @RequestMapping(value = "/deleteUserGroupBatch", method = RequestMethod.DELETE)
+    public Result<SysUgroupUser> deleteUserGroupBatch(
+            @RequestParam(name="groupId") String groupId,
+            @RequestParam(name="userIds",required=true) String userIds) {
+        Result<SysUgroupUser> result = new Result<SysUgroupUser>();
+        try {
+            QueryWrapper<SysUgroupUser> queryWrapper = new QueryWrapper<SysUgroupUser>();
+            queryWrapper.eq("group_id", groupId).in("user_id",Arrays.asList(userIds.split(",")));
+            sysUgroupUserService.remove(queryWrapper);
+            result.success("删除成功!");
+        }catch(Exception e) {
+            log.error(e.getMessage(), e);
+            result.error500("删除失败！");
+        }
+        return result;
+    }
+    /**
+     * 用户组下用户分页列表查询
+     * @param pageNo
+     * @param pageSize
+     * @param req
+     * @return
+     */
+    @RequestMapping(value = "/groupUserList", method = RequestMethod.GET)
+    public Result<IPage<SysUser>> groupUserList(@RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
+                                           @RequestParam(name="pageSize", defaultValue="10") Integer pageSize, HttpServletRequest req) {
+        Result<IPage<SysUser>> result = new Result<IPage<SysUser>>();
+        Page<SysUser> page = new Page<SysUser>(pageNo, pageSize);
+        String groupId = req.getParameter("groupId");
+        String username = req.getParameter("username");
+        String realname = req.getParameter("realname");
+        IPage<SysUser> pageList = sysUserService.getUserByUgroupId(page,groupId,username,realname);
+        result.setSuccess(true);
+        result.setResult(pageList);
+        return result;
+    }
     /**
      * 部门用户列表
      */
@@ -1314,6 +1420,13 @@ public class SysUserController {
 
 			// 根据用户名查询用户信息
 			SysUser sysUser = sysUserService.getUserByName(username);
+			//update-begin---author:zhangdaihao ---date:2026-04-15  for：【issue/9518】校验外部传入token的签名，防止越权-----------
+			if (oConvertUtils.isNotEmpty(token)) {
+				if (sysUser == null || !JwtUtil.verify(token, username, sysUser.getPassword())) {
+					return Result.error(401, "token校验失败");
+				}
+			}
+			//update-end---author:zhangdaihao ---date:2026-04-15  for：【issue/9518】校验外部传入token的签名，防止越权-----------
 			Map<String, Object> map = new HashMap<String, Object>();
 			map.put("sysUserId", sysUser.getId());
 			map.put("sysUserCode", sysUser.getUsername()); // 当前登录用户登录账号

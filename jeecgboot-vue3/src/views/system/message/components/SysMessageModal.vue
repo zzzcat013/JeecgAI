@@ -460,6 +460,15 @@
     .ant-modal-body {
       height: 550px;
       overflow-y: auto;
+      //update-begin-author:liusq---date:2026-04-23--for: JHHB-1390 【PC端】消息列表展示问题，下面有一块空白，刷新换账号也存在，Edge、Chrome都是这样
+      // 让 .ant-modal-body 作为唯一滚动容器，禁用内部 ModalWrapper ScrollContainer 的 overflow 限制
+      // 否则 ScrollContainer 会自动收缩到内容高度（如3条消息≈200px），导致只有上方小区域可滚动
+      .scrollbar__wrap {
+        overflow-y: visible !important;
+        max-height: none !important;
+        min-height: 0 !important;
+      }
+      //update-end-author:liusq---date:2026-04-23--for: JHHB-1390 【PC端】消息列表展示问题，下面有一块空白，刷新换账号也存在，Edge、Chrome都是这样
     }
     .ant-modal {
       position: absolute;

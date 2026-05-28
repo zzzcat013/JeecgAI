@@ -232,6 +232,7 @@ function formatData(value: unknown): string {
   font-size: 14px;
   line-height: 1.5;
   color: #333;
+  max-width: 520px;
 }
 
 .tool-exec-loading,
@@ -371,6 +372,7 @@ function formatData(value: unknown): string {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 340px;
   overflow: auto;
 }
 

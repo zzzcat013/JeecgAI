@@ -18,6 +18,7 @@
     <template #renderItem="{ item }">
       <a-list-item :style="{ background: item?.izTop && item.izTop == 1 ? '#f7f7f7' : 'auto' }">
         <template #actions>
+          <span>{{formatData(item.sendTime)}}</span>
           <a-rate class="antd-rate" :value="item.starFlag=='1'?1:0" :count="1" @click="clickStar(item)" style="cursor: pointer" disabled />
         </template>
 
@@ -110,6 +111,7 @@
   import { useSysMessage, useMessageHref } from './useSysMessage';
   import {getGloablEmojiIndex, useEmojiHtml} from "/@/components/jeecg/comment/useComment";
   import { ref, h, watch } from "vue";
+  import dayjs from 'dayjs';
 
   export default {
     name: 'SysMessageList',
@@ -220,6 +222,12 @@
       const locale = ref({});
 
       /**
+       * 日期格式化
+       */
+      function formatData(data) {
+        return data?dayjs(data).format('YYYY-MM-DD hh:mm'): '';
+      }
+      /**
        * 未读点击事件
        */
       function noReadClick() {
@@ -272,6 +280,7 @@
         currentModal,
         bindParams,
         locale,
+        formatData,
       };
     },
   };

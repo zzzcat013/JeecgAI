@@ -12,34 +12,33 @@ export const columns: BasicColumn[] = [
     dataIndex: 'name'
    },
    {
-    title: '请求方法',
-    align:"center",
-    dataIndex: 'requestMethod'
-   },
-   {
     title: '接口地址',
     align:"center",
-    dataIndex: 'requestUrl'
+    dataIndex: 'requestUrl',
+    width: 120,
    },
    {
-    title: 'IP 黑名单',
+    title: '请求方式',
     align:"center",
-    dataIndex: 'blackList'
-   },
-   // {
-   //  title: '状态',
-   //  align:"center",
-   //  dataIndex: 'status'
-   // },
-   {
-    title: '创建人',
-    align:"center",
-    dataIndex: 'createBy'
+    dataIndex: 'requestMethod',
+    width: 100,
    },
    {
-    title: '创建时间',
+    title: '原始接口',
     align:"center",
-    dataIndex: 'createTime'
+    dataIndex: 'originUrl',
+    ellipsis: true,
+   },
+   {
+    title: 'IP 白名单',
+    align:"center",
+    dataIndex: 'whiteList',
+    ellipsis: true,
+    customRender: ({ text }) => {
+      if (!text) return '不限制';
+      const count = text.split(/[,\n]/).filter(item => item.trim()).length;
+      return count + ' 条规则';
+    }
    },
 ];
 //查询数据
@@ -50,8 +49,8 @@ export const searchFormSchema: FormSchema[] = [
     component: 'JInput',
   },
   {
-    label: "创建人",
-    field: "createBy",
+    label: "接口地址",
+    field: "requestUrl",
     component: 'JInput',
   },
 ];
@@ -68,12 +67,35 @@ export const formSchema: FormSchema[] = [
      },
   },
   {
-    label: '原始地址',
+    label: '原始接口',
     field: 'originUrl',
     component: 'Input',
+    componentProps: {
+      placeholder: '当前系统的原始接口地址，如 /sys/user/list',
+    },
+    helpMessage: '当前系统中被代理的原始接口路径',
+    dynamicRules: () => {
+      return [
+        { required: true, message: '请输入原始接口路径!' },
+        {
+          validator: (_, value) => {
+            if (value && !value.startsWith('/')) {
+              return Promise.reject('原始接口路径必须以 / 开头');
+            }
+            if (value && value.includes('//')) {
+              return Promise.reject('原始接口路径不能包含 //');
+            }
+            if (value && value.includes('..')) {
+              return Promise.reject('原始接口路径不能包含 ..');
+            }
+            return Promise.resolve();
+          },
+        },
+      ];
+    },
   },
   {
-    label: '请求方法',
+    label: '请求方式',
     field: 'requestMethod',
     component: 'JSearchSelect',
     componentProps:{
@@ -112,7 +134,7 @@ export const formSchema: FormSchema[] = [
      },
     dynamicRules: ({model,schema}) => {
           return [
-                 { required: true, message: '请输入请求方法!'},
+                 { required: true, message: '请输入请求方式!'},
           ];
      },
   },
@@ -123,14 +145,36 @@ export const formSchema: FormSchema[] = [
     dynamicDisabled:true
   },
   {
-    label: 'IP 黑名单',
-    field: 'blackList',
-    component: 'Input',
+    label: 'IP 白名单',
+    field: 'whiteList',
+    helpMessage: '支持精确IP、CIDR网段（如192.168.1.0/24）、通配符（如10.2.3.*），每行一个或逗号分隔，为空则不限制',
+    component: 'InputTextArea',
+    slot: 'whiteListSlot',
+    componentProps: {
+      rows: 5,
+      placeholder: '示例：\n192.168.1.100\n10.0.0.0/8\n172.16.*.*',
+    },
+    colProps: { span: 24 },
   },
   {
-    label: '请求体内容',
-    component:"Input",
-    field: 'body'
+    label: '备注',
+    field: 'comment',
+    component: 'InputTextArea',
+    componentProps: {
+      rows: 2,
+      placeholder: '请输入白名单备注说明',
+    },
+    colProps: { span: 24 },
+  },
+  {
+    label: '接口描述',
+    field: 'description',
+    component: 'InputTextArea',
+    componentProps: {
+      rows: 3,
+      placeholder: '请输入接口描述',
+    },
+    colProps: { span: 24 },
   },
   {
     label: '删除标识',
@@ -241,12 +285,35 @@ export const openApiHeaderJVxeColumns: JVxeColumn[] = [
       customValue: ['1','0']
     },
     {
+      title: '参数类型',
+      key: 'paramType',
+      type: JVxeTypes.select,
+      width: '120px',
+      options: [
+        { title: 'string', value: 'string' },
+        { title: 'integer', value: 'integer' },
+        { title: 'number', value: 'number' },
+        { title: 'boolean', value: 'boolean' },
+        { title: 'array', value: 'array' },
+        { title: 'object', value: 'object' },
+      ],
+      defaultValue: 'string',
+    },
+    {
       title: '默认值',
       key: 'defaultValue',
       type: JVxeTypes.input,
       width:"200px",
       placeholder: '请输入${title}',
       defaultValue:'',
+    },
+    {
+      title: '示例值',
+      key: 'example',
+      type: JVxeTypes.input,
+      width: '200px',
+      placeholder: '请输入${title}',
+      defaultValue: '',
     },
     {
       title: '备注',
@@ -285,12 +352,35 @@ export const openApiParamJVxeColumns: JVxeColumn[] = [
       customValue: ['1','0']
     },
     {
+      title: '参数类型',
+      key: 'paramType',
+      type: JVxeTypes.select,
+      width: '120px',
+      options: [
+        { title: 'string', value: 'string' },
+        { title: 'integer', value: 'integer' },
+        { title: 'number', value: 'number' },
+        { title: 'boolean', value: 'boolean' },
+        { title: 'array', value: 'array' },
+        { title: 'object', value: 'object' },
+      ],
+      defaultValue: 'string',
+    },
+    {
       title: '默认值',
       key: 'defaultValue',
       type: JVxeTypes.input,
       width:"200px",
       placeholder: '请输入${title}',
       defaultValue:'',
+    },
+    {
+      title: '示例值',
+      key: 'example',
+      type: JVxeTypes.input,
+      width: '200px',
+      placeholder: '请输入${title}',
+      defaultValue: '',
     },
     {
       title: '备注',
@@ -301,12 +391,45 @@ export const openApiParamJVxeColumns: JVxeColumn[] = [
     },
   ]
 
+export const responseFieldJVxeColumns: JVxeColumn[] = [
+  {
+    title: '字段名',
+    key: 'fieldName',
+    type: JVxeTypes.input,
+    width: '200px',
+    placeholder: '请输入${title}',
+    defaultValue: '',
+  },
+  {
+    title: '类型',
+    key: 'fieldType',
+    type: JVxeTypes.select,
+    width: '120px',
+    options: [
+      { title: 'string', value: 'string' },
+      { title: 'integer', value: 'integer' },
+      { title: 'number', value: 'number' },
+      { title: 'boolean', value: 'boolean' },
+      { title: 'array', value: 'array' },
+      { title: 'object', value: 'object' },
+    ],
+    defaultValue: 'string',
+  },
+  {
+    title: '说明',
+    key: 'fieldDesc',
+    type: JVxeTypes.input,
+    placeholder: '请输入${title}',
+    defaultValue: '',
+  },
+];
+
 // 高级查询数据
 export const superQuerySchema = {
   name: {title: '接口名称',order: 0,view: 'text', type: 'string',},
-  requestMethod: {title: '请求方法',order: 1,view: 'list', type: 'string',dictCode: '',},
+  requestMethod: {title: '请求方式',order: 1,view: 'list', type: 'string',dictCode: '',},
   requestUrl: {title: '接口地址',order: 2,view: 'text', type: 'string',},
-  blackList: {title: 'IP 黑名单',order: 3,view: 'text', type: 'string',},
+  whiteList: {title: 'IP 白名单',order: 3,view: 'text', type: 'string',},
   status: {title: '状态',order: 5,view: 'number', type: 'number',},
   createBy: {title: '创建人',order: 6,view: 'text', type: 'string',},
   createTime: {title: '创建时间',order: 7,view: 'datetime', type: 'string',},

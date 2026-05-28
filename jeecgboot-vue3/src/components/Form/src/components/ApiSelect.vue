@@ -114,7 +114,9 @@
           if (next) {
             const value = next[valueField];
             prev.push({
-              ...omit(next, [labelField, valueField]),
+              // update-begin--author:liaozhiyang---date:20260226---for:【issues/9326】ApiSelect组件，返回数据中包含 options 这个名称导致组件渲染失败
+              ...omit(next, [labelField, valueField, 'options']),
+              // update-end--author:liaozhiyang---date:20260226---for:【issues/9326】ApiSelect组件，返回数据中包含 options 这个名称导致组件渲染失败
               label: next[labelField],
               value: numberToString ? `${value}` : value,
             });

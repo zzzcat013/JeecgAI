@@ -74,7 +74,7 @@
                   </template>
                 </a-breadcrumb>
               </div>
-              <div v-if="currentDepartUsers.length">
+              <div v-if="currentDepartUsers.length || currentDeptTotal > 0">
                 <!-- 当前部门用户树 -->
                 <div class="depart-users-tree">
                   <div v-if="!currentDepartTree.length" class="allChecked">
@@ -91,6 +91,18 @@
                       </div>
                     </div>
                   </template>
+                </div>
+                <!-- 分页 -->
+                <div v-if="!currentDepartTree.length && currentDeptTotal > currentDeptPageSize" class="dept-user-pagination">
+                  <a-pagination
+                    v-model:current="currentDeptPageNo"
+                    :total="currentDeptTotal"
+                    :pageSize="currentDeptPageSize"
+                    size="small"
+                    :showSizeChanger="false"
+                    :showQuickJumper="false"
+                    @change="handleDeptUserPageChange"
+                  />
                 </div>
               </div>
               <!-- 部门树 -->
@@ -196,6 +208,11 @@
   const checkedDepartIds = ref<string[]>([]);
   // 当前部门用户
   const currentDepartUsers = ref([]);
+  // 当前叶子部门分页状态
+  const currentDeptId = ref('');
+  const currentDeptPageNo = ref(1);
+  const currentDeptPageSize = ref(50);
+  const currentDeptTotal = ref(0);
   // 已选用户
   const selectedUsers = ref<any[]>([]);
   // 全选
@@ -277,6 +294,9 @@
   const handleBreadcrumbClick = (item?) => {
     // 先清空
     currentDepartUsers.value = [];
+    currentDeptId.value = '';
+    currentDeptPageNo.value = 1;
+    currentDeptTotal.value = 0;
     if (item) {
       const findIndex = breadcrumb.value.findIndex((o) => o.id === item.id);
       if (findIndex != -1) {
@@ -375,26 +395,40 @@
     } else {
       // 没有子节点，则显示用户
       currentDepartTree.value = [];
-      getTableList({
-        departId: item['id'],
-      }).then((res: any) => {
-        if (res?.records) {
-          let checked = true;
-          res.records.forEach((item) => {
-            const findItem = selectedUsers.value.find((user) => user.id == item.id);
-            if (findItem) {
-              // 能在右侧找到说明选中了，左侧同样需要选中。
-              item.checked = true;
-            } else {
-              item.checked = false;
-              checked = false;
-            }
-          });
-          currentDepartAllUsers.value = checked;
-          currentDepartUsers.value = res.records.sort((a, b) => a.sort - b.sort );
-        }
-      });
+      currentDeptId.value = item['id'];
+      currentDeptPageNo.value = 1;
+      currentDeptTotal.value = 0;
+      loadDeptUsers(item['id'], 1);
     }
+  };
+  // 加载叶子部门用户（带分页）
+  const loadDeptUsers = (departId: string, pageNo: number) => {
+    return getTableList({
+      departId,
+      pageNo,
+      pageSize: currentDeptPageSize.value,
+    }).then((res: any) => {
+      if (res?.records) {
+        currentDeptTotal.value = res.total ?? 0;
+        currentDeptPageNo.value = pageNo;
+        let checked = true;
+        res.records.forEach((item) => {
+          const findItem = selectedUsers.value.find((user) => user.id == item.id);
+          if (findItem) {
+            item.checked = true;
+          } else {
+            item.checked = false;
+            checked = false;
+          }
+        });
+        currentDepartAllUsers.value = checked && res.records.length > 0;
+        currentDepartUsers.value = res.records.sort((a, b) => a.sort - b.sort);
+      }
+    });
+  };
+  // 叶子部门用户翻页
+  const handleDeptUserPageChange = (page: number) => {
+    loadDeptUsers(currentDeptId.value, page);
   };
   // 点击部门用户树复选框触发
   const handleDepartUsersTreeCheck = (item) => {
@@ -518,11 +552,11 @@
       } else {
         getTableList({
           departId: id,
+          pageNo: 1,
+          pageSize: 1000,
         }).then((res: any) => {
           cacheDepartUser[id] = res.records ?? [];
-          if (res?.records?.length) {
-            resolve(res.records ?? []);
-          }
+          resolve(res.records ?? []);
         });
       }
     });
@@ -600,6 +634,14 @@
   .JSelectUserByDepartmentModal {
     .scroll-container {
       padding: 0;
+    }
+  }
+  .ant-modal-root .fullscreen-modal.JSelectUserByDepartmentModal {
+    .j-select-user-by-dept {
+      height: 100%;
+    }
+    .modal-content {
+      height: 100%;
     }
   }
 </style>
@@ -703,6 +745,11 @@
         margin: 0 8px;
       }
     }
+  }
+  .dept-user-pagination {
+    padding: 8px 16px;
+    text-align: right;
+    border-top: 1px solid #f0f0f0;
   }
   .depart-users-tree {
     .allChecked {

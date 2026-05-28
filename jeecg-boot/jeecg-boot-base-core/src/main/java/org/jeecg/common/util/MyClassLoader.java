@@ -9,7 +9,9 @@ public class MyClassLoader extends ClassLoader {
 	public static Class getClassByScn(String className) {
 		Class myclass = null;
 		try {
-			myclass = Class.forName(className);
+			//update-begin---author:scott ---date:20260416  for：【PR#9538】Class.forName使用上下文类加载器，增强部署兼容性-----------
+			myclass = Class.forName(className, true, Thread.currentThread().getContextClassLoader());
+			//update-end---author:scott ---date:20260416  for：【PR#9538】Class.forName使用上下文类加载器，增强部署兼容性-----------
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 			throw new RuntimeException(className+" not found!");

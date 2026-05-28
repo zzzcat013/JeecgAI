@@ -4,6 +4,7 @@ import type { FormSchema, FormActionType } from "@/components/Form";
 
 import { unref } from 'vue';
 import { isObject, isFunction, isString } from '/@/utils/is';
+import { dynamicPages } from './dynamicPages';
 import Big from 'big.js';
 import dayjs from "dayjs";
 // 代码逻辑说明: 【VUEN-656】配置外部网址打不开，原因是带了#号，需要替换一下
@@ -44,23 +45,7 @@ export function deepMerge<T = any>(src: any = {}, target: any = {}): T {
     if (isObject(src[key]) && isObject(target[key])) {
       src[key] = deepMerge(src[key], target[key]);
     } else {
-      // 代码逻辑说明: 【issues/7940】componentProps写成函数形式时，updateSchema写成对象时，参数没合并
-      try {
-        if (isFunction(src[key]) && isObject(src[key]()) && isObject(target[key])) {
-          // src[key]是函数且返回对象，且target[key]是对象
-          src[key] = deepMerge(src[key](), target[key]);
-        } else if (isObject(src[key]) && isFunction(target[key]) && isObject(target[key]())) {
-          // target[key]是函数且返回对象，且src[key]是对象
-          src[key] = deepMerge(src[key], target[key]());
-        } else if (isFunction(src[key]) && isFunction(target[key]) && isObject(src[key]()) && isObject(target[key]())) {
-          // src[key]是函数且返回对象，target[key]是函数且返回对象
-          src[key] = deepMerge(src[key](), target[key]());
-        } else {
-          src[key] = target[key];
-        }
-      } catch (error) {
-        src[key] = target[key];
-      }
+      src[key] = target[key];
     }
   }
   return src;
@@ -348,7 +333,6 @@ export function numToUpper(value) {
 }
 
 // 代码逻辑说明: 解决老的vue2动态导入文件语法 vite不支持的问题
-const allModules = import.meta.glob('../views/**/*.vue');
 export function importViewsFile(path): Promise<any> {
   if (path.startsWith('/')) {
     path = path.substring(1);
@@ -361,10 +345,10 @@ export function importViewsFile(path): Promise<any> {
   }
   return new Promise((resolve, reject) => {
     let flag = true;
-    for (const path in allModules) {
+    for (const path in dynamicPages) {
       if (path == page) {
         flag = false;
-        allModules[path]().then((mod) => {
+        dynamicPages[path]().then((mod) => {
           console.log(path, mod);
           resolve(mod);
         });
@@ -669,3 +653,171 @@ export const split = (str) => {
   }
   return str;
 };
+/**
+  * 处理word文档中的o:p标签
+  * @param html
+ */
+export const removeSpecialTags = (html: string): string => {
+  if (!html) return '';
+  try {
+    const BORDER = '1px solid #8c8c8c';
+
+    // ===================================================================
+    // 第一步：移除 Office 垃圾标签（纯字符串）
+    // ===================================================================
+    // o:p 标签（转义和普通形式）
+    html = html.replace(/&lt;o:p[^&]*?&gt;.*?&lt;\/o:p&gt;/gis, '');
+    html = html.replace(/&lt;o:p[^&]*?\/?&gt;/gis, '');
+    html = html.replace(/&lt;\/o:p&gt;/gis, '');
+    html = html.replace(/<o:p[^>]*>.*?<\/o:p>/gis, '');
+    html = html.replace(/<o:p[^>]*\/?>/gis, '');
+    html = html.replace(/<\/o:p>/gis, '');
+
+    // style 标签（转义和普通形式）
+    html = html.replace(/&lt;style[^&]*?&gt;.*?&lt;\/style&gt;/gis, '');
+    html = html.replace(/&lt;style[^&]*?\/?&gt;/gis, '');
+    html = html.replace(/&lt;\/style&gt;/gis, '');
+    html = html.replace(/<style[^>]*>.*?<\/style>/gis, '');
+
+    // 条件注释和 Office 命名空间标签
+    html = html.replace(/<!--\[if[^>]*>.*?<!\[endif\]-->/gis, '');
+    html = html.replace(/<\/?w:[^>]*>/gis, '');
+    html = html.replace(/<\/?xml[^>]*>/gis, '');
+    html = html.replace(/<\/?v:[^>]*>/gis, '');
+
+    // ===================================================================
+    // 第二步：DOM 清理（仅清理空段落，完全不动表格行结构）
+    //   ★ 关键：放在边框处理之前，防止 DOM 序列化丢失 !important
+    // ===================================================================
+    try {
+      const DOMParserCtor: any =
+          typeof DOMParser !== 'undefined' ? DOMParser : (globalThis as any).DOMParser;
+      if (DOMParserCtor) {
+        const parser = new DOMParserCtor() as DOMParser;
+        const doc = parser.parseFromString(html, 'text/html') as Document;
+
+        // 仅清理单元格内的空 <p> 标签
+        const cells = doc.querySelectorAll('td,th');
+        for (let ci = 0; ci < cells.length; ci++) {
+          const cell = cells[ci] as HTMLElement;
+          if (!cell) continue;
+          const ps = cell.querySelectorAll('p');
+          for (let pi = ps.length - 1; pi >= 0; pi--) {
+            const p = ps[pi] as HTMLParagraphElement;
+            if (!p) continue;
+            const content = (p.innerHTML || '').replace(/&nbsp;|\u00A0/g, '').trim();
+            if (content === '') {
+              p.remove();
+            } else {
+              const frag = doc.createDocumentFragment();
+              while (p.firstChild) frag.appendChild(p.firstChild);
+              if (p.parentNode) p.parentNode.replaceChild(frag, p);
+            }
+          }
+        }
+
+        html = doc.body.innerHTML;
+      }
+    } catch (_) {
+      // DOM 不可用，跳过段落清理（不影响边框修复）
+    }
+
+    // ===================================================================
+    // 第三步：注入全局表格样式 <style>（兜底保障）
+    //   ★ 放在 DOM 序列化之后，确保 <style> 标签不会被 DOM 改写
+    // ===================================================================
+    const globalCSS = `<style>
+table{border-collapse:collapse!important;border-spacing:0!important;width:100%!important;max-width:100%!important;}
+table td,table th{border-top:${BORDER}!important;border-right:${BORDER}!important;border-bottom:${BORDER}!important;border-left:${BORDER}!important;padding:6px 8px!important;vertical-align:middle!important;box-sizing:border-box!important;empty-cells:show!important;}
+table td p,table th p{margin:0!important;padding:0!important;line-height:1.4!important;}
+img{max-width:100%!important;height:auto!important;display:block!important;}
+</style>`;
+
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/(<head[^>]*>)/i, `$1${globalCSS}`);
+    } else if (/<html[^>]*>/i.test(html)) {
+      html = html.replace(/(<html[^>]*>)/i, `$1<head>${globalCSS}</head>`);
+    } else {
+      html = globalCSS + html;
+    }
+
+    // ===================================================================
+    // 第四步：纯字符串处理内联样式（核心边框修复）
+    //   ★ 最后执行！确保输出 HTML 中的 !important 不会被任何后续处理丢失
+    //
+    //   策略：按分号拆分 style 值，逐条判断属性名，
+    //         过滤掉所有 border* 和 mso-* 声明，
+    //         然后追加统一的边框声明（含 !important）
+    // ===================================================================
+
+    /**
+     * 从 CSS style 字符串中移除所有 border* 和 mso-* 声明，
+     * 保留其余布局相关属性（width, height, padding, text-align 等）
+     */
+    function stripBorderAndMso(styleStr: string): string {
+      return styleStr
+          .split(';')
+          .filter(function (decl) {
+            const trimmed = decl.trim();
+            if (!trimmed) return false;
+            const colonIdx = trimmed.indexOf(':');
+            if (colonIdx === -1) return true; // 保留无效声明（安全起见）
+            const prop = trimmed.substring(0, colonIdx).trim().toLowerCase();
+            // 移除所有 border 开头和 mso- 开头的属性
+            if (prop.startsWith('border') || prop.startsWith('mso-')) return false;
+            return true;
+          })
+          .join(';');
+    }
+
+    // 4a. 移除 <table> 上的 border="0" HTML 属性
+    html = html.replace(/(<table\b[^>]*?)\sborder\s*=\s*['"]?0['"]?/gi, '$1');
+
+    // 4b. 处理 <table> 标签的内联样式
+    html = html.replace(/<table(\s[^>]*)>/gi, function (fullMatch, attrs) {
+      try {
+        const sm = attrs.match(/\sstyle\s*=\s*(["'])([\s\S]*?)\1/i);
+        if (sm) {
+          const q = sm[1];
+          const cleaned = stripBorderAndMso(sm[2]);
+          const newStyle = cleaned
+              + ';border-collapse:collapse!important'
+              + ';border-spacing:0!important'
+              + ';width:100%!important';
+          return '<table' + attrs.replace(sm[0], ` style=${q}${newStyle}${q}`) + '>';
+        }
+        return '<table' + attrs
+            + ' style="border-collapse:collapse!important;border-spacing:0!important;width:100%!important">';
+      } catch (_) { return fullMatch; }
+    });
+
+    // 4c. 处理 <td>/<th> 标签的内联样式
+    const cellBorderCSS =
+        `border-top:${BORDER}!important;` +
+        `border-right:${BORDER}!important;` +
+        `border-bottom:${BORDER}!important;` +
+        `border-left:${BORDER}!important;` +
+        'padding:6px 8px!important;' +
+        'vertical-align:middle!important;' +
+        'box-sizing:border-box!important';
+
+    html = html.replace(/<(td|th)(\s[^>]*)>/gi, function (fullMatch, tag, attrs) {
+      try {
+        const sm = attrs.match(/\sstyle\s*=\s*(["'])([\s\S]*?)\1/i);
+        if (sm) {
+          const q = sm[1];
+          const cleaned = stripBorderAndMso(sm[2]);
+          const newStyle = (cleaned ? cleaned + ';' : '') + cellBorderCSS;
+          return '<' + tag + attrs.replace(sm[0], ` style=${q}${newStyle}${q}`) + '>';
+        }
+        return '<' + tag + attrs + ` style="${cellBorderCSS}">`;
+      } catch (_) { return fullMatch; }
+    });
+
+    return html;
+  } catch (_) {
+    return html;
+  }
+};
+
+

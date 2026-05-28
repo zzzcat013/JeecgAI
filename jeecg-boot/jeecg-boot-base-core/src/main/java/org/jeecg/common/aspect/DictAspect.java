@@ -2,10 +2,8 @@ package org.jeecg.common.aspect;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.parser.Feature;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -23,7 +21,11 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -43,9 +45,6 @@ public class DictAspect {
     private CommonAPI commonApi;
     @Autowired
     public RedisTemplate redisTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     private static final String JAVA_UTIL_DATE = "java.util.Date";
 
@@ -113,19 +112,25 @@ public class DictAspect {
 
                 log.debug(" __ 进入字典翻译切面 DictAspect —— " );
                 for (Object record : records) {
-                    String json="{}";
-                    try {
-                        //解决@JsonFormat注解解析不了的问题详见SysAnnouncement类的@JsonFormat
-                         json = objectMapper.writeValueAsString(record);
-                    } catch (JsonProcessingException e) {
-                        log.error("json解析失败"+e.getMessage(),e);
-                    }
-                    // 代码逻辑说明: 【issues/3303】restcontroller返回json数据后key顺序错乱 -----
-                    JSONObject item = JSONObject.parseObject(json, Feature.OrderedField);
-
-                    //for (Field field : record.getClass().getDeclaredFields()) {
-                    // 遍历所有字段，把字典Code取出来，放到 map 里
+                    //update-begin---author:scott ---date:2026-04-15  for：【issues/9543】改用反射直接读取字段构建 JSONObject，避免 ObjectMapper 对循环引用实体进行全量序列化导致 OOM；合并字典字段收集逻辑为同一次循环，避免对 getAllFields 遍历两遍；保留 【issues/#3629】@JsonFormat 的 Date 格式化兼容；保留 【issues/3303】字段顺序（LinkedHashMap）-----------
+                    JSONObject item = new JSONObject(true);
                     for (Field field : oConvertUtils.getAllFields(record)) {
+                        if (Modifier.isStatic(field.getModifiers())) {
+                            continue;
+                        }
+                        //update-begin---author:scott ---date:2026-04-16  for：【issues/9543】优先通过 getter 方法读取字段值（兼容实体重写 getter 的场景），getter 不存在时 fallback 到直接读字段-----------
+                        Object fieldValue = getFieldValue(record, field);
+                        //update-end---author:scott ---date:2026-04-16  for：【issues/9543】优先通过 getter 方法读取字段值（兼容实体重写 getter 的场景），getter 不存在时 fallback 到直接读字段-----------
+                        // 解决@JsonFormat注解解析不了的问题详见SysAnnouncement类的@JsonFormat
+                        if (fieldValue instanceof Date) {
+                            JsonFormat jsonFormat = field.getAnnotation(JsonFormat.class);
+                            if (jsonFormat != null && oConvertUtils.isNotEmpty(jsonFormat.pattern())) {
+                                fieldValue = new SimpleDateFormat(jsonFormat.pattern()).format((Date) fieldValue);
+                            }
+                        }
+                        item.put(field.getName(), fieldValue);
+
+                        // 遍历所有字段，把字典Code取出来，放到 map 里
                         String value = item.getString(field.getName());
                         if (oConvertUtils.isEmpty(value)) {
                             continue;
@@ -154,6 +159,7 @@ public class DictAspect {
                             // item.put(field.getName(), aDate.format(new Date((Long) item.get(field.getName()))));
                         //}
                     }
+                    //update-end---author:scott ---date:2026-04-15  for：【issues/9543】改用反射直接读取字段构建 JSONObject，避免 ObjectMapper 对循环引用实体进行全量序列化导致 OOM；合并字典字段收集逻辑为同一次循环，避免对 getAllFields 遍历两遍；保留 【issues/#3629】@JsonFormat 的 Date 格式化兼容；保留 【issues/3303】字段顺序（LinkedHashMap）-----------
                     items.add(item);
                 }
 
@@ -416,6 +422,30 @@ public class DictAspect {
         }
         return textValue.toString();
     }
+
+    //update-begin---author:scott ---date:2026-04-16  for：【issues/9543】优先通过 getter 方法读取字段值（兼容实体重写 getter 的场景），getter 不存在时 fallback 到直接读字段-----------
+    /**
+     * 优先通过 PropertyDescriptor 获取 getter 方法读取字段值，兼容实体重写 getter 的场景；
+     * getter 不存在或调用异常时 fallback 到直接反射读字段。
+     */
+    private Object getFieldValue(Object record, Field field) {
+        try {
+            PropertyDescriptor pd = new PropertyDescriptor(field.getName(), record.getClass());
+            Method readMethod = pd.getReadMethod();
+            if (readMethod != null) {
+                return readMethod.invoke(record);
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            field.setAccessible(true);
+            return field.get(record);
+        } catch (IllegalAccessException e) {
+            log.error("反射读取字段失败: " + field.getName(), e);
+            return null;
+        }
+    }
+    //update-end---author:scott ---date:2026-04-16  for：【issues/9543】优先通过 getter 方法读取字段值（兼容实体重写 getter 的场景），getter 不存在时 fallback 到直接读字段-----------
 
     /**
      * 检测返回结果集中是否包含Dict注解

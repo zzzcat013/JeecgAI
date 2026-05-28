@@ -131,7 +131,7 @@ export const generateMemoryByAppId = (params) => {
       url: Api.generateMemoryByAppId+'?variables='+ params.variables + '&memoryId='+ params.memoryId,
       adapter: 'fetch',
       responseType: 'stream',
-      timeout: 5 * 60 * 1000,
+      timeout: 60 * 60 * 1000,
     },
     {
       isTransformResponse: false,

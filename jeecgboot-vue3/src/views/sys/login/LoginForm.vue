@@ -89,7 +89,8 @@
   import { reactive, ref, toRaw, unref, computed, onMounted } from 'vue';
 
   import { Checkbox, Form, Input, Row, Col, Button, Divider } from 'ant-design-vue';
-  import { GithubFilled, WechatFilled, DingtalkCircleFilled, createFromIconfontCN } from '@ant-design/icons-vue';
+  import { GithubFilled, WechatFilled, DingtalkCircleFilled } from '@ant-design/icons-vue';
+  import { IconFont } from '/@/utils/iconfont2';
   import LoginFormTitle from './LoginFormTitle.vue';
   import ThirdModal from './ThirdModal.vue';
   import { useI18n } from '/@/hooks/web/useI18n';
@@ -105,9 +106,6 @@
   const ARow = Row;
   const FormItem = Form.Item;
   const InputPassword = Input.Password;
-  const IconFont = createFromIconfontCN({
-    scriptUrl: '//at.alicdn.com/t/font_2316098_umqusozousr.js',
-  });
   const { t } = useI18n();
   const { notification, createErrorModal } = useMessage();
   const { prefixCls } = useDesign('login');

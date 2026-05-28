@@ -1,5 +1,7 @@
 package org.jeecg.modules.test.seata.product.service;
 
+import org.jeecg.common.api.vo.Result;
+
 import java.math.BigDecimal;
 
 /**
@@ -16,5 +18,5 @@ public interface SeataProductService {
      * @param count    扣减数量
      * @return 商品总价
      */
-    BigDecimal reduceStock(Long productId, Integer count);
+    Result<BigDecimal> reduceStock(Long productId, Integer count);
 }

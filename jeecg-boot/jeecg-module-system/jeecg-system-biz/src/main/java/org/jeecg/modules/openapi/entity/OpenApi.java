@@ -43,9 +43,16 @@ public class OpenApi  implements Serializable {
     private String requestUrl;
 
     /**
-     * IP 黑名单
+     * IP 白名单
      */
-    private String blackList;
+    private String whiteList;
+
+    //update-begin---author:scott ---date:20260417  for：【PR/9083】OpenAPI新增白名单备注字段-----------
+    /**
+     * 白名单备注说明
+     */
+    private String comment;
+    //update-end---author:scott ---date:20260417  for：【PR/9083】OpenAPI新增白名单备注字段-----------
     /**
      * 请求头json
      */

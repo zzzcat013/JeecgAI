@@ -27,7 +27,8 @@ public enum FileTypeEnum {
     mp4(".mp4","video","视频"),
     zip(".zip","zip","压缩包"),
     pdf(".pdf","pdf","pdf"),
-    mp3(".mp3","mp3","语音");
+    mp3(".mp3","mp3","语音"),
+    wav(".wav","wav","语音");
 
     private String type;
     private String value;

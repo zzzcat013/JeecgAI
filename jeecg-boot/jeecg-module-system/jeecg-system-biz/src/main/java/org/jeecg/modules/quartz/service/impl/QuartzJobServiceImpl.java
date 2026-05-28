@@ -174,9 +174,22 @@ public class QuartzJobServiceImpl extends ServiceImpl<QuartzJobMapper, QuartzJob
 		}
 	}
 
+	/**
+	 * 安全加载Job类：仅允许 org.jeecg. 包下的类，且必须实现 org.quartz.Job 接口
+	 */
 	private static Job getClass(String classname) throws Exception {
-		Class<?> class1 = Class.forName(classname);
-		return (Job) class1.newInstance();
+		// 包名白名单校验，防止任意类实例化导致RCE
+		if (classname == null || !classname.startsWith("org.jeecg.")) {
+			throw new IllegalArgumentException("非法的任务类名：" + classname + "，仅允许 org.jeecg 包下的Job类");
+		}
+		//update-begin---author:scott ---date:20260416  for：【PR#9538】Class.forName使用上下文类加载器，增强部署兼容性-----------
+		Class<?> clazz = Class.forName(classname, true, Thread.currentThread().getContextClassLoader());
+		//update-end---author:scott ---date:20260416  for：【PR#9538】Class.forName使用上下文类加载器，增强部署兼容性-----------
+		// 校验是否实现了 org.quartz.Job 接口
+		if (!Job.class.isAssignableFrom(clazz)) {
+			throw new IllegalArgumentException("非法的任务类：" + classname + "，必须实现 org.quartz.Job 接口");
+		}
+		return (Job) clazz.getDeclaredConstructor().newInstance();
 	}
 
 }

@@ -125,6 +125,13 @@
       prologue: '你好，我是 AI绘图智能体。',
       presetQuestion: '[{"key":1,"descr":"请生成一张具有日本风格的动漫成年女孩。","update":true}, {"key":2,"descr":"请生成一幅中国神话故事中，手持武器的哪吒形象。","update":true}]',
       metadata:"{\"izDraw\":\"1\"}"
+    },  
+    {
+      id: '1993651187913981953',
+      name: '商品导购',
+      icon: 'https://minio.jeecg.com/otatest/shoppingGuide_1769754188966.png',
+      prologue: '向要了解哪一款产品，我可以给你介绍。',
+      presetQuestion: '[{"key":1,"sort":1,"descr":"HIP 0603T Series","update":false},{"key":2,"sort":2,"descr":"CHIP 1206HC Series","update":false},{"key":3,"sort":3,"descr":"BRICK 1032ST Series","update":true}]',
     },
   ]);
 

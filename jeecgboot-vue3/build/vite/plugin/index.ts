@@ -2,8 +2,11 @@ import { PluginOption } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueJsx from '@vitejs/plugin-vue-jsx';
 import purgeIcons from 'vite-plugin-purge-icons';
+// unplugin-icons 为 ESM-only，用动态 import 避免 CJS 配置加载时 require 报错
 import UnoCSS from 'unocss/vite';
 import { presetTypography, presetUno } from 'unocss';
+import Components from 'unplugin-vue-components/vite';
+import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers';
 
 // 本地调试https配置方法
 import VitePluginCertificate from 'vite-plugin-mkcert';
@@ -29,9 +32,23 @@ import { configPwaPlugin } from './pwa';
  * @param isBuild
  * @param isQiankunMicro 是否【JEECG作为乾坤子应用】
  */
-export function createVitePlugins(viteEnv: ViteEnv, isBuild: boolean, isQiankunMicro: boolean) {
+export async function createVitePlugins(
+  viteEnv: ViteEnv,
+  isBuild: boolean,
+  isQiankunMicro: boolean,
+) {
   const { VITE_USE_MOCK, VITE_BUILD_COMPRESS, VITE_BUILD_COMPRESS_DELETE_ORIGIN_FILE } = viteEnv;
 
+  // update-begin--author:liaozhiyang---date:20260306---for:【QQYUN-14833】unplugin-icons 使用esm
+  // 动态 import ESM-only，避免 CJS 配置链 require 报 ERR_REQUIRE_ESM （解决node 20启动报错）
+  const [
+    { default: Icons },
+    { default: IconsResolver },
+  ] = await Promise.all([
+    import('unplugin-icons/vite'),
+    import('unplugin-icons/resolver'),
+  ]);
+  // update-end--author:liaozhiyang---date:20260306---for:【QQYUN-14833】unplugin-icons 使用esm
   const vitePlugins: (PluginOption | PluginOption[])[] = [
     // have to
     vue(),
@@ -46,6 +63,26 @@ export function createVitePlugins(viteEnv: ViteEnv, isBuild: boolean, isQiankunM
   ];
 
   vitePlugins.push(UnoCSS({ presets: [presetUno(), presetTypography()] }));
+  // update-begin--author:liaozhiyang---date:20260302---for:【QQYUN-14806】antd采用unplugin-vue-components实现按需加载
+  // unplugin-vue-components: ant-design-vue 组件自动按需导入
+  vitePlugins.push(
+    Components({
+      resolvers: [
+        AntDesignVueResolver({
+          importStyle: false,
+          // 排除antd的Button组件，让项目中的a-button指向BasicButton组件
+          // 低版本是AButton，高版本是Button
+          exclude: ['AButton', 'Button'],
+        }),
+        IconsResolver({
+          prefix: 'iconify',
+        }),
+      ],
+      dirs: [],
+      dts: false,
+    })
+  );
+  // update-end--author:liaozhiyang---date:20260302---for:【QQYUN-14806】antd采用unplugin-vue-components实现按需加载
 
   // vite-plugin-html
   vitePlugins.push(configHtmlPlugin(viteEnv, isBuild, isQiankunMicro));
@@ -56,8 +93,21 @@ export function createVitePlugins(viteEnv: ViteEnv, isBuild: boolean, isQiankunM
   // vite-plugin-mock
   VITE_USE_MOCK && vitePlugins.push(configMockPlugin(isBuild));
 
-  // vite-plugin-purge-icons
+  // update-begin--author:liaozhiyang---date:20260304---for:【QQYUN-14802】新增unplugin-icons插件，及icon支持online和local两种模式
+  if (viteEnv.VITE_GLOB_ICONIFY_USE_TYPE === 'local') {
+    vitePlugins.push(purgeIcons());
+  } 
+  vitePlugins.push(
+    Icons({
+      compiler: 'vue3',
+       // 自动安装图标集
+      autoInstall: false,
+      scale: 1,
+      defaultClass: 'app-iconify anticon',
+    })
+  );
   vitePlugins.push(purgeIcons());
+  // update-end--author:liaozhiyang---date:20260304---for:【QQYUN-14802】新增unplugin-icons插件，及icon支持online和local两种模式
 
   // rollup-plugin-visualizer
   vitePlugins.push(configVisualizerConfig());

@@ -106,7 +106,7 @@
       const userStore = useUserStore();
       const { getShowTopMenu, getShowHeaderTrigger, getSplit, getIsMixMode, getMenuWidth, getIsMixSidebar } = useMenuSetting();
       const { getUseErrorHandle, getShowSettingButton, getSettingButtonPosition, getAiIconShow } = useRootSetting();
-      const { title } = useGlobSetting();
+      const { title, isQiankunMicro } = useGlobSetting();
 
       const {
         getHeaderTheme,
@@ -133,6 +133,8 @@
             [`${prefixCls}--fixed`]: props.fixed,
             [`${prefixCls}--mobile`]: unref(getIsMobile),
             [`${prefixCls}--${theme}`]: theme,
+            // 【JEECG作为乾坤子应用】
+            [`${prefixCls}--qiankun-micro`]: isQiankunMicro,
           },
         ];
       });

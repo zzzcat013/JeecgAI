@@ -91,9 +91,13 @@ public class SysPermissionController {
 			query.eq(SysPermission::getDelFlag, CommonConstant.DEL_FLAG_0);
 			query.orderByAsc(SysPermission::getSortNo);
 			
-			//支持通过菜单名字，模糊查询
+			//支持通过菜单名字或url，模糊查询
 			if(oConvertUtils.isNotEmpty(sysPermission.getName())){
-				query.like(SysPermission::getName, sysPermission.getName());
+				query.and(wrapper -> wrapper
+					.like(SysPermission::getName, sysPermission.getName())
+					.or()
+					.like(SysPermission::getUrl, sysPermission.getName())
+				);
 			}
 			List<SysPermission> list = sysPermissionService.list(query);
 			List<SysPermissionTree> treeList = new ArrayList<>();

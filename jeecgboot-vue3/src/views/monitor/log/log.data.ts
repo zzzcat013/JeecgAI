@@ -4,8 +4,9 @@ export const columns: BasicColumn[] = [
   {
     title: '日志内容',
     dataIndex: 'logContent',
-    width: 100,
+    width: 200,
     align: 'left',
+    ellipsis: true,
   },
   {
     title: '操作人ID',
@@ -20,12 +21,12 @@ export const columns: BasicColumn[] = [
   {
     title: 'IP',
     dataIndex: 'ip',
-    width: 80,
+    width: 60,
   },
   {
     title: '耗时(毫秒)',
     dataIndex: 'costTime',
-    width: 80,
+    width: 50,
   },
   {
     title: '创建时间',
@@ -36,7 +37,7 @@ export const columns: BasicColumn[] = [
   {
     title: '客户端类型',
     dataIndex: 'clientType_dictText',
-    width: 60,
+    width: 50,
   },
 ];
 
@@ -56,30 +57,35 @@ export const exceptionColumns: BasicColumn[] = [
   {
     title: '异常标题',
     dataIndex: 'logContent',
-    width: 100,
+    width: 200,
     align: 'left',
+    ellipsis: true,
   },
   {
     title: '请求地址',
     dataIndex: 'requestUrl',
-    width: 100,
+    width: 140,
+    align: 'left',
+    ellipsis: true,
   },
   {
-    title: '请求参数',
+    title: '请求方法',
     dataIndex: 'method',
-    width: 60,
+    width: 120,
+    align: 'left',
+    ellipsis: true,
   },
   {
     title: '操作人',
     dataIndex: 'username',
-    width: 60,
+    width: 80,
     customRender: ({ record }) => {
-      let pname = record.username;
-      let pid = record.userid;
-      if(!pname && !pid){
-        return "";
+      const pname = record.username;
+      const pid = record.userid;
+      if (!pname && !pid) {
+        return '';
       }
-      return pname + " (账号: "+ pid + " )";
+      return pname + ' (' + pid + ')';
     },
   },
   {
@@ -91,12 +97,12 @@ export const exceptionColumns: BasicColumn[] = [
     title: '创建时间',
     dataIndex: 'createTime',
     sorter: true,
-    width: 60,
+    width: 80,
   },
   {
     title: '客户端类型',
     dataIndex: 'clientType_dictText',
-    width: 60,
+    width: 50,
   },
 ];
 

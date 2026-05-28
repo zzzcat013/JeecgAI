@@ -26,6 +26,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
@@ -61,7 +63,18 @@ public class CommonUtils {
         //update-end---author:wangshuai---date:2026-01-08---for:【QQYUN-14535】ai生成图片的后缀不一致的，导致不展示---
         try {
             if(CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)){
-                File file = new File(basePath + File.separator + bizPath + File.separator );
+                //update-begin---author:wangshuai---date:2026-03-30---for:【issues/9435】uploadOnlineImage路径遍历漏洞修复---
+                // 1. 使用已有的路径遍历检查
+                SsrfFileTypeFilter.checkPathTraversal(bizPath);
+                // 2. 标准化路径并校验是否在basePath范围内
+                Path root = Paths.get(basePath).toAbsolutePath().normalize();
+                Path targetDir = root.resolve(bizPath).toAbsolutePath().normalize();
+                if (!targetDir.startsWith(root)) {
+                    log.error("检测到路径遍历攻击！非法 bizPath: {}", bizPath);
+                    throw new SecurityException("Illegal access to path outside of base directory.");
+                }
+                File file = targetDir.toFile();
+                //update-end---author:wangshuai---date:2026-03-30---for:【issues/9435】uploadOnlineImage路径遍历漏洞修复---
                 if (!file.exists()) {
                     file.mkdirs();// 创建文件根目录
                 }
@@ -159,7 +172,14 @@ public class CommonUtils {
             SsrfFileTypeFilter.checkUploadFileType(mf, bizPath);
             
             String fileName = null;
-            File file = new File(uploadpath + File.separator + bizPath + File.separator );
+            //update-begin---author:liusq ---date:2026-03-30  for：【issues/9428】修复uploadLocal bizPath路径遍历漏洞(CWE-22)-----------
+            // 路径遍历校验：规范化后确保目标目录在uploadpath内
+            File uploadDir = new File(uploadpath).getCanonicalFile();
+            File file = new File(uploadpath + File.separator + bizPath + File.separator).getCanonicalFile();
+            if (!file.toPath().startsWith(uploadDir.toPath())) {
+                throw new JeecgBootException("非法业务路径，禁止访问上传目录之外的路径: " + bizPath);
+            }
+            //update-end---author:liusq ---date:2026-03-30  for：【issues/9428】修复uploadLocal bizPath路径遍历漏洞(CWE-22)-----------
             if (!file.exists()) {
                 // 创建文件根目录
                 file.mkdirs();
@@ -198,8 +218,14 @@ public class CommonUtils {
     }
 
     /**
-     * 统一全局上传 带桶
-     * @Return: java.lang.String
+     * 统一全局上传（支持自定义桶）
+     * 根据 uploadType 自动选择 MinIO 或 阿里云OSS 进行文件上传
+     *
+     * @param file         待上传的文件
+     * @param bizPath      业务路径，作为文件存储的目录前缀（如 "upload/images"）
+     * @param uploadType   上传方式：{@link CommonConstant#UPLOAD_TYPE_MINIO} 使用MinIO，其他使用阿里云OSS
+     * @param customBucket 自定义桶名称，为空则使用各存储服务的默认桶
+     * @return 文件访问URL，上传失败返回空字符串
      */
     public static String upload(MultipartFile file, String bizPath, String uploadType, String customBucket) {
         String url = "";
@@ -368,7 +394,7 @@ public class CommonUtils {
         }else{
             baseDomainPath = scheme + "://" + serverName + ":" + serverPort + contextPath ;
         }
-        log.info("-----Common getBaseUrl----- : " + baseDomainPath);
+        log.debug("-----获取当前服务 BaseUrl----- : " + baseDomainPath);
         return baseDomainPath;
     }
 

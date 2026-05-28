@@ -2,18 +2,25 @@ import { BasicColumn } from '/@/components/Table';
 
 export const columns: BasicColumn[] = [
   {
-    title: 'Key',
+    title: '配置项',
     dataIndex: 'key',
-    width: 100,
+    width: 120,
+    align: 'left',
+    customRender: ({ text }) => {
+      return text;
+    },
   },
   {
-    title: 'Description',
+    title: '说明',
     dataIndex: 'description',
-    width: 80,
+    width: 200,
+    align: 'left',
+    ellipsis: true,
   },
   {
-    title: 'Value',
+    title: '值',
     dataIndex: 'value',
     width: 80,
+    align: 'right',
   },
 ];

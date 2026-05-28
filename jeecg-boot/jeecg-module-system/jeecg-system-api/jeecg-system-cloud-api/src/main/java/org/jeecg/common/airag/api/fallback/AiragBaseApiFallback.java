@@ -9,7 +9,26 @@ public class AiragBaseApiFallback implements IAiragBaseApi {
     private Throwable cause;
 
     @Override
-    public String knowledgeWriteTextDocument(String knowledgeId, String title, String content) {
+    public String knowledgeWriteTextDocument(String knowledgeId, String title, String content, String segmentConfig) {
+        return null;
+    }
+
+    @Override
+    public String getChatVariable(String appId, String username, String name) {
+        return null;
+    }
+
+    @Override
+    public void setChatVariable(String appId, String username, String name, String value) {
+    }
+
+    @Override
+    public String getMemoryIdByAppId(String appId) {
+        return null;
+    }
+
+    @Override
+    public String getPromptContent(String promptId) {
         return null;
     }
 

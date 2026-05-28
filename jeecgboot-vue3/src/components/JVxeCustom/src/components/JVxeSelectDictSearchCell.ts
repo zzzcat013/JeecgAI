@@ -5,9 +5,9 @@ import { filterDictText } from '/@/utils/dict/JDictSelectUtil';
 import { ajaxGetDictItems, getDictItemsByCode } from '/@/utils/dict';
 import { JVxeComponent } from '/@/components/jeecg/JVxeTable/types';
 import { dispatchEvent } from '/@/components/jeecg/JVxeTable/utils';
-import { useResolveComponent as rc } from '/@/components/jeecg/JVxeTable/hooks';
 import { useJVxeComponent, useJVxeCompProps } from '/@/components/jeecg/JVxeTable/hooks';
 import { useMessage } from '/@/hooks/web/useMessage';
+import { Select, SelectOption, Spin } from 'ant-design-vue'
 
 /** value - label map，防止重复查询（刷新清空缓存） */
 const LabelMap = new Map<string, any>();
@@ -101,7 +101,7 @@ export const DictSearchInputCell = defineComponent({
       options.value.forEach(({ value, text, label, title, disabled }) => {
         optionItems.push(
           h(
-            rc('a-select-option'),
+            SelectOption,
             {
               key: value,
               value: value,
@@ -118,7 +118,7 @@ export const DictSearchInputCell = defineComponent({
 
     return () => {
       return h(
-        rc('a-select'),
+        Select,
         {
           ...cellProps.value,
           value: innerSelectValue.value,
@@ -135,7 +135,7 @@ export const DictSearchInputCell = defineComponent({
           default: () => renderOptionItem(),
           notFoundContent: () => {
             if (loading.value) {
-              return h(rc('a-spin'), { size: 'small' });
+              return h(Spin, { size: 'small' });
             } else if (hasRequest.value) {
               return h('div', '没有查询到任何数据');
             } else {

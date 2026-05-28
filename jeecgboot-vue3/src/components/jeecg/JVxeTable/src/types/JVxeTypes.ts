@@ -46,6 +46,14 @@ export enum JVxeTypes {
   file = 'file',
   // 省市区
   pca = 'pca',
+  // 关联记录
+  linkTable = 'link-table',
+  // update-begin--author:liaozhiyang---date:20260413---for:【issues/7633】online子表支持分类字典树，自定义树
+  // 自定义树控件
+  treeSelect = 'sel-tree',
+  // 分类字典树
+  catTreeSelect = 'cat-tree',
+  // update-end--author:liaozhiyang---date:20260413---for:【issues/7633】online子表支持分类字典树，自定义树
 }
 
 // 为了防止和 vxe 内置的类型冲突，所以加上一个前缀

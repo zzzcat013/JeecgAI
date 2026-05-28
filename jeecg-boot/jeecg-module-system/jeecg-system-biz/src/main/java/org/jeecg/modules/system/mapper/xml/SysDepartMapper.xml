@@ -20,8 +20,8 @@
             )
         )
     </select>
-    
-    <!-- 根据username查询所拥有的部门 -->
+
+    <!-- 根据 userId 查询所拥有的部门 -->
     <select id="queryDepartsByUserId" parameterType="String" resultType="java.lang.String">
         SELECT id
         FROM sys_depart
@@ -30,6 +30,18 @@
             FROM sys_user_depart
             WHERE user_id = #{userId}
         )
+    </select>
+
+    <!-- 根据 userIds 查询所拥有的部门 -->
+    <select id="queryDepartIdsByUserIds" parameterType="String" resultType="java.util.Map">
+        SELECT sd.id       depart_id,
+               sud.user_id user_id
+        FROM sys_depart sd
+                 LEFT JOIN sys_user_depart sud ON sd.id = sud.dep_id
+        WHERE
+        <foreach item="idItem" index="index" collection="userIds" open=" sud.user_id IN (" separator="," close=")">
+            #{idItem}
+        </foreach>
     </select>
 
     <!-- 根据username和分类查询所拥有的部门/岗位/公司 -->
@@ -310,8 +322,14 @@
     <select id="getDepartmentHead" resultType="org.jeecg.modules.system.entity.SysUser">
         select id, realname, avatar, sex, telephone, phone, main_dep_post_id, iz_hide_contact, sort, create_time from sys_user
         where status = 1 and del_flag = 0
-        <bind name="bindDepartId" value="departId+'%'"/>
+        <bind name="bindDepartId" value="'%'+departId+'%'"/>
         and depart_ids like #{bindDepartId}
         order by sort,create_time desc
+    </select>
+
+    <!--获取所有顶级公司部门信息-->
+    <select id="getAllDepartPost" resultType="org.jeecg.modules.system.vo.SysDepartPositionVo">
+        select depart_name as positionName,id,iz_leaf,parent_id,org_category,org_code, dep_post_parent_id from sys_depart
+        where (parent_id IS NULL OR parent_id = '')
     </select>
 </mapper>

@@ -5,6 +5,7 @@ const { createConfirm } = useMessage();
 
 enum Api {
   list = '/airag/prompts/list',
+  queryById = '/airag/prompts/queryById',
   save='/airag/prompts/add',
   edit='/airag/prompts/edit',
   deleteOne = '/airag/prompts/delete',
@@ -29,6 +30,13 @@ export const getImportUrl = Api.importExcel;
  */
 export const list = (params) =>
   defHttp.get({url: Api.list, params});
+
+/**
+ * 根据ID查询提示词详情
+ * @param id 提示词ID
+ */
+export const queryById = (id: string) =>
+  defHttp.get({url: Api.queryById, params: {id}});
 
 /**
  * 删除单个

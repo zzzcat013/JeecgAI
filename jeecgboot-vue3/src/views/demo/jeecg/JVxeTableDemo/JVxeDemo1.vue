@@ -46,6 +46,15 @@
       </div>
     </template>
 
+    <template #planTimeRangeSlot="{ row, triggerChange }">
+      <a-range-picker
+        :value="row.planTimeRange"
+        value-format="YYYY-MM-DD"
+        :bordered="false"
+        @change="(dates) => triggerChange(dates)"
+      />
+    </template>
+
     <template #myAction="props">
       <a @click="onLookRow(props)">查看</a>
       <a-divider type="vertical" />
@@ -213,6 +222,36 @@
       defaultChecked: false,
     },
     {
+      title: '预估开始日期 ~ 预估结束日期',
+      key: 'planTimeRange',
+      type: JVxeTypes.slot,
+      width: 280,
+      slotName: 'planTimeRangeSlot',
+    },
+    {
+      title: '自定义树控件',
+      key: 'sel_tree_demo',
+      type: JVxeTypes.treeSelect,
+      width: 200,
+      // dict 格式：表名,文本字段,存储字段
+      dict: 'sys_category,name,id',
+      pidField: 'pid',
+      pidValue: '0',
+      hasChildField: 'has_child',
+      multiple: true,
+      placeholder: '请选择',
+    },
+    {
+      title: '分类字典树',
+      key: 'cat_tree_demo',
+      type: JVxeTypes.catTreeSelect,
+      width: 200,
+      // pcode: 根分类编码，'0' 表示加载所有根节点
+      pcode: 'B01',
+      multiple: true,
+      placeholder: '请选择',
+    },
+    {
       title: '操作',
       key: 'action',
       type: JVxeTypes.slot,
@@ -261,6 +300,7 @@
         select_search: options[random(0, 3)],
         datetime: randomDatetime(),
         checkbox: ['Y', 'N'][random(0, 1)],
+        planTimeRange: [dayjs().subtract(random(1, 30), 'day').format('YYYY-MM-DD'), dayjs().add(random(1, 30), 'day').format('YYYY-MM-DD')],
       });
     }
 

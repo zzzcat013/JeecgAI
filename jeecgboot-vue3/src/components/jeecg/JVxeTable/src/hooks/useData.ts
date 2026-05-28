@@ -60,7 +60,12 @@ export function useData(props: JVxeTableProps): JVxeDataProps {
         reserve: true,
         highlight: true,
       },
-      mouseConfig: { selected: false },
+      // update-begin--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
+      // 禁止点击表格外部时清空校验状态，避免每次点击空白区域触发 reactData.validErrorMaps={} 导致不必要的重渲染
+      validConfig: {
+        autoClear: false,
+      },
+      // update-end--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
       keyboardConfig: {
         // 删除键功能
         isDel: false,

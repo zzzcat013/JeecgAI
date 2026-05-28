@@ -209,7 +209,13 @@
           ...options,
           setup: (editor: any) => {
             editorRef.value = editor;
-            editor.on('init', (e) => initSetup(e));
+            editor.on('init', (e) => {
+              initSetup(e);
+              // update-begin--author:liaozhiyang---date:20260306---for:【issues/9448】滚动时tinymce如果下拉打开则隐藏
+              // 弹窗内滚动时关闭tinymce下拉菜单，避免下拉菜单挂载在body导致位置不跟随
+              bindScrollCloseMenu(editor);
+              // update-end--author:liaozhiyang---date:20260306---for:【issues/9448】滚动时tinymce如果下拉打开则隐藏
+            });
             //update-begin-author:liusq---date:2025-11-19--for: JHHB-1070 从word复制的表格不能对齐
             // 表格对齐功能
             initTableAlignment(editor);
@@ -495,6 +501,34 @@
           changeColor();
         }
       );
+
+      // 滚动时关闭tinymce下拉菜单
+      function bindScrollCloseMenu(editor) {
+        const root = unref(editorRootRef);
+        if (!root) return;
+        const scrollParent = getScrollParent(root);
+        if (!scrollParent) return;
+        const onScroll = () => {
+          // 触发body上的mousedown，tinymce会自动关闭打开的下拉菜单
+          document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        };
+        scrollParent.addEventListener('scroll', onScroll, { passive: true });
+        editor.on('remove', () => {
+          scrollParent.removeEventListener('scroll', onScroll);
+        });
+      }
+
+      function getScrollParent(el: HTMLElement): HTMLElement | null {
+        let parent = el.parentElement;
+        while (parent && parent !== document.body) {
+          const { overflow, overflowY } = getComputedStyle(parent);
+          if (/(auto|scroll)/.test(overflow + overflowY)) {
+            return parent;
+          }
+          parent = parent.parentElement;
+        }
+        return null;
+      }
 
       /**
        * 处理图片链接地址

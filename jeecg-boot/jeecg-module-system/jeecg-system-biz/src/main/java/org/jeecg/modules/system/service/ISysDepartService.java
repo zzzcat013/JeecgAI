@@ -13,7 +13,9 @@ import org.jeecg.modules.system.vo.SysDepartExportVo;
 import org.jeecg.modules.system.vo.SysPositionSelectTreeVo;
 import org.jeecg.modules.system.vo.lowapp.ExportDepartVo;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -116,6 +118,14 @@ public interface ISysDepartService extends IService<SysDepart>{
      */
     List<String> queryDepartsByUserId(String userId);
 
+    /**
+     * 根据 用户ID 查询部门ID列表
+     *
+     * @param userIds
+     * @return key = 用户ID, value = 部门ID列表
+     */
+    Map<String, List<String>> queryDepartIdsByUserIds(Collection<String> userIds);
+
 	 /**
      * 根据部门id批量删除并删除其可能存在的子级部门
      * @param ids 多个部门id
@@ -147,9 +157,10 @@ public interface ISysDepartService extends IService<SysDepart>{
      * @param parentId 父id
      * @param ids 多个部门id
      * @param primaryKey 主键字段（id或者orgCode）
+     * @param orgCategory 逗号分隔的 orgCategory 值，如 "1,2"；为空时退化为默认行为（排除岗位）
      * @return
      */
-    List<SysDepartTreeModel> queryTreeListByPid(String parentId,String ids, String primaryKey);
+    List<SysDepartTreeModel> queryTreeListByPid(String parentId,String ids, String primaryKey, String orgCategory);
 
     /**
      * 获取某个部门的所有父级部门的ID
@@ -305,4 +316,11 @@ public interface ISysDepartService extends IService<SysDepart>{
      * @return
      */
     IPage<SysUser> getDepartmentHead(String departId, Page<SysUser> page);
+
+    /**
+     * 获取所有职级关系
+     * @param departId
+     * @return
+     */
+    List<SysPositionSelectTreeVo> getALLRankRelation(String departId);
 }

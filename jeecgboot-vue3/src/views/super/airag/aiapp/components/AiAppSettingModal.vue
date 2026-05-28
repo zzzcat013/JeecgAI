@@ -428,6 +428,20 @@
                         </div>
                       </a-form-item>
                     </a-row>
+                    <a-row>
+                      <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol">
+                        <div style="display: flex;margin-top: 10px">
+                          <div style="margin-left: 2px">显示工具调用过程：</div>
+                          <a-switch
+                            v-model:checked="showToolProcessChecked"
+                            :disabled="isRelease"
+                            checked-children="开"
+                            un-checked-children="关"
+                            @change="handleShowToolProcessChange"
+                          />
+                        </div>
+                      </a-form-item>
+                    </a-row>
                     <a-row v-if="izDrawChecked" class="mt-10">
                       <a-col :span="24">
                         <a-form-item :labelCol="labelCol" :wrapperCol="wrapperCol" v-bind="validateInfos.drawModelId">
@@ -622,6 +636,8 @@
       const multiSessionChecked = ref<boolean>(true);
       //开启会话能力
       const izDrawChecked = ref<boolean>(false);
+      //显示工具调用过程
+      const showToolProcessChecked = ref<boolean>(true);
       // 是否已发布
       const isRelease = ref<boolean>(false);
       //对话设置弹窗ref
@@ -1208,6 +1224,11 @@
           }else{
             izDrawChecked.value = false;
           }
+          if(metadata.value?.showToolProcess != null){
+            showToolProcessChecked.value = metadata.value.showToolProcess === '1';
+          }else{
+            showToolProcessChecked.value = true;
+          }
           if(metadata.value?.drawModelId){
             formState.drawModelId = metadata.value.drawModelId;
           }
@@ -1611,6 +1632,20 @@
       }
       //================================================ end 开启绘画 ========================================================
 
+      //================================================ begin 显示工具调用过程 =========================================================
+      /**
+       * 显示工具调用过程开关回调
+       */
+      function handleShowToolProcessChange(checked){
+        if(checked){
+          metadata.value.showToolProcess = "1";
+        }else{
+          metadata.value.showToolProcess = "0";
+        }
+        formState.metadata = JSON.stringify(metadata.value);
+      }
+      //================================================ end 显示工具调用过程 ========================================================
+
       return {
         registerModal,
         title,
@@ -1705,6 +1740,8 @@
         izDrawChecked,
         handleDrawChange,
         handleDrawModelChange,
+        showToolProcessChecked,
+        handleShowToolProcessChange,
       };
     },
   };

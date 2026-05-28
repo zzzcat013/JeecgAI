@@ -1,11 +1,11 @@
 <template>
   <div :class="[prefixCls, getLayoutContentMode]" v-loading="getOpenPageLoading && getPageLoading">
     <PageLayout />
-    <div id="content" class="app-view-box" v-if="openQianKun == 'true'"></div>
+    <div :id="qiankunDivId" class="app-view-box" v-if="openQiankun && qiankunDivId"></div>
   </div>
 </template>
 <script lang="ts">
-  import { defineComponent, onMounted } from 'vue';
+  import { ref, defineComponent } from 'vue';
   import PageLayout from '/@/layouts/page/index.vue';
   import { useDesign } from '/@/hooks/web/useDesign';
   import { useRootSetting } from '/@/hooks/setting/useRootSetting';
@@ -21,20 +21,20 @@
       const { getOpenPageLoading } = useTransitionSetting();
       const { getLayoutContentMode, getPageLoading } = useRootSetting();
       const globSetting = useGlobSetting();
-      const openQianKun = globSetting.openQianKun;
+      const openQiankun = globSetting.openQianKun == 'true';
+      const qiankunDivId = ref('');
       useContentViewHeight();
-      onMounted(() => {
-        // //注册openQianKun
-        // if (openQianKun == 'true') {
-        //   if (!window.qiankunStarted) {
-        //     window.qiankunStarted = true;
-        //     registerApps();
-        //   }
-        // }
-      });
+
+      // // 注册 qiankun
+      // if (openQiankun) {
+      //   qiankunDivId.value = registerApps?.containerId;
+      //   registerApps();
+      // }
+
       return {
         prefixCls,
-        openQianKun,
+        openQiankun,
+        qiankunDivId,
         getOpenPageLoading,
         getLayoutContentMode,
         getPageLoading,

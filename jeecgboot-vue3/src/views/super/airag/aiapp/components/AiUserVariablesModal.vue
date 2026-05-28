@@ -39,7 +39,6 @@
   import { Icon } from '/src/components/Icon';
   import { Button, Checkbox, Switch, Popconfirm } from 'ant-design-vue';
   import { JVxeTypes, JVxeColumn, JVxeTableInstance } from '/src/components/jeecg/JVxeTable/types';
-  import { JVxeTable } from '/src/components/jeecg/JVxeTable';
   import { useMessage } from '/src/hooks/web/useMessage';
 
   export default defineComponent({
@@ -47,7 +46,6 @@
     components: {
       BasicModal,
       Icon,
-      JVxeTable,
       AButton: Button,
       ACheckbox: Checkbox,
       ASwitch: Switch,

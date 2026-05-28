@@ -36,8 +36,8 @@
         <div v-html="text"></div>
       </template>
 
-      <template #pcaSlot="{ text }">
-        <div :title="getPcaText(text)">{{ getPcaText(text) }}</div>
+      <template #pcaSlot="{ text, column }">
+        <div :title="getPcaText(text, column)">{{ getPcaText(text, column) }}</div>
       </template>
 
       <template #dateSlot="{ text, column }">
@@ -53,7 +53,7 @@
   import { useListPage } from '/@/hooks/system/useListPage';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { defHttp } from '/@/utils/http/axios';
-  import { useTableColumns } from '../hooks/useTableColumns';
+  import { useTableColumns } from '@/views/super/online/cgform/hooks/auto/useTableColumns';
   import { createAsyncComponent } from '@/utils/factory/createAsyncComponent';
   import { useFixedHeightModal } from '../hooks/useLinkTable';
 

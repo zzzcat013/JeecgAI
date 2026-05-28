@@ -1,5 +1,6 @@
 package org.jeecg.modules.test.seata.order.feign;
 
+import org.jeecg.common.api.vo.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,5 +22,5 @@ public interface ProductClient {
      * @return
      */
     @PostMapping("/test/seata/product/reduceStock")
-    BigDecimal reduceStock(@RequestParam("productId") Long productId, @RequestParam("count") Integer count);
+    Result<BigDecimal> reduceStock(@RequestParam("productId") Long productId, @RequestParam("count") Integer count);
 }

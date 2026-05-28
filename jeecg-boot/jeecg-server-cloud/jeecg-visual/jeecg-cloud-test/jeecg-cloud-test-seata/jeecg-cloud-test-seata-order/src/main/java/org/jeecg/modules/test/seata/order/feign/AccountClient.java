@@ -1,5 +1,6 @@
 package org.jeecg.modules.test.seata.order.feign;
 
+import org.jeecg.common.api.vo.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,5 +20,5 @@ public interface AccountClient {
      * @return
      */
     @PostMapping("/test/seata/account/reduceBalance")
-    String reduceBalance(@RequestParam("userId") Long userId, @RequestParam("amount") BigDecimal amount);
+    Result<?> reduceBalance(@RequestParam("userId") Long userId, @RequestParam("amount") BigDecimal amount);
 }

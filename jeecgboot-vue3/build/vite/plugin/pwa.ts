@@ -96,9 +96,10 @@ export function configPwaPlugin(isBuild: boolean): PluginOption | PluginOption[]
             },
           },
         },
-        // 图片资源
+        //update-begin---author:scott ---date:20260417  for：[issues/9564]PWA图片规则过宽导致/filereview/等业务接口走缓存-----------
+        // 图片资源（仅缓存构建产物，避免命中 /filereview/、/jeecgboot/ 等业务接口返回的图片）
         {
-          urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+          urlPattern: /\/(?:assets|img|static|resource)\/.*\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
           handler: 'CacheFirst',
           options: {
             cacheName: 'image-cache',
@@ -108,22 +109,12 @@ export function configPwaPlugin(isBuild: boolean): PluginOption | PluginOption[]
             },
           },
         },
-        // API 请求
+        // API 请求（JeecgBoot 实际前缀是 /jeecgboot/，原 /api/ 规则未生效）
         {
-          urlPattern: /\/api\/.*/i,
-          handler: 'NetworkFirst',
-          options: {
-            cacheName: 'api-cache',
-            networkTimeoutSeconds: 10,
-            expiration: {
-              maxEntries: 50,
-              maxAgeSeconds: 60 * 5,
-            },
-            cacheableResponse: {
-              statuses: [0, 200],
-            },
-          },
+          urlPattern: /\/jeecgboot\/.*/i,
+          handler: 'NetworkOnly',
         },
+        //update-end---author:scott ---date:20260417  for：[issues/9564]PWA图片规则过宽导致/filereview/等业务接口走缓存-----------
       ],
       // 启用立即更新：新 SW 立即激活并接管页面
       skipWaiting: true,

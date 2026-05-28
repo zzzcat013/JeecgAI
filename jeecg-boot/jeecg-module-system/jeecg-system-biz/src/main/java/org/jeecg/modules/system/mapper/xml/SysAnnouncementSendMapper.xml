@@ -134,4 +134,25 @@
             #{id}
         </foreach>
     </select>
+
+	<!-- 根据用户id、业务id和业务类型获取未读消息 -->
+	<select id="getUnReadAnnByBusAndUserId" resultType="java.lang.String">
+		SELECT
+		  sas.annt_id
+		FROM
+		  	sys_announcement_send sas
+		  	LEFT JOIN sys_announcement sa ON sas.annt_id = sa.id
+		WHERE sa.send_status = '1'
+			AND sa.del_flag = '0'
+			AND sas.read_flag = 0
+		<if test="userId!=null and userId != ''">
+			AND sas.user_id = #{userId}
+		</if>
+		<if test="busId !=null and busId != ''">
+			AND sa.bus_id = #{busId}
+		</if>
+		<if test="busType !=null and busType != ''">
+			AND sa.bus_type = #{busType}
+		</if>
+	</select>
 </mapper>

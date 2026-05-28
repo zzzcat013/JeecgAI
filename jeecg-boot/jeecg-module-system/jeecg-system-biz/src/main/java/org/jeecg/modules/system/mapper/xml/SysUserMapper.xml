@@ -14,7 +14,7 @@
 	
 	<!-- 根据用户ids批量查询用户账号 -->
 	<select id="getUsernameByIds" resultType="String">
-		select username from  sys_user  where del_flag = 0 and a.status = 1 and id in
+		select username from  sys_user  where del_flag = 0 and status = 1 and id in
 		<foreach collection="userIds" index="index" item="id" open="(" separator="," close=")">
 			#{id}
 		</foreach>
@@ -69,12 +69,23 @@
 			and realname LIKE concat(concat('%',#{realname}),'%')
 		</if>
 	</select>
-	
+
+	<!-- 根据用户组Id查询 -->
+	<select id="getUserByUgroupId" resultType="org.jeecg.modules.system.entity.SysUser">
+		select * from sys_user where del_flag = 0 and id in (select user_id from sys_ugroup_user where group_id=#{groupId})
+		<if test="username!=null and username!=''">
+			and username LIKE concat(concat('%',#{username}),'%')
+		</if>
+		<if test="realname!=null and realname!=''">
+			and realname LIKE concat(concat('%',#{realname}),'%')
+		</if>
+	</select>
+
 	<!--  修改用户部门code -->
 	<update id="updateUserDepart">
 		UPDATE sys_user SET
 		<if test="orgCode!=null and loginTenantId!=null">
-			 org_code = #{orgCode, jdbcType=VARCHAR}
+			org_code = #{orgCode, jdbcType=VARCHAR}
 			,login_tenant_id = #{loginTenantId, jdbcType=VARCHAR}
 		</if>
 		<if test="orgCode==null and loginTenantId!=null">
@@ -403,11 +414,11 @@
         <if test="userParams != null">
             <if test="userParams.realname != null and userParams.realname != ''">
                 <bind name="bindRealname" value="'%'+ userParams.realname +'%'"/>
-                AND su.realname LIKE bindRealname
+                AND su.realname LIKE #{bindRealname}
             </if>
             <if test="userParams.workNo != null and userParams.workNo != ''">
                 <bind name="bindWorkNo" value="'%'+ userParams.workNo +'%'"/>
-                AND su.work_no LIKE bindWorkNo
+                AND su.work_no LIKE #{bindWorkNo}
             </if>
         </if>
     </sql>
@@ -462,4 +473,16 @@
         </if>
         order by su.sort,su.create_time desc
     </select>
+
+		<!-- 根据用户名查询用户的主部门信息 -->
+		<select id="getMainDepartByUsername" resultType="org.jeecg.modules.system.entity.SysDepart" parameterType="java.lang.String">
+			SELECT sdp.* FROM sys_depart sdp
+			WHERE EXISTS (
+				SELECT 1 FROM sys_depart sd
+				INNER JOIN sys_user su ON su.main_dep_post_id = sd.id
+				WHERE su.username = #{username}
+					AND sd.parent_id = sdp.id
+			);
+		</select>
+
 </mapper>

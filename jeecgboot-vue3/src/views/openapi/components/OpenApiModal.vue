@@ -46,7 +46,6 @@
   import { ref, computed, unref, reactive } from 'vue';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { BasicForm, useForm } from '/@/components/Form/index';
-  import { JVxeTable } from '/@/components/jeecg/JVxeTable';
   import { useJvxeMethod } from '/@/hooks/system/useJvxeMethods.ts';
   import { formSchema, openApiHeaderJVxeColumns, openApiParamJVxeColumns } from '../OpenApi.data';
   import { saveOrUpdate, queryOpenApiHeader, queryOpenApiParam, getGenPath } from '../OpenApi.api';

@@ -33,7 +33,7 @@
         </template>
       </a-card-meta>
       <a-divider />
-      <div v-html="content.msgContent" class="article-content"></div>
+      <div v-html="removeSpecialTags(content.msgContent)" class="article-content"></div>
       <div>
         <a-button v-if="hasHref" @click="jumpToHandlePage">前往办理<ArrowRightOutlined /></a-button>
       </div>
@@ -81,6 +81,7 @@
   import { getToken } from '@/utils/auth';
   import {defHttp} from "@/utils/http/axios";
   import {$electron} from "@/electron";
+  import { removeSpecialTags } from '@/utils/index';
   const router = useRouter();
   const glob = useGlobSetting();
   const isUpdate = ref(true);
@@ -279,7 +280,9 @@
   function handleViewFile(filePath) {
     if (filePath) {
       console.log('glob.onlineUrl', glob.viewUrl);
-      let url = encodeURIComponent(encryptByBase64(filePath));
+      //update-begin-author:scott---date:2026-04-16--for: 【Github #8855】修复文件预览路径处理问题，filePath需要先拼接完整URL再编码
+      let url = encodeURIComponent(encryptByBase64(getFileAccessHttpUrl(filePath)));
+      //update-end-author:scott---date:2026-04-16--for: 【Github #8855】修复文件预览路径处理问题，filePath需要先拼接完整URL再编码
       let previewUrl = `${glob.viewUrl}?url=` + url;
       //update-begin-author:liusq---date:2025-12-16--for: JHHB-1139桌面端 文件预览统一修改 
       if($electron.isElectron()){
@@ -376,6 +379,20 @@
   .article-content img {
     max-width: 100%;
     height: auto;
+  }
+  /* 修复 Word 复制内容中表格边框丢失和间隔问题 */
+  .article-content {
+    :deep(table) {
+      border-collapse: collapse !important;
+      border-spacing: 0 !important;
+    }
+    :deep(table td),
+    :deep(table th) {
+      border: 1px solid #d0d0d0;
+      padding: 4px 8px;
+      min-width: 20px;
+      word-break: break-word;
+    }
   }
   .basic-title{
     position: relative;

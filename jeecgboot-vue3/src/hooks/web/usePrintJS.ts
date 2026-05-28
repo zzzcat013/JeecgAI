@@ -14,17 +14,18 @@ export function printJS(configuration: Configuration) {
 }
 
 /** 调用 printNB 打印 */
-export function printNb(domId) {
+export function printNb(domId, endCallback?) {
   if (domId) {
-    localPrint(domId);
+    localPrint(domId, endCallback);
   } else {
     window.print();
+    endCallback && endCallback();
   }
 }
 
 let closeBtn = true;
 
-function localPrint(domId) {
+function localPrint(domId, endCallback) {
   if (typeof domId === 'string' && !domId.startsWith('#')) {
     domId = '#' + domId;
   }
@@ -35,6 +36,7 @@ function localPrint(domId) {
         el: domId,
         endCallback() {
           closeBtn = true;
+          endCallback && endCallback();
         },
       });
     }

@@ -559,11 +559,15 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 				String orderInfo = keyword.substring(keyword.indexOf(orderKey) + orderKey.length() + 1, keyword.length() - 1);
 				keyword = keyword.substring(0, keyword.indexOf(orderKey));
 				String[] orderInfoArray = orderInfo.split(SymbolConstant.COMMA);
-				orderField = orderInfoArray[0];
-				orderType = orderInfoArray[1];
+				// 【issue/9570】排序字段和排序方向使用白名单校验，防止 boolean-blind SQL 注入（CASE WHEN/LIKE/database() 等绕过黑名单）
+				orderField = SqlInjectionUtil.getSqlInjectField(orderInfoArray[0]);
+				orderType = SqlInjectionUtil.getSqlInjectOrderType(orderInfoArray[1]);
 			}
 
 			if (oConvertUtils.isNotEmpty(keyword)) {
+				// 【安全】对keyword进行SQL注入检测和单引号转义，防止通过keyword参数进行SQL注入
+				keyword = keyword.replace("'", "''");
+
 				// 判断是否是多选
 				if (keyword.contains(SymbolConstant.COMMA)) {
 					// 代码逻辑说明: JTC-529【表单设计器】 编辑页面报错，in参数采用双引号导致 ----
@@ -661,6 +665,13 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		if (query != null) {
 			for (Map.Entry<String, String> searchItem : query.entrySet()) {
 				String fieldName = searchItem.getKey();
+				// update-begin---author:sjlei---date:20260413  for：【#9524】修复 SQL _tableFilterSql 注入漏洞
+				// _tableFilterSql 是服务端内部专用 key，对应 Mapper 中的 ${value} 裸拼接，
+				// 禁止从外部 condition 参数传入，防止 SQL 注入（#9520）
+				if ("_tableFilterSql".equals(fieldName)) {
+					continue;
+				}
+				// update-end-----author:sjlei---date:20260413  for：【#9520】修复 SQL _tableFilterSql 注入漏洞
 				queryParams.put(SqlInjectionUtil.getSqlInjectField(fieldName), searchItem.getValue());
 			}
 		}

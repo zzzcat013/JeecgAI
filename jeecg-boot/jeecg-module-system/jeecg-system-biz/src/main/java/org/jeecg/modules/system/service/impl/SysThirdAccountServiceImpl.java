@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -150,6 +151,19 @@ public class SysThirdAccountServiceImpl extends ServiceImpl<SysThirdAccountMappe
         queryWrapper.eq(SysThirdAccount::getThirdType, thirdType);
         return super.getOne(queryWrapper);
     }
+
+    //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+    @Override
+    public List<SysThirdAccount> listBySysUserIds(List<String> sysUserIds, String thirdType) {
+        if (sysUserIds == null || sysUserIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<SysThirdAccount> qw = new LambdaQueryWrapper<>();
+        qw.in(SysThirdAccount::getSysUserId, sysUserIds);
+        qw.eq(SysThirdAccount::getThirdType, thirdType);
+        return list(qw);
+    }
+    //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
 
     @Override
     public List<SysThirdAccount> listThirdUserIdByUsername(String[] sysUsernameArr, String thirdType, Integer tenantId) {

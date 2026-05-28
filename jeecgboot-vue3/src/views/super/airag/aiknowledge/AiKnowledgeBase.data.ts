@@ -70,7 +70,98 @@ export const formSchema: FormSchema[] = [
       type: 'radioButton',
     },
     defaultValue: 'knowledge',
-  },  
+  },
+  {
+    label: '分段策略',
+    field: 'enableSegment',
+    component: 'Switch',
+    defaultValue: false,
+    ifShow: ({ values }) => values.type !== 'memory',
+    componentProps: {
+      checkedChildren: '开启',
+      unCheckedChildren: '关闭',
+    },
+    helpMessage: '开启后，知识库里面的文档默认使用该分段策略；文档也可单独配置自己的分段策略',
+  },
+  {
+    label: '分段模式',
+    field: 'segmentStrategy',
+    component: 'RadioGroup',
+    defaultValue: 'auto',
+    ifShow: ({ values }) => values.type !== 'memory' && values.enableSegment === true,
+    componentProps: {
+      options: [
+        { label: '自动分段与清洗', value: 'auto' },
+        { label: '自定义', value: 'custom' },
+      ],
+    },
+  },
+  {
+    label: '分段标识符',
+    field: 'separator',
+    component: 'Select',
+    defaultValue: '\\n',
+    required: true,
+    ifShow: ({ values }) => values.type !== 'memory' && values.enableSegment === true && values.segmentStrategy === 'custom',
+    componentProps: {
+      getPopupContainer: () => document.body,
+      options: [
+        { label: '换行', value: '\\n' },
+        { label: '2个换行', value: '\\n\\n' },
+        { label: '中文句号', value: '。' },
+        { label: '中文叹号', value: '！' },
+        { label: '中文问号', value: '？' },
+        { label: '英文句号', value: '.' },
+        { label: '英文叹号', value: '!' },
+        { label: '英文问号', value: '?' },
+        { label: '自定义', value: 'custom' },
+      ],
+    },
+  },
+  {
+    label: '自定义分隔符',
+    field: 'customSeparator',
+    component: 'Input',
+    required: true,
+    ifShow: ({ values }) => values.type !== 'memory' && values.enableSegment === true && values.separator === 'custom' && values.segmentStrategy !== 'auto',
+  },
+  {
+    label: '分段最大长度',
+    field: 'maxSegment',
+    component: 'InputNumber',
+    defaultValue: 800,
+    required: true,
+    ifShow: ({ values }) => values.type !== 'memory' && values.enableSegment === true,
+    componentProps: {
+      min: 100,
+      max: 5000,
+    },
+  },
+  {
+    label: '分段重叠度%',
+    field: 'overlap',
+    component: 'InputNumber',
+    defaultValue: 10,
+    required: true,
+    ifShow: ({ values }) => values.type !== 'memory' && values.enableSegment === true,
+    componentProps: {
+      min: 0,
+      max: 90,
+    },
+  },
+  {
+    label: '文本预处理规则',
+    field: 'textRules',
+    component: 'CheckboxGroup',
+    defaultValue: [],
+    ifShow: ({ values }) => values.type !== 'memory' && values.enableSegment === true && values.segmentStrategy === 'custom',
+    componentProps: {
+      options: [
+        { label: '替换掉连续的空格、换行符和制表符', value: 'cleanSpaces' },
+        { label: '删除所有 URL 和电子邮箱地址', value: 'removeUrlsEmails' },
+      ],
+    },
+  },
 ];
 
 //文档文本表单
@@ -134,6 +225,106 @@ export const docTextSchema: FormSchema[] = [
       }
       return false;
     }
+  },
+  {
+    label: '网页地址',
+    field: 'website',
+    rules: [
+      { required: true, message: '请输入网页URL' },
+      { pattern: /^https?:\/\//, message: '请输入正确的网页地址，以http://或https://开头' },
+    ],
+    component: 'Input',
+    componentProps: {
+      placeholder: '请输入网页URL，例如：https://help.jeecg.com/',
+    },
+    ifShow:({ values })=>{
+      if(values.type === 'web'){
+        return true;
+      }
+      return false;
+    }
+  },
+];
+
+/**
+ * 分段策略表单
+ */
+export const docSegmentSchema: FormSchema[] = [
+  {
+    label: '分段策略',
+    field: 'segmentStrategy',
+    component: 'RadioGroup',
+    defaultValue: 'auto',
+    componentProps: {
+      options: [
+        { label: '自动分段与清洗', value: 'auto' },
+        { label: '自定义', value: 'custom' },
+      ],
+    },
+  },
+  {
+    label: '分段标识符',
+    field: 'separator',
+    component: 'Select',
+    defaultValue: '\\n',
+    required: true,
+    ifShow: ({ values }) => values.segmentStrategy === 'custom',
+    componentProps: {
+      getPopupContainer: () => document.body,
+      options: [
+        { label: '换行', value: '\\n' },
+        { label: '2个换行', value: '\\n\\n' },
+        { label: '中文句号', value: '。' },
+        { label: '中文叹号', value: '！' },
+        { label: '中文问号', value: '？' },
+        { label: '英文句号', value: '.' },
+        { label: '英文叹号', value: '!' },
+        { label: '英文问号', value: '?' },
+        { label: '自定义', value: 'custom' },
+      ],
+    },
+  },
+  {
+    label: '',
+    field: 'customSeparator',
+    component: 'Input',
+    required: true,
+    ifShow: ({ values }) => values.separator === 'custom' && values.segmentStrategy !== 'auto',
+  },
+  {
+    label: '分段最大长度',
+    field: 'maxSegment',
+    component: 'InputNumber',
+    defaultValue: 800,
+    required: true,
+    componentProps: {
+      min: 100,
+      max: 5000,
+    },
+  },
+  {
+    label: '分段重叠度%',
+    field: 'overlap',
+    component: 'InputNumber',
+    defaultValue: 10,
+    componentProps: {
+      min: 0,
+      max: 90,
+    },
+    required: true,
+  },
+  {
+    label: '文本预处理规则',
+    field: 'textRules',
+    component: 'CheckboxGroup',
+    defaultValue: [],
+    ifShow: ({ values }) => values.segmentStrategy === 'custom',
+    componentProps: {
+      options: [
+        { label: '替换掉连续的空格、换行符和制表符', value: 'cleanSpaces' },
+        { label: '删除所有 URL 和电子邮箱地址', value: 'removeUrlsEmails' },
+      ],
+    },
   },
 ];
 

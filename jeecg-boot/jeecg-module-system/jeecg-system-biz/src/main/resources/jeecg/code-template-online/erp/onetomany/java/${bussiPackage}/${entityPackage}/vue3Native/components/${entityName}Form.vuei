@@ -72,7 +72,8 @@
   const props = defineProps({
     formDisabled: { type: Boolean, default: false },
     formData: { type: Object, default: () => ({}) },
-    formBpm: { type: Boolean, default: true }
+    formBpm: { type: Boolean, default: true },
+    showSubmitButton: { type: Boolean, default: true }
   });
   const useForm = Form.useForm;
   const emit = defineEmits(['register', 'ok']);
@@ -126,7 +127,7 @@
   }
   // 是否显示提交按钮
   const showFlowSubmitButton = computed(()=>{
-    if(props.formBpm === true){
+    if(props.formBpm === true && props.showSubmitButton === true){
       if(props.formData.disabled === false){
         return true
       }

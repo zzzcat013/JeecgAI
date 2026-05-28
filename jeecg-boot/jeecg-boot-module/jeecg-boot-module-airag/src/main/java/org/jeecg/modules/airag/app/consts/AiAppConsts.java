@@ -64,4 +64,27 @@ public class AiAppConsts {
      * AI写作redis请求前缀
      */
     public static final String ARTICLE_WRITER_KEY = "airag:chat:article:write:{}";
+
+    /**
+     * ai绘画类型: 绘图
+     */
+    public static final String AI_DRAW_TYPE_DRAW = "draw";
+
+    /**
+     * ai绘画类型: 换脸
+     */
+    public static final String AI_DRAW_TYPE_FACE = "face";
+
+    /**
+     * ai绘画类型: 混图
+     */
+    public static final String AI_DRAW_TYPE_MIX = "mix";
+
+    /**
+     * ai绘画 会话redis请求前缀
+     */
+    public static final String POSTER_TASK_PREFIX = "airag:poster:task:";
+    /** 任务结果在 Redis 中保留 1 小时 */
+    public static final long POSTER_TASK_TTL = 3600L;
+    
 }

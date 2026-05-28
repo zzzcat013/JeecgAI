@@ -2,7 +2,7 @@
 <template>
     <div style="min-height: 400px">
         <BasicForm @register="registerForm"></BasicForm>
-        <div style="width: 100%;text-align: center" v-if="!formDisabled">
+        <div style="width: 100%;text-align: center" v-if="!formDisabled && showSubmitButton">
             <a-button @click="submitForm" pre-icon="ant-design:check" type="primary">提 交</a-button>
         </div>
     </div>
@@ -24,9 +24,10 @@
         props:{
             formData: propTypes.object.def({}),
             formBpm: propTypes.bool.def(true),
+            showSubmitButton: propTypes.bool.def(true),
         },
         setup(props){
-            const [registerForm, { setFieldsValue, setProps, getFieldsValue }] = useForm({
+            const [registerForm, { setFieldsValue, setProps,validate, scrollToField, getFieldsValue }] = useForm({
                 labelWidth: 150,
                 schemas: getBpmFormSchema(props.formData),
                 showActionButtonGroup: false,
@@ -52,11 +53,21 @@
                 await setProps({disabled: formDisabled.value})
             }
 
-            async function submitForm() {
-                let data = getFieldsValue();
-                let params = Object.assign({}, formData, data);
-                console.log('表单数据', params)
-                await saveOrUpdate(params, true)
+            async function submitForm(showTip = true) {
+                try {
+                    let values = await validate();
+                    console.log('表单数据', values)
+                    //提交表单
+                    await saveOrUpdate(values, true,showTip);
+                } catch ({ errorFields }) {
+                   if (errorFields) {
+                     const firstField = errorFields[0];
+                     if (firstField) {
+                       scrollToField(firstField.name, { behavior: 'smooth', block: 'center' });
+                     }
+                   }
+                   return Promise.reject(errorFields);
+                }
             }
 
             initFormData();

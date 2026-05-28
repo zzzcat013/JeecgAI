@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.jeecg.modules.system.entity.SysDepart;
 import org.jeecg.modules.system.entity.SysUser;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.jeecg.modules.system.model.SysUserSysDepPostModel;
@@ -271,4 +272,23 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @return
      */
     List<SysUserSysDepPostModel> queryDepartUserByOrgCode(@Param("page") IPage page, @Param("orgCode") String orgCode, @Param("userParams") SysUser userParams);
+
+	/**
+	 * 根据用户名查询用户的主部门信息
+	 *
+	 * @param username
+	 * @return
+	 */
+	SysDepart getMainDepartByUsername(@Param("username") String username);
+
+
+	/**
+	 * 根据用户组id获取用户分页列表
+	 * @param page
+	 * @param groupId
+	 * @param username
+	 * @param realname
+	 * @return
+	 */
+    IPage<SysUser> getUserByUgroupId(Page page, @Param("groupId") String groupId, @Param("username") String username, @Param("realname") String realname);
 }

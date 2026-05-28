@@ -1,10 +1,7 @@
 package org.jeecg.modules.airag.app.service;
 
 import org.jeecg.common.api.vo.Result;
-import org.jeecg.modules.airag.app.vo.AiWriteGenerateVo;
-import org.jeecg.modules.airag.app.vo.AppDebugParams;
-import org.jeecg.modules.airag.app.vo.ChatConversation;
-import org.jeecg.modules.airag.app.vo.ChatSendParams;
+import org.jeecg.modules.airag.app.vo.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -126,10 +123,26 @@ public interface IAiragChatService {
 
     /**
      * 生成海报图片
-     * @param chatSendParams
+     * @param aiDrawGenerateVo
      * @return
      */
-    String genAiPoster(ChatSendParams chatSendParams);
+    String genAiPoster(AiDrawGenerateVo aiDrawGenerateVo);
+
+    //update-begin---author:wangshuai ---date:2026-04-15  for：【QQYUN-14568】AI海报生成改为异步，支持切换菜单后重新获取结果-----------
+    /**
+     * 异步生成海报图片，立即返回taskId
+     * @param aiDrawGenerateVo
+     * @return taskId
+     */
+    String genAiPosterAsync(AiDrawGenerateVo aiDrawGenerateVo);
+
+    /**
+     * 查询异步海报任务结果
+     * @param taskId
+     * @return Result，data为图片URL（成功）或status=pending/failed
+     */
+    Result<?> getAiPosterResult(String taskId);
+    //update-end---author:wangshuai ---date:2026-04-15  for：【QQYUN-14568】AI海报生成改为异步，支持切换菜单后重新获取结果-----------
 
     /**
      * 生成ai创作

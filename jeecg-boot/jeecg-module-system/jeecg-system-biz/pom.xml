@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.jeecgframework.boot3</groupId>
 		<artifactId>jeecg-module-system</artifactId>
-		<version>3.9.1</version>
+		<version>3.9.2</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 
@@ -26,15 +26,10 @@
 		</dependency>
 		<dependency>
 			<groupId>org.jeecgframework.boot3</groupId>
-			<artifactId>hibernate-re</artifactId>
+			<artifactId>jeecg-online</artifactId>
 		</dependency>
 
-		<!-- AI大模型管理-->
-		<dependency>
-			<groupId>org.jeecgframework.boot3</groupId>
-			<artifactId>jeecg-boot-module-airag</artifactId>
-			<version>${jeecgboot.version}</version>
-		</dependency> 
+
 		<!-- 企业微信/钉钉 api -->
 		<dependency>
 			<groupId>org.jeecgframework</groupId>
@@ -48,7 +43,7 @@
 		<!-- 积木报表 csv excel ES JSON mongodbSQL redis支持包
 		<dependency>
 			<groupId>org.jeecgframework.jimureport</groupId>
-			<artifactId>jimureport-nosql-starter</artifactId>
+			<artifactId>jimureport-nosql-starter3</artifactId>
 		</dependency>-->
 		<!-- 后台导出接口Echart图表支持包，按需引入 
 		<dependency>

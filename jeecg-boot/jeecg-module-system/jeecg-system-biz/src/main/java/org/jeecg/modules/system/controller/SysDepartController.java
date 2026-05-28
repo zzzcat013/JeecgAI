@@ -137,10 +137,10 @@ public class SysDepartController {
 	 * @return
 	 */
 	@RequestMapping(value = "/queryDepartTreeSync", method = RequestMethod.GET)
-	public Result<List<SysDepartTreeModel>> queryDepartTreeSync(@RequestParam(name = "pid", required = false) String parentId,@RequestParam(name = "ids", required = false) String ids, @RequestParam(name = "primaryKey", required = false) String primaryKey) {
+	public Result<List<SysDepartTreeModel>> queryDepartTreeSync(@RequestParam(name = "pid", required = false) String parentId,@RequestParam(name = "ids", required = false) String ids, @RequestParam(name = "primaryKey", required = false) String primaryKey, @RequestParam(name = "orgCategory", required = false) String orgCategory) {
 		Result<List<SysDepartTreeModel>> result = new Result<>();
 		try {
-			List<SysDepartTreeModel> list = sysDepartService.queryTreeListByPid(parentId,ids, primaryKey);
+			List<SysDepartTreeModel> list = sysDepartService.queryTreeListByPid(parentId,ids, primaryKey, orgCategory);
 			result.setResult(list);
 			result.setSuccess(true);
 		} catch (Exception e) {
@@ -735,6 +735,16 @@ public class SysDepartController {
     @GetMapping("/getRankRelation")
     public Result<List<SysPositionSelectTreeVo>> getRankRelation(@RequestParam(name = "departId") String departId){
         List<SysPositionSelectTreeVo> list = sysDepartService.getRankRelation(departId);
+        return Result.ok(list);
+    }
+    /**
+     * 获取ALL职级关系
+     * @param departId
+     * @return
+     */
+    @GetMapping("/getALLRankRelation")
+    public Result<List<SysPositionSelectTreeVo>> getALLRankRelation(@RequestParam(name = "departId",required = false) String departId){
+        List<SysPositionSelectTreeVo> list = sysDepartService.getALLRankRelation(departId);
         return Result.ok(list);
     }
 

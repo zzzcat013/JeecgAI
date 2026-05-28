@@ -1,6 +1,7 @@
 package org.jeecg.modules.airag.app.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -19,21 +20,23 @@ import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.SymbolConstant;
 import org.jeecg.common.exception.JeecgBootBizTipException;
 import org.jeecg.common.exception.JeecgBootException;
+import java.nio.file.Paths;
 import org.jeecg.common.system.api.ISysBaseAPI;
 import org.jeecg.common.system.util.JwtUtil;
 import org.jeecg.common.util.*;
+import org.jeecg.common.util.filter.SsrfFileTypeFilter;
+import org.jeecg.config.AiChatConfig;
+import org.jeecg.config.AiRagConfigBean;
 import org.jeecg.config.JeecgBaseConfig;
 import org.jeecg.config.vo.Path;
 import org.jeecg.modules.airag.app.consts.AiAppConsts;
 import org.jeecg.modules.airag.app.consts.Prompts;
 import org.jeecg.modules.airag.app.entity.AiragApp;
+import org.jeecg.modules.airag.app.enums.ImageSizeEnum;
 import org.jeecg.modules.airag.app.mapper.AiragAppMapper;
 import org.jeecg.modules.airag.app.service.IAiragChatService;
 import org.jeecg.modules.airag.app.service.IAiragVariableService;
-import org.jeecg.modules.airag.app.vo.AiWriteGenerateVo;
-import org.jeecg.modules.airag.app.vo.AppDebugParams;
-import org.jeecg.modules.airag.app.vo.ChatConversation;
-import org.jeecg.modules.airag.app.vo.ChatSendParams;
+import org.jeecg.modules.airag.app.vo.*;
 import org.jeecg.modules.airag.common.consts.AiragConsts;
 import org.jeecg.modules.airag.common.handler.AIChatParams;
 import org.jeecg.modules.airag.common.handler.IAIChatHandler;
@@ -43,13 +46,17 @@ import org.jeecg.modules.airag.common.vo.MessageHistory;
 import org.jeecg.modules.airag.common.vo.event.EventData;
 import org.jeecg.modules.airag.common.vo.event.EventFlowData;
 import org.jeecg.modules.airag.common.vo.event.EventMessageData;
+import org.jeecg.modules.airag.flow.context.JeecgFlowContext;
 import org.jeecg.modules.airag.flow.consts.FlowConsts;
 import org.jeecg.modules.airag.flow.entity.AiragFlow;
+import org.jeecg.modules.airag.flow.helper.JeecgTagHelper;
 import org.jeecg.modules.airag.flow.service.IAiragFlowService;
 import org.jeecg.modules.airag.flow.vo.api.FlowRunParams;
+import org.jeecg.modules.airag.flow.vo.tool.ToolExecutionVo;
 import org.jeecg.modules.airag.llm.consts.LLMConsts;
 import org.jeecg.modules.airag.llm.document.TikaDocumentParser;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
+import org.jeecg.modules.airag.flow.handler.BraveSearchToolBuilder;
 import org.jeecg.modules.airag.llm.handler.AIChatHandler;
 import org.jeecg.modules.airag.llm.handler.JeecgToolsProvider;
 import org.jeecg.modules.airag.llm.mapper.AiragModelMapper;
@@ -60,7 +67,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.BoundValueOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.ByteArrayOutputStream;
@@ -70,6 +77,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 
@@ -117,6 +125,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
     
     @Autowired
     JeecgBaseConfig jeecgBaseConfig;
+    
+    @Autowired
+    AiChatConfig aiChatConfig;
+
+    @Autowired
+    AiRagConfigBean aiRagConfigBean;
 
     /**
      * 重新接收消息
@@ -193,6 +207,13 @@ public class AiragChatServiceImpl implements IAiragChatService {
     @Override
     public Result<?> stop(String requestId) {
         AssertUtils.assertNotEmpty("requestId不能为空", requestId);
+        // 设置流程上下文的停止标志，通知正在执行的LLM节点停止输出
+        JeecgFlowContext flowContext = AiragLocalCache.get(AiragConsts.CACHE_TYPE_FLOW_CONTEXT, requestId);
+        if (flowContext != null) {
+            flowContext.setStopped(true);
+            AiragLocalCache.remove(AiragConsts.CACHE_TYPE_FLOW_CONTEXT, requestId);
+            log.info("[AI-CHAT]已设置流程停止标志, requestId:{}", requestId);
+        }
         // 从缓存中获取对应的SseEmitter
         SseEmitter emitter = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId);
         if (emitter != null) {
@@ -307,26 +328,22 @@ public class AiragChatServiceImpl implements IAiragChatService {
         //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
         // 返回消息列表和会话设置信息
         Map<String, Object> result = new HashMap<>();
-        // 过滤掉工具调用相关的消息（前端不需要展示）
+        // 解析是否显示工具调用过程（默认为true）
+        boolean showToolProcess = true;
+        AiragApp chatApp = chatConversation.getApp();
+        if (chatApp != null && oConvertUtils.isNotEmpty(chatApp.getMetadata())) {
+            try {
+                JSONObject appMetadataJson = JSONObject.parseObject(chatApp.getMetadata());
+                if (appMetadataJson != null && "0".equals(appMetadataJson.getString("showToolProcess"))) {
+                    showToolProcess = false;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        // 合并工具调用相关的消息
         List<MessageHistory> messages = chatConversation.getMessages();
         if (oConvertUtils.isObjectNotEmpty(messages)) {
-            messages = messages.stream()
-                    .filter(msg -> !AiragConsts.MESSAGE_ROLE_TOOL.equals(msg.getRole()))
-                    .map(msg -> {
-                        // 克隆消息对象，移除工具执行请求信息（前端不需要）
-                        MessageHistory displayMsg = MessageHistory.builder()
-                                .conversationId(msg.getConversationId())
-                                .topicId(msg.getTopicId())
-                                .role(msg.getRole())
-                                .content(msg.getContent())
-                                .images(msg.getImages())
-                                .files(msg.getFiles())
-                                .datetime(msg.getDatetime())
-                                .build();
-                        // 不设置toolExecutionRequests和toolExecutionResult
-                        return displayMsg;
-                    })
-                    .collect(Collectors.toList());
+            messages = mergeToolMessages(messages, showToolProcess);
         }
         result.put("messages", messages);
         result.put("flowInputs", chatConversation.getFlowInputs());
@@ -337,6 +354,104 @@ public class AiragChatServiceImpl implements IAiragChatService {
         //update-end---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
         return Result.ok(result);
         //update-end---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
+    }
+
+
+    /**
+     * 合并工具调用相关的历史记录，生成带有工具执行标签的AI消息
+     *
+     * @param histories 历史消息列表
+     * @param showToolProcess 是否显示工具调用过程
+     * @return 合并后的历史消息列表
+     */
+    private List<MessageHistory> mergeToolMessages(List<MessageHistory> histories, boolean showToolProcess) {
+        List<MessageHistory> mergedMessages = new ArrayList<>();
+        if (oConvertUtils.isObjectEmpty(histories)) {
+            return mergedMessages;
+        }
+        // 缓存工具请求，便于后续快速匹配
+        Map<String, MessageHistory.ToolExecutionRequestHistory> requestCache = new HashMap<>();
+        // 当前正在合并的AI消息
+        MessageHistory currentAiMsg = null;
+        // 合并AI消息
+        BiConsumer<MessageHistory, Object> mergeMsg = (cacheMsg, obj) -> {
+            String currContent;
+            if (obj instanceof MessageHistory) {
+                MessageHistory currMsg = (MessageHistory) obj;
+                currContent = currMsg.getContent();
+                // 合并图片
+                if (CollectionUtils.isNotEmpty(currMsg.getImages())) {
+                    List<MessageHistory.ImageHistory> images = CollectionUtils.isEmpty(cacheMsg.getImages()) ? new ArrayList<>() : cacheMsg.getImages();
+                    images.addAll(currMsg.getImages());
+                    cacheMsg.setImages(images);
+                }
+                // 合并文件
+                if (CollectionUtils.isNotEmpty(currMsg.getFiles())) {
+                    List<MessageHistory.FileHistory> files = CollectionUtils.isEmpty(cacheMsg.getImages()) ? new ArrayList<>() : cacheMsg.getFiles();
+                    files.addAll(currMsg.getFiles());
+                    cacheMsg.setFiles(files);
+                }
+            } else {
+                currContent = obj.toString();
+            }
+            cacheMsg.setContent(cacheMsg.getContent() + currContent);
+        };
+        // 遍历所有消息，根据类型的不同做出不同处理
+        for (MessageHistory message : histories) {
+            // 用户消息原样保留，不参与合并
+            if (AiragConsts.MESSAGE_ROLE_USER.equals(message.getRole())) {
+                if (currentAiMsg != null) {
+                    mergedMessages.add(currentAiMsg);
+                    currentAiMsg = null;
+                }
+                mergedMessages.add(message);
+                continue;
+            }
+            // 从当前AI消息开始向后合并工具调用与连续AI消息
+            if (AiragConsts.MESSAGE_ROLE_AI.equals(message.getRole())) {
+                if (currentAiMsg == null) {
+                    currentAiMsg = MessageHistory.builder()
+                            .conversationId(message.getConversationId())
+                            .topicId(message.getTopicId())
+                            .role(message.getRole())
+                            .content("")
+                            .images(message.getImages())
+                            .files(message.getFiles())
+                            .datetime(message.getDatetime())
+                            .build();
+                }
+                mergeMsg.accept(currentAiMsg, message);
+                List<MessageHistory.ToolExecutionRequestHistory> toolReqs = message.getToolExecutionRequests();
+                if (CollectionUtils.isNotEmpty(toolReqs)) {
+                    for (MessageHistory.ToolExecutionRequestHistory request : toolReqs) {
+                        if (request != null) {
+                            // 使用工具调用id作为唯一键，方便快速匹配结果
+                            requestCache.put(request.getId(), request);
+                        }
+                    }
+                }
+                continue;
+            }
+            if (AiragConsts.MESSAGE_ROLE_TOOL.equals(message.getRole())) {
+                if (currentAiMsg == null || !showToolProcess) {
+                    continue;
+                }
+                String toolId = message.getContent();
+                MessageHistory.ToolExecutionRequestHistory request = requestCache.get(toolId);
+                if (request == null) {
+                    continue;
+                }
+                String toolResult = message.getToolExecutionResult();
+                ToolExecutionVo vo = ToolExecutionVo.build(toolId, request.getName(), request.getArguments(), toolResult);
+                String execTag = JeecgTagHelper.createTag(JeecgTagHelper.TAG_JEECG_TOOL_EXEC, JSON.toJSONString(vo));
+                mergeMsg.accept(currentAiMsg, execTag);
+            }
+        }
+        // 避免最后一条消息没有放入列表
+        if (currentAiMsg != null) {
+            mergedMessages.add(currentAiMsg);
+        }
+        return mergedMessages;
     }
 
     @Override
@@ -713,6 +828,8 @@ public class AiragChatServiceImpl implements IAiragChatService {
                         break;
                     case AiragConsts.MESSAGE_ROLE_AI:
                         // 重建AI消息，包括工具执行请求
+                        // 获取内容，如果为空则使用空字符串（AiMessage不允许null）
+                        String aiContent = oConvertUtils.getString(history.getContent(), "");
                         if (oConvertUtils.isObjectNotEmpty(history.getToolExecutionRequests())) {
                             // 有工具执行请求，重建带工具调用的AiMessage
                             List<ToolExecutionRequest> toolRequests = history.getToolExecutionRequests().stream()
@@ -722,9 +839,9 @@ public class AiragChatServiceImpl implements IAiragChatService {
                                             .arguments(toolReq.getArguments())
                                             .build())
                                     .collect(Collectors.toList());
-                            chatMessage = AiMessage.from(history.getContent(), toolRequests);
+                            chatMessage = AiMessage.from(aiContent, toolRequests);
                         } else {
-                            chatMessage = new AiMessage(history.getContent());
+                            chatMessage = new AiMessage(aiContent);
                         }
                         break;
                     case AiragConsts.MESSAGE_ROLE_TOOL:
@@ -735,7 +852,10 @@ public class AiragChatServiceImpl implements IAiragChatService {
                                 .name("unknown") // 工具名称在重建时不重要，因为主要用于AI理解结果
                                 .arguments("{}")
                                 .build();
-                        chatMessage = ToolExecutionResultMessage.from(recreatedRequest, history.getToolExecutionResult());
+                        //update-begin---author:scott ---date:20260416  for：【PR#9539】修复通义千问API不接受null消息内容-----------
+                        String toolResult = history.getToolExecutionResult() != null ? history.getToolExecutionResult() : "";
+                        chatMessage = ToolExecutionResultMessage.from(recreatedRequest, toolResult);
+                        //update-end---author:scott ---date:20260416  for：【PR#9539】修复通义千问API不接受null消息内容-----------
                         break;
                 }
                 if (null == chatMessage) {
@@ -765,7 +885,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
 
     private void appendMessage(List<ChatMessage> messages, ChatMessage message, ChatConversation chatConversation, String topicId, List<String> files, String saveContent) {
 
-        if (message.type().equals(ChatMessageType.SYSTEM)) {
+        if (message instanceof SystemMessage) {
             // 系统消息,放到消息列表最前面,并且不记录历史
             messages.add(0, message);
             return;
@@ -778,18 +898,18 @@ public class AiragChatServiceImpl implements IAiragChatService {
         }
         // 消息记录
         MessageHistory historyMessage = MessageHistory.builder().conversationId(chatConversation.getId()).topicId(topicId).datetime(DateUtils.now()).build();
-        if (message.type().equals(ChatMessageType.USER)) {
+        if (message instanceof UserMessage) {
             historyMessage.setRole(AiragConsts.MESSAGE_ROLE_USER);
             StringBuilder textContent = new StringBuilder();
             List<MessageHistory.ImageHistory> images = new ArrayList<>();
             List<Content> contents = ((UserMessage) message).contents();
             contents.forEach(content -> {
-                if (content.type().equals(ContentType.IMAGE)) {
+                if (content instanceof ImageContent) {
                     ImageContent imageContent = (ImageContent) content;
                     Image image = imageContent.image();
                     MessageHistory.ImageHistory imageMessage = MessageHistory.ImageHistory.from(image.url(), image.base64Data(), image.mimeType());
                     images.add(imageMessage);
-                } else if (content.type().equals(ContentType.TEXT)) {
+                } else if (content instanceof TextContent) {
                     textContent.append(((TextContent) content).text()).append("\n");
                 }
             });
@@ -809,10 +929,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 historyMessage.setFiles(fileHistories);
             }
             //update-end---author:wangshuai---date:2026-01-12---for:【QQYUN-14261】【AI】AI助手，支持多模态能力- 文档---
-        } else if (message.type().equals(ChatMessageType.AI)) {
+        } else if (message instanceof AiMessage) {
             historyMessage.setRole(AiragConsts.MESSAGE_ROLE_AI);
             AiMessage aiMessage = (AiMessage) message;
-            historyMessage.setContent(aiMessage.text());
+            //update-begin---author:scott ---date:20260416  for：【PR#9539】修复通义千问API不接受null消息内容-----------
+            historyMessage.setContent(aiMessage.text() != null ? aiMessage.text() : "");
+            //update-end---author:scott ---date:20260416  for：【PR#9539】修复通义千问API不接受null消息内容-----------
             // 处理工具执行请求
             if (oConvertUtils.isObjectNotEmpty(aiMessage.toolExecutionRequests())) {
                 List<MessageHistory.ToolExecutionRequestHistory> toolRequests = new ArrayList<>();
@@ -825,7 +947,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 }
                 historyMessage.setToolExecutionRequests(toolRequests);
             }
-        } else if (message.type().equals(ChatMessageType.TOOL_EXECUTION_RESULT)) {
+        } else if (message instanceof ToolExecutionResultMessage) {
             // 工具执行结果消息
             historyMessage.setRole(AiragConsts.MESSAGE_ROLE_TOOL);
             ToolExecutionResultMessage toolMessage = (ToolExecutionResultMessage) message;
@@ -941,7 +1063,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 drawModelId = JSONObject.parseObject(metadata).getString("drawModelId");
             }
         }
-        AssertUtils.assertNotEmpty("请选择绘画模型", drawModelId);
+        //AssertUtils.assertNotEmpty("请选择绘画模型", drawModelId);
         try {
             List<String> images = sendParams.getImages();
             List<Map<String, Object>> imageList;
@@ -1000,6 +1122,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
         flowRunParams.setFlowId(flowId);
         flowRunParams.setConversationId(chatConversation.getId());
         flowRunParams.setTopicId(topicId);
+        // 传入应用id（变量节点需要）
+        if (chatConversation.getApp() != null) {
+            flowRunParams.setAppId(chatConversation.getApp().getId());
+        }
+        // 传入记忆库id（记忆节点需要）
+        if (chatConversation.getApp() != null) {
+            flowRunParams.setMemoryId(chatConversation.getApp().getMemoryId());
+        }
         // 支持流式
         flowRunParams.setResponseMode(FlowConsts.FLOW_RESPONSE_MODE_STREAMING);
         Map<String, Object> flowInputParams = new HashMap<>();
@@ -1138,6 +1268,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 if (metadata.containsKey("maxTokens")) {
                     aiChatParams.setMaxTokens(metadata.getInteger("maxTokens"));
                 }
+                //update-begin---wangshuai---date:20260401  for：【issues/9455】AI应用中设定的RAG参数未生效------------
+                if (metadata.containsKey("topNumber")) {
+                    aiChatParams.setTopNumber(metadata.getInteger("topNumber"));
+                }
+                if (metadata.containsKey("similarity")) {
+                    aiChatParams.setSimilarity(metadata.getDouble("similarity"));
+                }
+                //update-end---author:wangshuai ---date:20260401  for：【issues/9455】AI应用中设定的RAG参数未生效------------
                 if (metadata.containsKey(FlowConsts.FLOW_NODE_OPTION_TIME_OUT)) {
                     aiChatParams.setTimeout(oConvertUtils.getInt(metadata.getInteger(FlowConsts.FLOW_NODE_OPTION_TIME_OUT), 300));
                 }
@@ -1163,9 +1301,9 @@ public class AiragChatServiceImpl implements IAiragChatService {
             }
         }
         
-        //流程不为空，构建插件
+        //流程不为空，构建插件（携带应用上下文参数，供变量/记忆节点使用）
         if(oConvertUtils.isNotEmpty(flowId)){
-            Map<String, Object> result = airagFlowPluginService.getFlowsToPlugin(flowId);
+            Map<String, Object> result = airagFlowPluginService.getFlowsToPlugin(flowId, aiApp.getId(), memoryId);
             this.addPluginToParams(aiChatParams, result);
         }
 
@@ -1193,6 +1331,11 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (oConvertUtils.isNotEmpty(aiApp.getId())) {
             airagVariableService.addUpdateVariableTool(aiApp,username,aiChatParams);
         }
+
+        //update-begin---author:wangshuai---date:2026-03-18---for:【QQYUN-14935】Langchain4j 新版支持 Agent Skills，重新定义 Java AI 应用的能力边界---
+        // 封装skills及上下文信息
+        fillSkillsParams(aiChatParams);
+        //update-end---author:wangshuai---date:2026-03-18---for:【QQYUN-14935】Langchain4j 新版支持 Agent Skills，重新定义 Java AI 应用的能力边界---
 
         // 打印流程耗时日志
         printChatDuration(requestId, "构造应用自定义参数完成");
@@ -1229,6 +1372,49 @@ public class AiragChatServiceImpl implements IAiragChatService {
     }
 
     /**
+     * 封装skills参数及上下文信息
+     * 当配置了skillsPath时，将skills路径设置到参数中，并将Token、后台地址、租户ID拼接到用户消息后面
+     *
+     * @param aiChatParams AI聊天参数
+     */
+    private void fillSkillsParams(AIChatParams aiChatParams) {
+        if (oConvertUtils.isEmpty(aiChatConfig.getSkillsDir()) && oConvertUtils.isEmpty(aiChatConfig.getSkillsShellDir())) {
+            log.info("[Skills] skillsPath OR shellSkillsDir is empty, skip skills loading");
+            return;
+        }
+        if (oConvertUtils.isNotEmpty(aiChatConfig.getSkillsDir())){
+            aiChatParams.setSkillsDir(aiChatConfig.getSkillsDir());
+            log.info("[Skills] skillsDir set to: {}", aiChatParams.getSkillsDir());
+        }
+        if (oConvertUtils.isNotEmpty((aiChatConfig.getSkillsShellDir()))){
+            aiChatParams.setSkillsShellDir(aiChatConfig.getSkillsShellDir());
+            log.info("[Skills] shellSkillsDir set to: {}", aiChatParams.getSkillsShellDir());
+        }
+
+        // 注入运行时上下文：Token、后台API地址、租户ID，供Skills使用
+        try {
+            HttpServletRequest request = SpringContextUtils.getHttpServletRequest();
+            String token = TokenUtils.getTokenByRequest(request);
+            String tenantId = request.getHeader("X-Tenant-Id");
+            // 从当前请求构造后台API地址
+            String apiBase = CommonUtils.getBaseUrl(request);
+            StringBuilder context = new StringBuilder();
+            context.append("以下信息由系统自动注入，Skill执行时可直接使用：\n");
+            context.append("- **API_BASE**: `").append(apiBase).append("`\n");
+            if (oConvertUtils.isNotEmpty(token)) {
+                context.append("- **X-Access-Token**: `").append(token).append("`\n");
+            }
+            if (oConvertUtils.isNotEmpty(tenantId)) {
+                context.append("- **X-Tenant-Id**: `").append(tenantId).append("`\n");
+            }
+            aiChatParams.setSkillsContext(context.toString());
+            log.info("[Skills] context injected, apiBase: {}", apiBase);
+        } catch (Exception e) {
+            log.warn("[Skills] Failed to inject context: {}", e.getMessage());
+        }
+    }
+
+    /**
      * 处理聊天
      * 向大模型发送消息并接受响应
      *
@@ -1246,22 +1432,41 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (null == aiChatParams) {
             aiChatParams = new AIChatParams();
         }
+        HttpServletRequest httpRequest = SpringContextUtils.getHttpServletRequest();
         // 如果是默认app,加载系统默认工具
         if(chatConversation.getApp().getId().equals(AiAppConsts.DEFAULT_APP_ID)){
-            aiChatParams.setTools(jeecgToolsProvider.getDefaultTools());
+            // Security fix: 仅已登录用户可加载敏感业务工具(add_user,grant_user_roles等),匿名用户仍可正常使用AI聊天
+            String currentUser = getUsername(httpRequest);
+            if (oConvertUtils.isNotEmpty(currentUser)) {
+                aiChatParams.setTools(jeecgToolsProvider.getDefaultTools());
+            }
         }
+        //update-begin---author:wangshuai ---date:2026-04-15  for：Brave Search配置迁移到AiRagConfigBean，仅在联网搜索开启时注入工具-----------
+        // Brave Search 联网检索工具：前端 enableSearch=true 且 apiKey 已配置时才注入
+        if (Boolean.TRUE.equals(aiChatParams.getEnableSearch())) {
+            Map<ToolSpecification, ToolExecutor> braveTools = BraveSearchToolBuilder.buildTools(aiRagConfigBean.getBraveSearch());
+            if (!braveTools.isEmpty()) {
+                Map<ToolSpecification, ToolExecutor> existing = aiChatParams.getTools();
+                if (existing == null) {
+                    existing = new HashMap<>();
+                }
+                existing.putAll(braveTools);
+                aiChatParams.setTools(existing);
+            }
+        }
+        //update-end---author:wangshuai ---date:2026-04-15  for：Brave Search配置迁移到AiRagConfigBean，仅在联网搜索开启时注入工具-----------
         if(CollectionUtils.isEmpty(aiChatParams.getKnowIds())){
             aiChatParams.setKnowIds(chatConversation.getApp().getKnowIds());
         } else {
             aiChatParams.getKnowIds().addAll(chatConversation.getApp().getKnowIds());
         }
         aiChatParams.setMaxMsgNumber(oConvertUtils.getInt(chatConversation.getApp().getMsgNum(), 5));
-        aiChatParams.setCurrentHttpRequest(SpringContextUtils.getHttpServletRequest());
-        HttpServletRequest httpRequest = SpringContextUtils.getHttpServletRequest();
+        aiChatParams.setCurrentHttpRequest(httpRequest);
         // for [QQYUN-9234] MCP服务连接关闭 - 保存参数引用用于在回调中关闭MCP连接
         final AIChatParams finalAiChatParams = aiChatParams;
         TokenStream chatStream;
         try {
+            aiChatParams.setTimeout(5*30*1000);
             // 打印流程耗时日志
             printChatDuration(requestId, "开始向LLM发送消息");
             if (oConvertUtils.isNotEmpty(modelId)) {
@@ -1280,7 +1485,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 return;
             }
             String errMsg = "调用大模型接口失败，详情请查看后台日志。";
-            if(e instanceof JeecgBootException){
+            if(e instanceof JeecgBootException || e instanceof JeecgBootBizTipException){
                 errMsg = e.getMessage();
             }
             EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR, chatConversation.getId(), topicId);
@@ -1288,6 +1493,38 @@ public class AiragChatServiceImpl implements IAiragChatService {
             closeSSE(emitter, eventData);
             throw new JeecgBootBizTipException("调用大模型接口失败:" + e.getMessage());
         }
+
+        // 发送消息给前端
+        BiConsumer<String, String> send2Client = (resMessage, eventType) -> {
+            eventType = oConvertUtils.isNotEmpty(eventType) ? eventType : EventData.EVENT_MESSAGE;
+
+            EventData eventData = new EventData(requestId, null, eventType, chatConversation.getId(), topicId);
+            EventMessageData messageEventData = EventMessageData.builder().message(resMessage).build();
+            eventData.setData(messageEventData);
+            eventData.setRequestId(requestId);
+            // sse
+            SseEmitter emitter = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId);
+            if (null == emitter) {
+                log.warn("[AI应用]接收LLM返回会话已关闭");
+                return;
+            }
+            sendMessage2Client(emitter, eventData);
+        };
+
+        // 解析是否显示工具调用过程（默认为true）
+        boolean showToolProcess = true;
+        String appMetadataStr = chatConversation.getApp().getMetadata();
+        if (oConvertUtils.isNotEmpty(appMetadataStr)) {
+            try {
+                JSONObject appMetadataJson = JSONObject.parseObject(appMetadataStr);
+                if (appMetadataJson != null && "0".equals(appMetadataJson.getString("showToolProcess"))) {
+                    showToolProcess = false;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        final boolean finalShowToolProcess = showToolProcess;
+
         /**
          * 是否正在思考
          */
@@ -1301,22 +1538,19 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 isThinking.set(false);
             }
             //update-end---author:wangshuai---date:2025-11-07---for:[issues/8506]/[issues/8260]/[issues/8166]新增推理模型的支持---
-            EventData eventData = new EventData(requestId, null, EventData.EVENT_MESSAGE, chatConversation.getId(), topicId);
-            EventMessageData messageEventData = EventMessageData.builder().message(resMessage).build();
-            eventData.setData(messageEventData);
-            eventData.setRequestId(requestId);
-            // sse
-            SseEmitter emitter = AiragLocalCache.get(AiragConsts.CACHE_TYPE_SSE, requestId);
-            if (null == emitter) {
-                log.warn("[AI应用]接收LLM返回会话已关闭");
-                return;
+            send2Client.accept(resMessage, EventData.EVENT_MESSAGE);
+        }).beforeToolExecution(beforeToolExecution -> {
+            // 监听工具执行请求（根据配置决定是否发送给前端）
+            if (finalShowToolProcess) {
+                ToolExecutionVo vo = ToolExecutionVo.build(beforeToolExecution);
+                String execTag = JeecgTagHelper.createTag(JeecgTagHelper.TAG_JEECG_TOOL_EXEC, JSON.toJSONString(vo));
+                send2Client.accept(execTag, EventData.EVENT_TOOL_EXEC_BEFORE);
             }
-            sendMessage2Client(emitter, eventData);
         }).onToolExecuted((toolExecution) -> {
             // 打印工具执行结果
             log.debug("[AI应用]工具执行结果: toolName={}, toolId={}, result={}",
-                    toolExecution.request().name(), 
-                    toolExecution.request().id(), 
+                    toolExecution.request().name(),
+                    toolExecution.request().id(),
                     toolExecution.result());
             // 将工具执行结果存储到消息历史中
             ToolExecutionResultMessage toolResultMessage = ToolExecutionResultMessage.from(
@@ -1324,6 +1558,13 @@ public class AiragChatServiceImpl implements IAiragChatService {
                     toolExecution.result()
             );
             appendMessage(messages, toolResultMessage, chatConversation, topicId);
+            // 根据配置决定是否将工具调用过程发送给前端
+            if (finalShowToolProcess) {
+                ToolExecutionVo vo = ToolExecutionVo.build(toolExecution);
+                String execTag = JeecgTagHelper.createTag(JeecgTagHelper.TAG_JEECG_TOOL_EXEC, JSON.toJSONString(vo));
+                send2Client.accept(execTag, EventData.EVENT_TOOL_EXEC_DONE);
+                send2Client.accept(execTag, EventData.EVENT_MESSAGE);
+            }
         }).onIntermediateResponse((chatResponse) -> {
             // 中间响应：包含tool_calls的AI消息
             AiMessage aiMessage = chatResponse.aiMessage();
@@ -1422,13 +1663,19 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 //update-end---author:chenrui ---date:20250425  for：[QQYUN-12203]AI 聊天，超时或者服务器报错，给个友好提示------------
             } else {
                 errMsg = "调用大模型接口失败，详情请查看后台日志。";
+                boolean isFindErrorMsg = false;
                 // 根据常见异常关键字做细致翻译
                 for (Map.Entry<String, String> entry : AIChatHandler.MODEL_ERROR_MAP.entrySet()) {
                     String key = entry.getKey();
                     String value = entry.getValue();
                     if (error.getMessage().contains(key)) {
                         errMsg = value;
+                        isFindErrorMsg = true;
                     }
+                }
+                String message = error.getMessage();
+                if(!isFindErrorMsg && message.contains("error")) {
+                    errMsg = JSONObject.parseObject(message).get("error").toString();
                 }
                 EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR, chatConversation.getId(), topicId);
                 eventData.setData(EventFlowData.builder().success(false).message(errMsg).build());
@@ -1693,28 +1940,86 @@ public class AiragChatServiceImpl implements IAiragChatService {
     /**
      * ai海报生成
      * 
-     * @param chatSendParams
+     * @param aiDrawGenerateVo
      * @return
      */
     @Override
-    public String genAiPoster(ChatSendParams chatSendParams) {
-        AssertUtils.assertNotEmpty("请选择绘画模型", chatSendParams.getDrawModelId());
-        AssertUtils.assertNotEmpty("请填写提示词", chatSendParams.getContent());
+    public String genAiPoster(AiDrawGenerateVo aiDrawGenerateVo) {
+        AssertUtils.assertNotEmpty("请选择绘画模型", aiDrawGenerateVo.getDrawModelId());
+        AssertUtils.assertNotEmpty("请填写提示词", aiDrawGenerateVo.getContent());
         AIChatParams aiChatParams = new AIChatParams();
-        if(oConvertUtils.isNotEmpty(chatSendParams.getImageSize())){
-            aiChatParams.setImageSize(chatSendParams.getImageSize());
+        //update-begin---author:wangshuai---date:2026-02-05---for:【QQYUN-14568】AI绘画功能---
+        if(oConvertUtils.isNotEmpty(aiDrawGenerateVo.getImageSize())){
+            aiChatParams.setImageSize(aiDrawGenerateVo.getImageSize());
         }
-        String image= chatSendParams.getImageUrl();
+        //aiChatParams.setNegativePrompt("面部扭曲，特征丢失，边缘模糊，比例失调，模糊，多余的手指");
+        //绘图
+        if(AiAppConsts.AI_DRAW_TYPE_DRAW.equals(aiDrawGenerateVo.getType())){
+            String format = StrUtil.format(Prompts.AI_DRAW_PROMPT, aiDrawGenerateVo.getStyle(), aiDrawGenerateVo.getVisualAngle(), aiDrawGenerateVo.getCharacterShot(), aiDrawGenerateVo.getLighting(), ImageSizeEnum.getRatioBySize(aiDrawGenerateVo.getImageSize()));
+            aiDrawGenerateVo.setContent(format + aiDrawGenerateVo.getContent());
+        }
+        if((AiAppConsts.AI_DRAW_TYPE_FACE.equals(aiDrawGenerateVo.getType()) || AiAppConsts.AI_DRAW_TYPE_MIX.equals(aiDrawGenerateVo.getType())) && oConvertUtils.isNotEmpty(aiDrawGenerateVo.getImageSize())){
+            aiDrawGenerateVo.setContent(aiDrawGenerateVo.getContent() + "比例：" + ImageSizeEnum.getRatioBySize(aiDrawGenerateVo.getImageSize())); 
+        }
+        String image= aiDrawGenerateVo.getImageUrl();
+        //update-end---author:wangshuai---date:2026-02-05---for:【QQYUN-14568】AI绘画功能---
         List<Map<String, Object>> imageList = new ArrayList<>();
         if(oConvertUtils.isEmpty(image)) {
             //生成图片
-            imageList = aiChatHandler.imageGenerate(chatSendParams.getDrawModelId(), chatSendParams.getContent(), aiChatParams);
+            imageList = aiChatHandler.imageGenerate(aiDrawGenerateVo.getDrawModelId(), aiDrawGenerateVo.getContent(), aiChatParams);
         } else {
             //图生图
-            imageList = aiChatHandler.imageEdit(chatSendParams.getDrawModelId(), chatSendParams.getContent(), Arrays.asList(image.split(SymbolConstant.COMMA)), aiChatParams);
+            imageList = aiChatHandler.imageEdit(aiDrawGenerateVo.getDrawModelId(), aiDrawGenerateVo.getContent(), Arrays.asList(image.split(SymbolConstant.COMMA)), aiChatParams);
         }
         return imageList.stream().map(this::uploadImage).collect(Collectors.joining("\n"));
     }
+
+    //update-begin---author:wangshuai ---date:2026-04-15  for：【QQYUN-14568】AI海报生成改为异步，支持切换菜单后重新获取结果-----------
+
+    @Override
+    public String genAiPosterAsync(AiDrawGenerateVo aiDrawGenerateVo) {
+        AssertUtils.assertNotEmpty("请选择绘画模型", aiDrawGenerateVo.getDrawModelId());
+        AssertUtils.assertNotEmpty("请填写提示词", aiDrawGenerateVo.getContent());
+        String taskId = java.util.UUID.randomUUID().toString().replace("-", "");
+        // 写入 pending 状态
+        JSONObject task = new JSONObject();
+        task.put("status", "pending");
+        redisUtil.set(AiAppConsts.POSTER_TASK_PREFIX + taskId, task.toJSONString(), AiAppConsts.POSTER_TASK_TTL);
+        // 异步执行生成
+        SSE_THREAD_POOL.execute(() -> {
+            JSONObject result = new JSONObject();
+            try {
+                String imageUrl = genAiPoster(aiDrawGenerateVo);
+                result.put("status", "success");
+                result.put("imageUrl", imageUrl);
+            } catch (Exception e) {
+                log.error("[AI海报]异步生成失败 taskId={}", taskId, e);
+                result.put("status", "failed");
+                result.put("message", e.getMessage());
+            }
+            redisUtil.set(AiAppConsts.POSTER_TASK_PREFIX + taskId, result.toJSONString(), AiAppConsts.POSTER_TASK_TTL);
+        });
+        return taskId;
+    }
+
+    @Override
+    public Result<?> getAiPosterResult(String taskId) {
+        Object val = redisUtil.get(AiAppConsts.POSTER_TASK_PREFIX + taskId);
+        if (val == null) {
+            return Result.error("任务不存在或已过期");
+        }
+        JSONObject task = JSONObject.parseObject(val.toString());
+        String status = task.getString("status");
+        if ("success".equals(status)) {
+            return Result.OK(task.getString("imageUrl"));
+        }
+        if ("failed".equals(status)) {
+            return Result.error(task.getString("message"));
+        }
+        // pending
+        return Result.OK("pending", null);
+    }
+    //update-end---author:wangshuai ---date:2026-04-15  for：【QQYUN-14568】AI海报生成改为异步，支持切换菜单后重新获取结果-----------
 
     /**
      * 上传图片
@@ -1738,6 +2043,13 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 data = Base64.getDecoder().decode(value);
             } else {
                 //下载网络图片
+                //update-begin---author:zhangdaihao ---date:20260427  for：[issues/9579]AI海报图片下载 SSRF 校验，拒绝 loopback/link-local------------
+                // genAiPoster -> uploadImage -> getDownInputStream，攻击者可通过 imageUrl 触发服务端访问 localhost / 云元数据等敏感目标；
+                // 沿用与 #9553 一致的基础 SSRF 校验（拒绝 loopback / link-local），保留对企业内网 MinIO/OSS 的兼容。
+                if (oConvertUtils.isNotEmpty(value) && value.toLowerCase().startsWith("http")) {
+                    SsrfFileTypeFilter.checkSsrfHttpUrl(value);
+                }
+                //update-end-----author:zhangdaihao ---date:20260427  for：[issues/9579]AI海报图片下载 SSRF 校验，拒绝 loopback/link-local------------
                 InputStream inputStream = FileDownloadUtils.getDownInputStream(value, "");
                 if (inputStream != null) {
                     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -1796,7 +2108,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @return
      */
     private String parseFilesToText(List<String> files) {
-        if (com.baomidou.mybatisplus.core.toolkit.CollectionUtils.isEmpty(files)) {
+        if (CollectionUtils.isEmpty(files)) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
@@ -1855,16 +2167,37 @@ public class AiragChatServiceImpl implements IAiragChatService {
     private File ensureLocalFile(String fileRef, String fileName) {
         String uploadpath = jeecgBaseConfig.getPath().getUpload();
         if (LLMConsts.WEB_PATTERN.matcher(fileRef).matches()) {
+            //update-begin---author:wangshuai ---date:2026-04-13  for：【issues/9519】AI附件处理路径遍历漏洞：下载文件名做安全过滤，临时目录隔离---
+            // 远程下载：使用 FilenameUtils.getName 剥离任何路径分隔符，再次校验防止 ..
+            String safeFileName = FilenameUtils.getName(fileName);
+            SsrfFileTypeFilter.checkPathTraversal(safeFileName);
+            //update-end---author:wangshuai ---date:2026-04-13  for：【issues/9519】AI附件处理路径遍历漏洞：下载文件名做安全过滤，临时目录隔离---
             String tempDir = uploadpath + File.separator + "chat" + File.separator + UUID.randomUUID() + File.separator;
             File dir = new File(tempDir);
             if (!dir.exists() && !dir.mkdirs()) {
                 return null;
             }
-            String tempFilePath = tempDir + fileName;
+            String tempFilePath = tempDir + safeFileName;
+            //update-begin---author:zhangdaihao ---date:20260427  for：[issues/9578]AI附件下载 SSRF 校验，拒绝 loopback/link-local------------
+            // /airag/chat/send 端点为 @IgnoreAuth 无认证，AI 聊天解析附件存在 SSRF 风险；
+            // 沿用与 #9553 一致的基础 SSRF 校验（拒绝 loopback / link-local），保留对企业内网 MinIO/OSS 的兼容。
+            SsrfFileTypeFilter.checkSsrfHttpUrl(fileRef);
+            //update-end-----author:zhangdaihao ---date:20260427  for：[issues/9578]AI附件下载 SSRF 校验，拒绝 loopback/link-local------------
             FileDownloadUtils.download2DiskFromNet(fileRef, tempFilePath);
             return new File(tempFilePath);
         }
-        return new File(uploadpath + File.separator + fileRef);
+        //update-begin---author:wangshuai ---date:2026-04-13  for：【issues/9519】AI附件处理路径遍历漏洞：规范化路径并强制校验沙箱范围---
+        // 本地附件：1) 先做字符级路径遍历检查；2) 规范化路径后必须仍在 uploadpath 下，阻止 ../ 逃逸
+        java.nio.file.Path root = Paths.get(uploadpath).toAbsolutePath().normalize();
+        SsrfFileTypeFilter.checkPathTraversal(fileRef);
+        String relativePath = fileRef.replaceAll("^[\\\\/]+", "");
+        java.nio.file.Path target = root.resolve(relativePath).toAbsolutePath().normalize();
+        if (!target.startsWith(root)) {
+            log.error("检测到路径遍历攻击! fileRef: {}, 解析后: {}", relativePath, target);
+            throw new JeecgBootException("文件路径包含非法字符");
+        }
+        return target.toFile();
+        //update-end---author:wangshuai ---date:2026-04-13  for：【issues/9519】AI附件处理路径遍历漏洞：规范化路径并强制校验沙箱范围---
     }
     //================================================= end【QQYUN-14261】【AI】AI助手，支持多模态能力- 文档========================================
 
@@ -1887,7 +2220,9 @@ public class AiragChatServiceImpl implements IAiragChatService {
             content = StrUtil.format(Prompts.AI_WRITER_PROMPT, aiWriteGenerateVo.getPrompt(), aiWriteGenerateVo.getFormat(), aiWriteGenerateVo.getTone(), aiWriteGenerateVo.getLanguage(), aiWriteGenerateVo.getLength());
         } else if(reply.equals(aiWriteGenerateVo.getActiveMode())){
             //回复
-            content = StrUtil.format(Prompts.AI_REPLY_PROMPT, aiWriteGenerateVo.getPrompt(), aiWriteGenerateVo.getOriginalContent(), aiWriteGenerateVo.getFormat(), aiWriteGenerateVo.getTone(), aiWriteGenerateVo.getLanguage(), aiWriteGenerateVo.getLength());
+            //update-begin---author:wangshuai ---date:2026-04-20  for：【QQYUN-15179】ai写作 生成的内容不对，应该是以回复来生成，而不是内容-----------
+            content = StrUtil.format(Prompts.AI_REPLY_PROMPT, aiWriteGenerateVo.getOriginalContent(), aiWriteGenerateVo.getPrompt(), aiWriteGenerateVo.getFormat(), aiWriteGenerateVo.getTone(), aiWriteGenerateVo.getLanguage(), aiWriteGenerateVo.getLength());
+            //update-end---author:wangshuai ---date:2026-04-20  for：【QQYUN-15179】ai写作 生成的内容不对，应该是以回复来生成，而不是内容-----------
         } else {
             content = StrUtil.format(Prompts.AI_TOUCHE_PROMPT, aiWriteGenerateVo.getPrompt(), aiWriteGenerateVo.getFormat(), aiWriteGenerateVo.getTone(), aiWriteGenerateVo.getLanguage(), aiWriteGenerateVo.getLength());
         }

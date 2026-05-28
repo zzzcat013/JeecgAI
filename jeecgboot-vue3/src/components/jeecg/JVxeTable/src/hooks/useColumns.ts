@@ -324,6 +324,11 @@ function handlerCol(args: HandleArgs) {
     Object.assign(col.cellRender, args.renderOptions);
   }
 
+  // slot 类型列：通过 titlePrefix 在表头显示编辑图标（不能用 editRender，否则非编辑状态下 cellRender 会被绕过）
+  if (col.params.type === JVxeTypes.slot && col.cellRender && !col.editRender) {
+    col.titlePrefix = { icon: 'vxe-table-icon-edit' };
+  }
+
   columns.push(col);
 }
 

@@ -25,7 +25,7 @@
       <JPopup
         v-model:value="model[field]"
         :formElRef="formElRef"
-        code="ces_app_rep001"
+        code="withparamreport"
         :param="{ sex: '1' }"
         :fieldConfig="[{ source: 'name', target: 'pop2' }]"
       />
@@ -57,6 +57,9 @@
     <template #superQuery1="{ model, field }">
       <super-query :config="superQueryConfig" @search="(value)=>handleSuperQuery(value, model, field)" :isCustomSave="true" :saveSearchData="saveSearchData" :save="handleSuperQuerySave"/>
     </template>
+    <template #tabsSelectUser="{ model, field }">
+      <JTabsSelectUser v-model:value="model[field]" ></JTabsSelectUser>
+    </template>
   </BasicForm>
 </template>
 <script lang="ts">
@@ -68,7 +71,7 @@
   import { schemas } from './jeecgComponents.data';
   import { usePermission } from '/@/hooks/web/usePermission';
   import { BasicDragVerify } from '/@/components/Verify';
-
+  import JTabsSelectUser from '/@/components/jeecg/JTabsSelectUser/index.vue';
   export default defineComponent({
     components: {
       BasicForm,
@@ -79,6 +82,7 @@
       JCheckbox,
       JInput,
       JEllipsis,
+      JTabsSelectUser,
       BasicDragVerify,
     },
     name: 'JeecgComponents',

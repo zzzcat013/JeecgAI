@@ -131,6 +131,22 @@ public class FileDownloadUtils {
      * @date 2024/1/19 10:09
      */
     public static String download2DiskFromNet(String fileUrl, String storePath) {
+        //update-begin---author:liusq ---date:2026-03-30  for：【issues/9437】修复download2DiskFromNet storePath路径遍历漏洞(CWE-22)-----------
+        // 路径遍历校验：拦截 ../ 等遍历字符，并确保规范化路径与原始路径一致
+        SsrfFileTypeFilter.checkPathTraversal(storePath);
+        try {
+            String canonicalPath = new File(storePath).getCanonicalPath();
+            String absolutePath = new File(storePath).getAbsolutePath();
+            if (!canonicalPath.equals(absolutePath)) {
+                throw new JeecgBootException("非法存储路径，路径包含遍历字符: " + storePath);
+            }
+        } catch (IOException e) {
+            throw new JeecgBootException("存储路径校验失败: " + storePath, e);
+        }
+        //update-end---author:liusq ---date:2026-03-30  for：【issues/9437】修复download2DiskFromNet storePath路径遍历漏洞(CWE-22)-----------
+        //update-begin---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】下载网络资源前增加SSRF校验-----------
+        SsrfFileTypeFilter.checkSsrfHttpUrl(fileUrl);
+        //update-end---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】下载网络资源前增加SSRF校验-----------
         try {
             URL url = new URL(fileUrl);
             URLConnection conn = url.openConnection();
@@ -260,6 +276,9 @@ public class FileDownloadUtils {
         try {
             // 处理HTTP URL：通过网络下载
             if (oConvertUtils.isNotEmpty(fileUrl) && fileUrl.startsWith(CommonConstant.STR_HTTP)) {
+                //update-begin---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】修复二次SSRF漏洞，对HTTP下载URL进行安全校验-----------
+                SsrfFileTypeFilter.checkSsrfHttpUrl(fileUrl);
+                //update-end---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】修复二次SSRF漏洞，对HTTP下载URL进行安全校验-----------
                 URL url = new URL(fileUrl);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setConnectTimeout(5000); // 连接超时5秒

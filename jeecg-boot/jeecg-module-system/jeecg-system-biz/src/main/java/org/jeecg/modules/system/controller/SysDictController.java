@@ -31,6 +31,7 @@ import org.jeecg.modules.system.model.SysDictTree;
 import org.jeecg.modules.system.model.TreeSelectModel;
 import org.jeecg.modules.system.service.ISysDictItemService;
 import org.jeecg.modules.system.service.ISysDictService;
+import org.jeecg.modules.system.vo.SysDictBatchVo;
 import org.jeecg.modules.system.vo.SysDictPage;
 import org.jeecg.modules.system.vo.lowapp.SysDictVo;
 import org.jeecgframework.poi.excel.ExcelImportCheckUtil;
@@ -403,6 +404,94 @@ public class SysDictController {
 			log.error(e.getMessage(),e);
 			result.error500("操作失败");
 		}
+		return result;
+	}
+
+	/**
+	 * @功能：字典和字典项一起新增（支持批量）
+	 * @param sysDictBatchVo 字典批量数据
+	 * @return
+	 */
+    @RequiresPermissions("system:dict:add")
+	@RequestMapping(value = "/batchAddDictWithItems", method = RequestMethod.POST)
+	public Result<Map<String, Object>> batchAddDictWithItems(@RequestBody SysDictBatchVo sysDictBatchVo) {
+		Result<Map<String, Object>> result = new Result<Map<String, Object>>();
+		//update-begin---author:zzl ---date:2026-04-03  for：字典和字典项一起新增（支持批量）---
+		log.info("========== 批量新增字典开始 ==========");
+		log.info("请求参数: {}", JSON.toJSONString(sysDictBatchVo));
+		if (sysDictBatchVo == null || sysDictBatchVo.getDictList() == null || sysDictBatchVo.getDictList().isEmpty()) {
+			log.warn("字典列表为空，参数校验不通过");
+			result.error500("字典列表不能为空！");
+			return result;
+		}
+		int successCount = 0;
+		int failCount = 0;
+		StringBuilder message = new StringBuilder();
+		List<Map<String, String>> failList = new ArrayList<>();
+		log.info("待处理的字典数量: {}", sysDictBatchVo.getDictList().size());
+		for (int i = 0; i < sysDictBatchVo.getDictList().size(); i++) {
+			SysDictPage sysDictPage = sysDictBatchVo.getDictList().get(i);
+			log.info("开始处理第 {} 个字典, dictCode: {}, dictName: {}", i + 1, sysDictPage.getDictCode(), sysDictPage.getDictName());
+			try {
+				SysDict sysDict = new SysDict();
+				sysDict.setDictName(sysDictPage.getDictName());
+				sysDict.setDictCode(sysDictPage.getDictCode());
+				sysDict.setDescription(sysDictPage.getDescription());
+				sysDict.setDelFlag(CommonConstant.DEL_FLAG_0);
+				Integer num = sysDictService.saveMain(sysDict, sysDictPage.getSysDictItemList());
+				if (num > 0) {
+					successCount++;
+					log.info("第 {} 个字典[{}]保存成功", i + 1, sysDictPage.getDictCode());
+				} else if (num == -1) {
+					failCount++;
+					Map<String, String> failItem = new HashMap<>();
+					failItem.put("dictCode", sysDictPage.getDictCode());
+					failItem.put("dictName", sysDictPage.getDictName());
+					failItem.put("errorMsg", "字典项值为空，已忽略！");
+					failList.add(failItem);
+					message.append("第").append(i + 1).append("个字典[").append(sysDictPage.getDictCode()).append("]：字典项值为空，已忽略！\n");
+					log.warn("第 {} 个字典[{}]字典项值为空，已忽略", i + 1, sysDictPage.getDictCode());
+				} else {
+					failCount++;
+					Map<String, String> failItem = new HashMap<>();
+					failItem.put("dictCode", sysDictPage.getDictCode());
+					failItem.put("dictName", sysDictPage.getDictName());
+					failItem.put("errorMsg", "字典编码已经存在！");
+					failList.add(failItem);
+					message.append("第").append(i + 1).append("个字典[").append(sysDictPage.getDictCode()).append("]：字典编码已经存在！\n");
+					log.warn("第 {} 个字典[{}]字典编码已经存在", i + 1, sysDictPage.getDictCode());
+				}
+			} catch (Exception e) {
+				failCount++;
+				Map<String, String> failItem = new HashMap<>();
+				failItem.put("dictCode", sysDictPage.getDictCode());
+				failItem.put("dictName", sysDictPage.getDictName());
+				failItem.put("errorMsg", e.getMessage());
+				failList.add(failItem);
+				message.append("第").append(i + 1).append("个字典[").append(sysDictPage.getDictCode()).append("]：").append(e.getMessage()).append("\n");
+				log.error("第 {} 个字典[{}]处理异常: {}", i + 1, sysDictPage.getDictCode(), e.getMessage(), e);
+			}
+		}
+		Map<String, Object> returnMap = new HashMap<>();
+		returnMap.put("successCount", successCount);
+		returnMap.put("failCount", failCount);
+		returnMap.put("message", message.toString());
+		returnMap.put("failList", failList);
+		if (failCount == 0) {
+			result.success("批量保存成功！共保存 " + successCount + " 个字典！");
+			log.info("批量保存成功，共保存 {} 个字典", successCount);
+		} else if (successCount > 0) {
+			result.success("部分保存成功！成功 " + successCount + " 个，失败 " + failCount + " 个！");
+			log.warn("部分保存成功，成功 {} 个，失败 {} 个", successCount, failCount);
+		} else {
+			result.error500("全部保存失败！");
+			log.error("全部保存失败！共 {} 个字典", sysDictBatchVo.getDictList().size());
+		}
+
+
+		result.setResult(returnMap);
+		log.info("========== 批量新增字典结束 ==========");
+		//update-end---author:zzl ---date:2026-04-03  for：字典和字典项一起新增（支持批量）---
 		return result;
 	}
 

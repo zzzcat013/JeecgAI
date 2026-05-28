@@ -7,12 +7,16 @@ import VXETablePluginAntd from 'vxe-table-plugin-antd';
 import 'vxe-pc-ui/lib/style.css';
 import 'vxe-table/lib/style.css';
 
-import JVxeTable from './JVxeTable';
 import { getEventPath } from '/@/utils/common/compUtils';
 import { registerAllComponent } from './utils/registerUtils';
 import { getEnhanced } from './utils/enhancedUtils';
+import type { JVxeTypes } from './types/JVxeTypes';
+export interface RegisterJVxeTableOptions {
+  /** 仅注册指定的内置类型；不传则注册全部内置组件 */
+  builtinComponents?: JVxeTypes[];
+}
 
-export function registerJVxeTable(app: App) {
+export async function registerJVxeTable(app: App) {
   // VXETable 全局配置
   const VXETableSettings = {
     // z-index 起始值
@@ -31,7 +35,6 @@ export function registerJVxeTable(app: App) {
   // 执行注册方法
   app.use(VxeUIAll);
   app.use(VXETable, VXETableSettings);
-  app.component('JVxeTable', JVxeTable);
 }
 
 

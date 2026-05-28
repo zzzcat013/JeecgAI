@@ -1,6 +1,6 @@
-import { defineComponent, h, nextTick, ref, useSlots } from 'vue';
+import { defineComponent, h, ref, useSlots, computed, resolveComponent } from 'vue';
 import { vxeEmits, vxeProps } from './vxe.data';
-import { useData, useRefs, useResolveComponent as rc } from './hooks/useData';
+import { useData, useRefs } from './hooks/useData';
 import { useColumns } from './hooks/useColumns';
 import { useColumnsCache } from './hooks/useColumnsCache';
 import { useMethods } from './hooks/useMethods';
@@ -9,6 +9,7 @@ import { useDragSort } from './hooks/useDragSort';
 import { useRenderComponents } from './hooks/useRenderComponents';
 import { useFinallyProps } from './hooks/useFinallyProps';
 import { JVxeTableProps } from './types';
+import { Spin } from 'ant-design-vue';
 import './style/index.less';
 
 export default defineComponent({
@@ -33,6 +34,16 @@ export default defineComponent({
     const finallyProps = useFinallyProps(props, data, methods);
     // 渲染子组件
     const renderComponents = useRenderComponents(props, data, methods, slots);
+    // update-begin--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
+    // 在 setup 阶段缓存组件引用，避免每次 render 调用 resolveComponent 查找
+    const aSpinComp = Spin;
+    const vxeGridComp = resolveComponent('vxe-grid');
+    // 将 vxeProps 和 data 合并为一个 computed，避免 render 每次 spread 生成新对象
+    const vxeGridProps = computed(() => ({
+      ...finallyProps.vxeProps.value,
+      data: data.vxeDataSource.value,
+    }));
+    // update-end--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
     return {
       instanceRef,
       ...refs,
@@ -40,6 +51,9 @@ export default defineComponent({
       ...finallyProps,
       ...renderComponents,
       vxeDataSource: data.vxeDataSource,
+      aSpinComp,
+      vxeGridComp,
+      vxeGridProps,
     };
   },
   render() {
@@ -50,7 +64,7 @@ export default defineComponent({
         style: this.$attrs.style,
       },
       h(
-        rc('a-spin'),
+        this.aSpinComp,
         {
           spinning: this.loading,
           wrapperClassName: this.prefixCls,
@@ -61,11 +75,8 @@ export default defineComponent({
             this.renderToolbar(),
             this.renderToolbarAfterSlot(),
             h(
-              rc('vxe-grid'),
-              {
-                ...this.vxeProps,
-                data: this.vxeDataSource,
-              },
+              this.vxeGridComp,
+              this.vxeGridProps,
               this.$slots
             ),
             this.renderPagination(),

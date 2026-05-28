@@ -21,12 +21,14 @@
       "title": "DeepSeek",
       "value": "DEEPSEEK",
       "LLM": [
-        {"label": "deepseek-reasoner", "value": "deepseek-reasoner","descr": "【官方模型】深度求索 新推出的推理模型R1满血版\n火便全球。\n支持64k上下文，其中支持8k最大回复。","type": "text"},
-        {"label":"deepseek-chat", "value": "deepseek-chat","descr": "最强开源 MoE 模型 DeepSeek-V3，全球首个在代码、数学能力上与GPT-4-Turbo争锋的模型，在代码、数学的多个榜单上位居全球第二；","type": "text"}
+        {"label": "deepseek-v4-pro", "value": "deepseek-v4-pro","descr": "【官方模型】深度求索 新推出的推理模型R1满血版\n火便全球。\n支持64k上下文，其中支持8k最大回复。","type": "text"},
+        {"label": "deepseek-v4-flash", "value": "deepseek-v4-flash","descr": "【官方模型】深度求索 新推出的推理模型R1满血版\n火便全球。\n支持64k上下文，其中支持8k最大回复。","type": "text"},
+        {"label": "deepseek-reasoner", "value": "deepseek-reasoner","descr": " 2026/07/24下线，【官方模型】深度求索 新推出的推理模型R1满血版\n火便全球。\n支持64k上下文，其中支持8k最大回复。","type": "text"},
+        {"label":"deepseek-chat", "value": "deepseek-chat","descr": "2026/07/24下线，最强开源 MoE 模型 DeepSeek-V3，全球首个在代码、数学能力上与GPT-4-Turbo争锋的模型，在代码、数学的多个榜单上位居全球第二；","type": "text"}
       ],
       "type": ["LLM"],
       "baseUrl": "https://api.deepseek.com/v1",
-      "LLMDefaultValue": "deepseek-chat"
+      "LLMDefaultValue": "deepseek-v4-pro"
     },
     {
       "title": "Ollama",
@@ -181,6 +183,49 @@
       "LLMDefaultValue": "glm-4-flash",
       "EMBEDDefaultValue": "Embedding-2",
       "IMAGEDefaultValue": "CogView-4"
+    },
+    {
+      "title": "Google Gemini",
+      "value": "GOOGLE",
+      "LLM": [
+        {"label": "gemini-2.5-pro", "value": "gemini-2.5-pro","descr": "【Gemini 2.5系列】Google最新旗舰思维模型，具备强大的推理能力。\n\n支持文本和图像输入，文本输出，拥有1M上下文窗口，在编码、数学和科学推理方面表现卓越。","type": "text,image"},
+        {"label": "gemini-2.5-flash", "value": "gemini-2.5-flash","descr": "【Gemini 2.5系列】Google最新的高效思维模型，速度与性能的最佳平衡。\n\n支持文本和图像输入，文本输出，拥有1M上下文窗口，适合高频交互和大规模部署。","type": "text,image"}
+      ],
+      "IMAGE": [
+        {"label": "gemini-3-pro-image-preview", "value": "gemini-3-pro-image-preview","descr": "Google最新Gemini 3 Pro图像生成预览模型，具备卓越的图像生成质量。\n\n支持文本到图像生成，在细节表现、风格多样性和文字渲染方面表现出色。","type": "imageGen"},
+        {"label": "gemini-2.5-flash-image", "value": "gemini-2.5-flash-image","descr": "基于Gemini 2.5 Flash的图像生成模型，支持文本到图像生成。\n\n速度快、成本低，适合高频图像生成场景，支持多种风格。","type": "imageGen"}
+      ],
+      "type": ["LLM", "IMAGE"],
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "LLMDefaultValue": "gemini-2.5-flash",
+      "IMAGEDefaultValue": "gemini-2.5-flash-image"
+    },
+    {
+      "title": "vLLM",
+      "value": "VLLM",
+      "LLM": [],
+      "EMBED": [],
+      "IMAGE": [],
+      "type": ["LLM", "EMBED", "IMAGE"],
+      "baseUrl": "http://localhost:8000/v1"
+    },
+    {
+      "title": "LM stdio",
+      "value": "LMSTDIO",
+      "LLM": [],
+      "EMBED": [],
+      "IMAGE": [],
+      "type": ["LLM", "EMBED", "IMAGE"],
+      "baseUrl": "http://localhost:1234/v1"
+    },
+    {
+      "title": "Xinference",
+      "value": "XINFERENCE",
+      "LLM": [],
+      "EMBED": [],
+      "IMAGE": [],
+      "type": ["LLM", "EMBED", "IMAGE"],
+      "baseUrl": "http://localhost:9997/v1"
     }
   ]
 }

@@ -1,11 +1,11 @@
 <template>
-  <Cascader v-bind="attrs" :value="cascaderValue" :options="getOptions" @change="handleChange" />
+  <JCascader v-bind="attrs" :value="cascaderValue" :showLastLevelOnly="showLastLevelOnly" :options="getOptions" @change="handleChange" />
 </template>
 <script lang="ts">
-  import { defineComponent, PropType, ref, reactive, watchEffect, computed, unref, watch, onMounted } from 'vue';
+  import { defineComponent, ref, watchEffect, computed } from 'vue';
+  import JCascader from './JCascader.vue';
   import { Cascader } from 'ant-design-vue';
-  import { provinceAndCityData, regionData, provinceAndCityDataPlus, regionDataPlus } from '../../utils/areaDataUtil';
-  import { useRuleFormItem } from '/@/hooks/component/useFormItem';
+  import { provinceAndCityData, regionData, provinceOptions } from '../../utils/areaDataUtil';
   import { propTypes } from '/@/utils/propTypes';
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { isArray } from '/@/utils/is';
@@ -13,37 +13,49 @@
   export default defineComponent({
     name: 'JAreaLinkage',
     components: {
+      JCascader,
       Cascader,
     },
     inheritAttrs: false,
     props: {
       value: propTypes.oneOfType([propTypes.object, propTypes.array, propTypes.string]),
+      // 显示层级：province 只显示省，city 显示省市，region 显示省市县（优先于 showArea）
+      displayLevel: propTypes.oneOf(['province', 'city', 'region', 'all']),
       //是否显示区县
       showArea: propTypes.bool.def(true),
-      //是否是全部
-      showAll: propTypes.bool.def(false),
       // 存储数据 （all时：传递到外面的是数组；province, city, region传递外面的是字符串）
       saveCode: propTypes.oneOf(['province', 'city', 'region', 'all']).def('all'),
     },
     emits: ['options-change', 'change', 'update:value'],
-    setup(props, { emit, refs }) {
-      const emitData = ref<any[]>([]);
+    setup(props, { emit }) {
+      // update-begin--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+      const showLastLevelOnly = computed(() => {
+        return props.displayLevel === 'province' || props.displayLevel === 'city' || props.displayLevel === 'region';
+      });
+      // update-end--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
       const attrs = useAttrs();
       // const [state] = useRuleFormItem(props, 'value', 'change', emitData);
-      const cascaderValue = ref([]);
+      const cascaderValue = ref<(string | number)[]>([]);
       const getOptions = computed(() => {
-        if (props.showArea && props.showAll) {
-          return regionDataPlus;
+        // update-begin--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+        if (props.displayLevel) {
+          if (props.displayLevel === 'all') {
+            return regionData;
+          } else if (props.displayLevel === 'province') {
+            return provinceOptions;
+          } else if (props.displayLevel === 'city') {
+            return provinceAndCityData;
+          } else if (props.displayLevel === 'region') {
+            return regionData;
+          }
+        } else {
+          if (props.showArea) {
+            return regionData;
+          } else {
+            return provinceAndCityData;
+          }
         }
-        if (props.showArea && !props.showAll) {
-          return regionData;
-        }
-        if (!props.showArea && !props.showAll) {
-          return provinceAndCityData;
-        }
-        if (!props.showArea && props.showAll) {
-          return provinceAndCityDataPlus;
-        }
+        // update-end--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
       });
       /**
        * 监听value变化
@@ -58,6 +70,23 @@
       });
 
       /**
+       * 老数据可能是区县码（如 120101），displayLevel 为 province 时需显示对应省，
+       */
+      function buildDisplayPathFromCode(code, displayLevel) {
+        if (!code && code !== 0) return [];
+        const str = String(code).trim();
+        if (!str) return [];
+        const provinceCode = str.length >= 2 ? str.substring(0, 2) + '0000' : str;
+        const cityCode = str.length >= 4 ? str.substring(0, 4) + '00' : null;
+        const regionCode = str.length >= 6 ? str : null;
+        const fullPath = [provinceCode];
+        if (cityCode && cityCode !== provinceCode) fullPath.push(cityCode);
+        if (regionCode && regionCode !== cityCode) fullPath.push(regionCode);
+        if (displayLevel === 'province') return fullPath.slice(0, 1);
+        if (displayLevel === 'city') return fullPath.slice(0, 2);
+        return fullPath;
+      }
+      /**
        * 将字符串值转化为数组
        */
       function initValue() {
@@ -65,10 +94,30 @@
         // 代码逻辑说明: 【TV360X-501】省市区换新组件
         if (value && typeof value === 'string' && value != 'null' && value != 'undefined') {
           const arr = value.split(',');
-          cascaderValue.value = transform(arr);
+          if (props.displayLevel) {
+            // update-begin--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+            const code = arr[0];
+            cascaderValue.value = buildDisplayPathFromCode(code, props.displayLevel);
+            // update-end--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+          } else {
+            cascaderValue.value = transform(arr);
+          }
         } else if (isArray(value)) {
           if (value.length) {
-            cascaderValue.value = transform(value);
+            if (props.displayLevel) {
+              // update-begin--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+              // 老数据 saveCode 为 all 时存的是完整路径数组 [省,市,区]，直接按 displayLevel 截断
+              if (value.length >= 2) {
+                const len = props.displayLevel === 'province' ? 1 : props.displayLevel === 'city' ? 2 : Math.min(3, value.length);
+                cascaderValue.value = value.slice(0, len);
+              } else {
+                const code = value[0];
+                cascaderValue.value = buildDisplayPathFromCode(code, props.displayLevel);
+              }
+              // update-end--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+            } else {
+              cascaderValue.value = transform(value);
+            }
           } else {
             cascaderValue.value = [];
           }
@@ -109,7 +158,7 @@
         emit('update:value', result);
       };
 
-      function handleChange(arr, ...args) {
+      function handleChange(arr) {
         // 代码逻辑说明: 【TV360X-501】省市区换新组件
         if (arr?.length) {
           let result: any = [];
@@ -138,6 +187,7 @@
         regionData,
         getOptions,
         handleChange,
+        showLastLevelOnly,
       };
     },
   });

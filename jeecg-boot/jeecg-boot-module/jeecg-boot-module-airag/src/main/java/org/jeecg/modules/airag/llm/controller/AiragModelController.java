@@ -17,6 +17,7 @@ import org.jeecg.common.util.AssertUtils;
 import org.jeecg.common.util.TokenUtils;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.config.mybatis.MybatisPlusSaasConfig;
+import org.jeecg.modules.airag.app.enums.ImageEditEnum;
 import org.jeecg.modules.airag.common.handler.AIChatParams;
 import org.jeecg.modules.airag.llm.consts.LLMConsts;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
@@ -29,7 +30,9 @@ import org.springframework.web.servlet.ModelAndView;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.Arrays;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Collections;
 
 /**
@@ -82,8 +85,6 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
         // 默认未激活
         if(oConvertUtils.isObjectEmpty(airagModel.getActivateFlag())){
             airagModel.setActivateFlag(0);
-        } else {
-            airagModel.setActivateFlag(1);
         }
         airagModelService.save(airagModel);
         return Result.OK("添加成功！");
@@ -170,6 +171,8 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
         AssertUtils.assertNotEmpty("模型名称不能为空", airagModel.getName());
         AssertUtils.assertNotEmpty("模型类型不能为空", airagModel.getModelType());
         AssertUtils.assertNotEmpty("基础模型不能为空", airagModel.getModelName());
+        //测试连接默认为已激活状态
+        airagModel.setActivateFlag(1);
         try {
             if(LLMConsts.MODEL_TYPE_LLM.equals(airagModel.getModelType())){
                 aiChatHandler.completions(airagModel, Collections.singletonList(UserMessage.from("To test whether it can be successfully called, simply return success")), null);
@@ -180,7 +183,16 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
             //update-begin---author:wangshuai---date:2026-01-07---for:【QQYUN-12145】【AI】AI 绘画创作---=
             }else if(LLMConsts.MODEL_TYPE_IMAGE.equals(airagModel.getModelType())){
                 AIChatParams aiChatParams = new AIChatParams();
-                aiChatHandler.imageGenerate(airagModel, "To test whether it can be successfully called, simply return success", aiChatParams);
+                //update-begin---author:wangshuai---date:2026-03-02---for:兼容图生图模型测试---
+                String modelName = airagModel.getModelName();
+                if(ImageEditEnum.isImageEditModel(modelName)){
+                    List<String> images = new ArrayList<>();
+                    images.add("https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/jeecg_1772268161540.jpg");
+                    aiChatHandler.imageEdit(airagModel, "Generate a picture of a cartoon cat", images,aiChatParams);
+                }else{
+                    aiChatHandler.imageGenerate(airagModel, "Generate a picture of a cartoon cat", aiChatParams);
+                }
+                //update-end---author:wangshuai---date:2026-03-02---for:兼容图生图模型测试---
             }
             //update-end---author:wangshuai---date:2026-01-07---for:【QQYUN-12145】【AI】AI 绘画创作---
         }catch (Exception e){

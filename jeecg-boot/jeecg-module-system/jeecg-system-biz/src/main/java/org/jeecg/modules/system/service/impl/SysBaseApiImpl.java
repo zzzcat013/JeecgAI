@@ -371,6 +371,11 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 	}
 
 	@Override
+	public Map<String, List<String>> getDepartIdsByUserIds(Collection<String> userIds) {
+		return sysDepartService.queryDepartIdsByUserIds(userIds);
+	}
+
+	@Override
 	public Set<String> getDepartParentIdsByUsername(String username) {
 		List<SysDepart> list = sysDepartService.queryDepartsByUsername(username);
 		Set<String> result = new HashSet<>(list.size());
@@ -402,6 +407,29 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			result.add(depart.getDepartName());
 		}
 		return result;
+	}
+
+	@Override
+	@Cacheable(cacheNames = CacheConstant.SYS_USERS_CACHE, key = "#username + '::main_depart_info'", unless = "#result == null")
+	public SysDepartModel queryMainDepartByUsername(String username) {
+		if (oConvertUtils.isEmpty(username)) {
+			return null;
+		}
+		// 根据用户名查询主部门信息
+		SysDepart mainDepart = userMapper.getMainDepartByUsername(username);
+		if (mainDepart == null) {
+			return null;
+		}
+
+		// 复制部门信息到模型对象
+		SysDepartModel model = new SysDepartModel();
+		BeanUtils.copyProperties(mainDepart, model);
+
+		// 设置部门路径名称
+		String departPathName = sysDepartService.getDepartPathNameByOrgCode(model.getOrgCode(), null);
+		model.setDepartPathName(departPathName);
+
+		return model;
 	}
 
 	@Override
@@ -2179,7 +2207,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 				log.error("{} UniPush消息推送失败 返回response:{}", pushType, response.getBody());
 			}
 		} catch (RestClientException e) {
-			log.warn("UniAPP 消息推送异常："+ e.getMessage(), e);
+			log.warn("UniAPP 消息推送异常："+ e.getMessage());
 		}
 	}
 	/**

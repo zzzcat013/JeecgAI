@@ -32,19 +32,6 @@ services:
     networks:
       - jeecg-boot
 
-  jeecg-boot-pgvector:
-    image: registry.cn-hangzhou.aliyuncs.com/jeecgdocker/pgvector
-    container_name: jeecg-boot-pgvector
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: vector_db
-    ports:
-      - 5432:5432
-    restart: always
-    networks:
-      - jeecg-boot
-      
   jeecg-boot-nacos:
     restart: always
     build:
@@ -63,7 +50,8 @@ services:
       - jeecg-boot-nacos
     build:
       context: ./jeecg-boot/jeecg-server-cloud/jeecg-system-cloud-start
-    container_name: jeecg-system-start
+    container_name: jeecg-system-cloud-start
+    image: jeecg-boot-system-cloud
     hostname: jeecg-boot-system
     restart: on-failure
     environment:
@@ -140,14 +128,27 @@ services:
     build:
       context: ./jeecgboot-vue3
       dockerfile: Dockerfile.cloud
-    container_name: jeecgboot-vue3-nginx
-    image: jeecgboot-vue3
+    container_name: jeecgboot-vue3-nginx-cloud
+    image: jeecgboot-vue3-cloud
     depends_on:
       - jeecg-boot-system
     networks:
       - jeecg-boot
     ports:
       - 80:80
+
+  jeecg-boot-pgvector:
+    image: registry.cn-hangzhou.aliyuncs.com/jeecgdocker/pgvector
+    container_name: jeecg-boot-pgvector
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vector_db
+#    ports:
+#      - 5432:5432
+    restart: always
+    networks:
+      - jeecg-boot
 
 networks:
   jeecg-boot:

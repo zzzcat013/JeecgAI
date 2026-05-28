@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @Description: 【Online】Feign API接口
+ * @Description: 【Online】online表单对外 Feign API接口
  *
  * @ConditionalOnMissingClass("org.jeecg.modules.online.cgform.service.impl.OnlineBaseExtApiImpl") => 有实现类的时候，不实例化Feign接口
  * @author: jeecg-boot

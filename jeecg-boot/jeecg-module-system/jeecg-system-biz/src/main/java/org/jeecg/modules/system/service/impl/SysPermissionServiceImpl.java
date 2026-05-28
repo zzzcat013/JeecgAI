@@ -3,6 +3,7 @@ package org.jeecg.modules.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.jeecg.common.config.TenantContext;
 import org.jeecg.common.constant.CacheConstant;
 import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.exception.JeecgBootException;
@@ -235,7 +236,19 @@ public class SysPermissionServiceImpl extends ServiceImpl<SysPermissionMapper, S
 
 	@Override
 	public List<SysPermission> queryByUser(String userId) {
-		List<SysPermission> permissionList = this.sysPermissionMapper.queryByUser(userId);
+		//update-begin---author:scott ---date:2026-04-16  for：【pull/9445】开启多租户模式时，获取用户权限时加入tenant_id判断-----------
+		List<SysPermission> permissionList;
+		if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+			int tenantId = oConvertUtils.getInt(TenantContext.getTenant(), -1);
+			if (tenantId != -1) {
+				permissionList = this.sysPermissionMapper.queryByUserWithTenantId(userId, tenantId);
+			} else {
+				permissionList = this.sysPermissionMapper.queryByUser(userId);
+			}
+		} else {
+			permissionList = this.sysPermissionMapper.queryByUser(userId);
+		}
+		//update-end---author:scott ---date:2026-04-16  for：【pull/9445】开启多租户模式时，获取用户权限时加入tenant_id判断-----------
 		//================= begin 开启租户的时候 如果没有test角色，默认加入test角色================
 		if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
 			if (permissionList == null) {

@@ -110,6 +110,7 @@
         resetField();
         await getPromptList();
         setModalProps({
+          title: '选择提示词',
           height: 600,
           bodyStyle: { padding: '24px' },
         });
@@ -200,6 +201,8 @@
        */
       async function handleOk() {
         if (selectedPrompt.value) {
+          // select 传递完整对象，供调用方按需取用 id/name/content
+          emit('select', selectedPrompt.value);
           emit('ok', selectedPrompt.value.content);
         } else {
           emit('ok');

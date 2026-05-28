@@ -28,7 +28,9 @@
           // orgFields: originColumn.value.orgFields,
           // destFields: originColumn.value.destFields,
           groupId: groupId.value,
-          param: originColumn.value.params,
+          // update-begin--author:liaozhiyang---date:20260203---for:【issues/9212】JVxeTypes.popup中属性param传参后，弹框数据为空
+          param: originColumn.value.params ?? originColumn.value.param,
+          // update-end--author:liaozhiyang---date:20260203---for:【issues/9212】JVxeTypes.popup中属性param传参后，弹框数据为空
           sorter: originColumn.value.sorter,
           setFieldsValue: (values) => {
             if (!isEmpty(values)) {

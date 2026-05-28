@@ -1,5 +1,5 @@
 <template>
-  <div class="chat" :class="[inversion === 'user' ? 'self' : 'chatgpt']" v-if="getText || (props.presetQuestion && props.presetQuestion.length>0)">
+  <div class="chat" :class="[inversion === 'user' ? 'self' : 'chatgpt']" v-if="getText || props.error || (props.presetQuestion && props.presetQuestion.length>0)">
     <div class="avatar" v-if="showAvatar !== 'no'">
       <img v-if="inversion === 'user'" :src="avatar()" />
       <img v-else :src="getAiImg()" />

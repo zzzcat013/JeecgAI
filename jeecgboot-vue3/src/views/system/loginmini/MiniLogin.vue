@@ -135,13 +135,13 @@
         </div>
       </div>
     </div>
-<!--    <div v-show="type === 'forgot'" :class="`${prefixCls}-form`">-->
-<!--      <MiniForgotpad ref="forgotRef" @go-back="goBack" @success="handleSuccess" />-->
-<!--    </div>-->
-<!--    <div v-show="type === 'register'" :class="`${prefixCls}-form`">-->
-<!--      <MiniRegister ref="registerRef" @go-back="goBack" @success="handleSuccess" />-->
-<!--    </div>-->
-    <div v-show="type === 'codeLogin'" :class="`${prefixCls}-form`">
+    <!-- <div v-if="forgotLoaded" v-show="type === 'forgot'" :class="`${prefixCls}-form`">
+      <MiniForgotpad ref="forgotRef" @go-back="goBack" @success="handleSuccess" />
+    </div>
+    <div v-if="registerLoaded" v-show="type === 'register'" :class="`${prefixCls}-form`">
+      <MiniRegister ref="registerRef" @go-back="goBack" @success="handleSuccess" />
+    </div> -->
+    <div v-if="codeLoginLoaded" v-show="type === 'codeLogin'" :class="`${prefixCls}-form`">
       <MiniCodelogin ref="codeRef" @go-back="goBack" @success="handleSuccess" />
     </div>
     <!-- 第三方登录相关弹框 -->
@@ -153,17 +153,16 @@
 </template>
 <script lang="ts" setup name="login-mini">
   import { getCaptcha, getCodeInfo } from '/@/api/sys/user';
-  import { computed, onMounted, reactive, ref, toRaw, unref, watch } from 'vue';
+  import { computed, defineAsyncComponent, onMounted, reactive, ref, toRaw, unref, watch } from 'vue';
   import codeImg from '/@/assets/images/checkcode.png';
-  import { Rule } from '/@/components/Form';
   import { useUserStore } from '/@/store/modules/user';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { useI18n } from '/@/hooks/web/useI18n';
   import { SmsEnum } from '/@/views/sys/login/useLogin';
   import ThirdModal from '/@/views/sys/login/ThirdModal.vue';
-  import MiniForgotpad from './MiniForgotpad.vue';
-  import MiniRegister from './MiniRegister.vue';
-  import MiniCodelogin from './MiniCodelogin.vue';
+  const MiniForgotpad = defineAsyncComponent(() => import('./MiniForgotpad.vue'));
+  const MiniRegister = defineAsyncComponent(() => import('./MiniRegister.vue'));
+  const MiniCodelogin = defineAsyncComponent(() => import('./MiniCodelogin.vue'));
   import logoImg from '/@/assets/loginmini/icon/jeecg_logo.png';
   import adTextImg from '/@/assets/loginmini/icon/jeecg_ad_text.png';
   import { AppLocalePicker, AppDarkModeToggle } from '/@/components/Application';
@@ -171,16 +170,15 @@
   import { createLocalStorage } from '/@/utils/cache';
   import { useDesign } from "/@/hooks/web/useDesign";
   import { useAppInject } from "/@/hooks/web/useAppInject";
-  import { GithubFilled, WechatFilled, DingtalkCircleFilled, createFromIconfontCN } from '@ant-design/icons-vue';
+  import { GithubFilled, WechatFilled, DingtalkCircleFilled } from '@ant-design/icons-vue';
+  import '/@/utils/iconfont2';
   import CaptchaModal from '@/components/jeecg/captcha/CaptchaModal.vue';
   import { useModal } from "@/components/Modal";
   import { ExceptionEnum } from "@/enums/exceptionEnum";
   import { encryptAESCBC } from '/@/utils/cipher';
   import { defHttp } from "@/utils/http/axios";
+  import { IconFont } from '/@/utils/iconfont2';
 
-  const IconFont = createFromIconfontCN({
-    scriptUrl: '//at.alicdn.com/t/font_2316098_umqusozousr.js',
-  });
   const { prefixCls } = useDesign('mini-login');
   const { notification, createMessage } = useMessage();
   const userStore = useUserStore();
@@ -228,6 +226,10 @@
   //注册
   const registerRef = ref();
   const loginLoading = ref<boolean>(false);
+  // 以下三个组件懒加载控制标志位，点击时才挂载
+  const forgotLoaded = ref<boolean>(false);
+  const registerLoaded = ref<boolean>(false);
+  const codeLoginLoaded = ref<boolean>(false);
   const { getIsMobile } = useAppInject();
   const [captchaRegisterModal, { openModal: openCaptchaModal }] = useModal();
   defineProps({
@@ -489,9 +491,10 @@
    * 忘记密码
    */
   function forgetHandelClick() {
+    forgotLoaded.value = true;
     type.value = 'forgot';
     setTimeout(() => {
-      forgotRef.value.initForm();
+      forgotRef.value?.initForm();
     }, 300);
   }
 
@@ -519,9 +522,10 @@
    * 注册
    */
   function registerHandleClick() {
+    registerLoaded.value = true;
     type.value = 'register';
     setTimeout(() => {
-      registerRef.value.initForm();
+      registerRef.value?.initForm();
     }, 300);
   }
 
@@ -529,9 +533,10 @@
    * 注册
    */
   function codeHandleClick() {
+    codeLoginLoaded.value = true;
     type.value = 'codeLogin';
     setTimeout(() => {
-      codeRef.value.initFrom();
+      codeRef.value?.initFrom();
     }, 300);
   }
 

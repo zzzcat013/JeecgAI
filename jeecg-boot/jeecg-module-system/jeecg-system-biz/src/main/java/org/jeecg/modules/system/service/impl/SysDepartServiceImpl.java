@@ -34,7 +34,7 @@ import org.jeecg.modules.system.vo.lowapp.ExportDepartVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -563,6 +563,21 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
 		return list;
 	}
 
+	@Override
+	public Map<String, List<String>> queryDepartIdsByUserIds(Collection<String> userIds) {
+		List<Map<String, String>> mapList = baseMapper.queryDepartIdsByUserIds(userIds);
+		if (CollectionUtils.isEmpty(mapList)) {
+			return Map.of();
+		}
+		Map<String, List<String>> res = new HashMap<>();
+		for (Map<String, String> map : mapList) {
+			String userId = map.get("user_id");
+			String departId = map.get("depart_id");
+			res.computeIfAbsent(userId, k -> new ArrayList<>()).add(departId);
+		}
+		return res;
+	}
+
 	/**
 	 * 根据用户所负责部门ids获取父级部门编码
 	 * @param departIds
@@ -665,7 +680,7 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
 	 * @return
 	 */
 	@Override
-	public List<SysDepartTreeModel> queryTreeListByPid(String parentId,String ids, String primaryKey) {
+	public List<SysDepartTreeModel> queryTreeListByPid(String parentId,String ids, String primaryKey, String orgCategory) {
 		Consumer<LambdaQueryWrapper<SysDepart>> square = i -> {
 			if (oConvertUtils.isNotEmpty(ids)) {
 				if (CommonConstant.DEPART_KEY_ORG_CODE.equals(primaryKey)) {
@@ -689,8 +704,13 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
 		}
 		//------------------------------------------------------------------------------------------------
 		lqw.eq(true,SysDepart::getDelFlag,CommonConstant.DEL_FLAG_0.toString());
-        // 代码逻辑说明: 【QQYUN-13427】部门选择组件修改:需要过滤掉岗位 只保留 公司 子公司 部门---
-        lqw.ne(SysDepart::getOrgCategory,DepartCategoryEnum.DEPART_CATEGORY_POST.getValue());
+		// 按 orgCategory 过滤：传入则精确匹配，否则默认排除岗位
+		if (oConvertUtils.isNotEmpty(orgCategory)) {
+			lqw.in(SysDepart::getOrgCategory, (Object[]) orgCategory.split(SymbolConstant.COMMA));
+		} else {
+			// 代码逻辑说明: 【QQYUN-13427】部门选择组件修改:需要过滤掉岗位 只保留 公司 子公司 部门---
+			lqw.ne(SysDepart::getOrgCategory, DepartCategoryEnum.DEPART_CATEGORY_POST.getValue());
+		}
 		lqw.func(square);
         // 代码逻辑说明: [VUEN-1143]排序不对，vue3和2应该都有问题，应该按照升序排------------
 		lqw.orderByAsc(SysDepart::getDepartOrder);
@@ -1754,10 +1774,32 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
         //step2 查看是否有子级部门，存在递归查询职位
         if (!CommonConstant.IS_LEAF.equals(sysDepartPosition.getIzLeaf())) {
             //获取子级职位根据部门编码
-            this.getChildrenDepartPositionByOrgCode(selectTreeVos, departNameMap, sysDepartPosition);
+            this.getChildrenDepartPositionByOrgCode(selectTreeVos, departNameMap, sysDepartPosition,departId);
             return buildTree(selectTreeVos);
         }
         return new ArrayList<>();
+    }
+
+	/**
+	 * 获取所有部门职务
+	 * @param departId
+	 * @return
+	 */
+    @Override
+    public List<SysPositionSelectTreeVo> getALLRankRelation(String departId) {
+        //记录当前部门 key为部门id,value为部门名称
+        Map<String, String> departNameMap = new HashMap<>(5);
+        //step1 根据id查询部门信息
+		List<SysDepartPositionVo> departPositionList = baseMapper.getAllDepartPost(departId);
+        List<SysPositionSelectTreeVo> selectTreeVos = new ArrayList<>();
+		departPositionList.forEach(position -> {
+			//step2 查看是否有子级部门，存在递归查询职位
+			if (!CommonConstant.IS_LEAF.equals(position.getIzLeaf())) {
+				//获取子级职位根据部门编码
+				this.getChildrenDepartPositionByOrgCode(selectTreeVos, departNameMap, position,departId);
+			}
+        });
+		return buildTree(selectTreeVos);
     }
 
     /**
@@ -1767,7 +1809,7 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
      * @param departNameMap
      * @param sysDepartPosition
      */
-    private void getChildrenDepartPositionByOrgCode(List<SysPositionSelectTreeVo> selectTreeVos, Map<String, String> departNameMap, SysDepartPositionVo sysDepartPosition) {
+    private void getChildrenDepartPositionByOrgCode(List<SysPositionSelectTreeVo> selectTreeVos, Map<String, String> departNameMap, SysDepartPositionVo sysDepartPosition,String departId) {
         String orgCode = sysDepartPosition.getOrgCode();
         //step1 根据父级id获取子级部门信息
         List<SysDepartPositionVo> positionList = baseMapper.getDepartPostByOrgCode(orgCode + "%");
@@ -1778,9 +1820,11 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
                     departNameMap = new HashMap<>(5);
                 }
                 SysDepart depart = baseMapper.getDepartById(position.getParentId());
-                if(null != depart){
-                    position.setDepartName(depart.getDepartName());
-                }
+				if(null != depart && oConvertUtils.isNotEmpty(departId)) {
+					position.setDepartName(depart.getDepartName());
+                }else{
+					position.setDepartName(this.getDepartPathNameByOrgCode(depart.getOrgCode(),null));
+				}
                 if(oConvertUtils.isNotEmpty(position.getDepPostParentId())){
                     LambdaQueryWrapper<SysDepart> query = new LambdaQueryWrapper<>();
                     query.eq(SysDepart::getId,position.getDepPostParentId());
@@ -1793,6 +1837,9 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
                 departNameMap.put(position.getParentId(), position.getPositionName());
                 //查看是否为部门岗位，不是则不需要处理
                 SysPositionSelectTreeVo treeVo = new SysPositionSelectTreeVo(position);
+				if(oConvertUtils.isEmpty(departId)){
+					treeVo.setOrgCode(position.getOrgCode());
+				}
                 selectTreeVos.add(treeVo);
             }
         }
@@ -2252,4 +2299,5 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
         }
         return page.setRecords(departmentHead);
     }
+
 }

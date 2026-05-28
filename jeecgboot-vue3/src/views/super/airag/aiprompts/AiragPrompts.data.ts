@@ -1,7 +1,6 @@
 import { BasicColumn } from '/@/components/Table';
 import { FormSchema } from '/@/components/Table';
 import {duplicateCheckDelay} from "@/views/system/user/user.api";
-export const DESFORM_NAME_MAX_LENGTH = 40;
 import {pinyin} from "pinyin-pro";
 //列表数据
 export const columns: BasicColumn[] = [
@@ -62,7 +61,7 @@ export const formSchema: FormSchema[] = [
     componentProps: ({ formModel }) => {
       return {
         placeholder: '例如：SQL转换',
-        maxlength: DESFORM_NAME_MAX_LENGTH,
+        maxlength: 40,
         showCount: true,
         onChange: (e: ChangeEvent) => {
           if(formModel.id){

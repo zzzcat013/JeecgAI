@@ -538,4 +538,14 @@ public interface ISysUserService extends IService<SysUser> {
 	 * @param userId
 	 */
     void updateClientId(String clientId,String userId);
+
+	/**
+	 * 根据用户组查询用户列表
+	 * @param page
+	 * @param groupId
+	 * @param username
+	 * @param realname
+	 * @return
+	 */
+    IPage<SysUser> getUserByUgroupId(Page<SysUser> page, String groupId, String username, String realname);
 }

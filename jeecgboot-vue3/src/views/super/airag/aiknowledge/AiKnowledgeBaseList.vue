@@ -39,7 +39,7 @@
         </a-card>
       </a-col>
       <a-col v-if="knowledgeList && knowledgeList.length>0" :xxl="4" :xl="6" :lg="6" :md="6" :sm="12" :xs="24" v-for="item in knowledgeList">
-        <a-card class="knowledge-card pointer" @click="handleDocClick(item.id, item.type)">
+        <a-card class="knowledge-card pointer" @click="handleDocClick(item)">
           <div class="knowledge-header">
             <div class="flex">
               <img class="header-img" src="./icon/knowledge.png" />
@@ -273,8 +273,10 @@
        * @param id
        * @param type
        */
-      function handleDocClick(id, type) {
-        openDocModal(true, { id, type });
+      //update-begin---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
+      function handleDocClick(item) {
+        openDocModal(true, { id: item.id, type: item.type, knowledgeMetadata: item.metadata });
+      //update-end---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
       }
 
       /**

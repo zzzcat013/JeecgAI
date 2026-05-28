@@ -70,10 +70,16 @@ public final class XmlUtils {
      */
     public static XMLReader getXmlReader() {
         try {
-            final XMLReader reader = SAXParserFactory.newInstance().newSAXParser().getXMLReader();
+            //update-begin---author:wangshuai---date:2026-03-30---for:【issues/9422】XmlUtils.extractCustomAttributes可能存在疑似的外部实体依赖漏洞---
+            final SAXParserFactory spf = SAXParserFactory.newInstance();
+            spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            final XMLReader reader = spf.newSAXParser().getXMLReader();
+            //update-end---author:wangshuai---date:2026-03-30---for:【issues/9422】XmlUtils.extractCustomAttributes可能存在疑似的外部实体依赖漏洞---
             reader.setFeature("http://xml.org/sax/features/namespaces", true);
             reader.setFeature("http://xml.org/sax/features/namespace-prefixes", false);
-            reader.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             return reader;
         } catch (final Exception e) {
             throw new RuntimeException("Unable to create XMLReader", e);
@@ -196,6 +202,12 @@ public final class XmlUtils {
         spf.setNamespaceAware(true);
         spf.setValidating(false);
         try {
+            //update-begin---author:wangshuai---date:2026-03-30---for:【issues/9422】XmlUtils.extractCustomAttributes可能存在疑似的外部实体依赖漏洞---
+            spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            //update-end---author:wangshuai---date:2026-03-30---for:【issues/9422】XmlUtils.extractCustomAttributes可能存在疑似的外部实体依赖漏洞---
             final SAXParser saxParser = spf.newSAXParser();
             final XMLReader xmlReader = saxParser.getXMLReader();
             final CustomAttributeHandler handler = new CustomAttributeHandler();

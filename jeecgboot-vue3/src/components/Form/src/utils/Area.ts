@@ -108,4 +108,56 @@ const getAreaTextByCode = function (code) {
   return jeecgAreaData.getText(code,index);
 };
 
-export { getAreaTextByCode };
+/**
+ * 20260204
+ * liaozhiyang
+ * 【QQYUN-14694】online支持配置独立的省、市、县 （根据 code 找文本（支持仅省、仅省市、省市区））
+ * @param includeParent 是否返回父级路径。默认 false 只返回最后一级（如「长治市」），true 返回完整路径（如「山西省/长治市」）
+ * @param level 层级：1=省，2=市，3=县。传入时作为 index 使用，不传则从 code 推断
+ */
+const getAreaTextByCodeAnyLevel = function (code: string | number | undefined, includeParent = false, level?: 1 | 2 | 3): string {
+  if (!code) return '';
+  const codeStr = String(code).trim();
+  if (!codeStr.length) return '';
+
+  let lastCode: string;
+  let index: number;
+  let resolvedItem: PlainPca | null = null;
+
+  if (codeStr.includes(',')) {
+    const parts = codeStr.split(',').map((s) => s.trim()).filter(Boolean);
+    if (!parts.length) return '';
+    index = level ?? parts.length;
+    lastCode = level != null ? parts[level - 1] : parts[parts.length - 1];
+    if (level != null) {
+      resolvedItem = jeecgAreaData.all.find((it) => String(it.id) === lastCode && it.index == index) ?? null;
+    }
+  } else {
+    const item = jeecgAreaData.all.find((it) => String(it.id) === codeStr);
+    if (!item) return '';
+    const itemIndex = item.index as number;
+    index = level ?? itemIndex;
+    lastCode = codeStr;
+    if (level != null && level !== itemIndex) {
+      const chain: string[] = [];
+      jeecgAreaData.getPcode(codeStr, chain, itemIndex);
+      const targetCode = chain[level - 1];
+      if (targetCode) {
+        lastCode = targetCode;
+        resolvedItem = jeecgAreaData.all.find((it) => String(it.id) === targetCode && it.index == level) ?? null;
+      } else {
+        resolvedItem = item;
+      }
+    } else {
+      resolvedItem = item;
+    }
+  }
+  if (includeParent) {
+    return jeecgAreaData.getText(lastCode, index);
+  } else {
+    const item = resolvedItem ?? jeecgAreaData.all.find((it) => String(it.id) === lastCode && it.index == index);
+    return item ? item.text : '';
+  }
+};
+
+export { getAreaTextByCode, getAreaTextByCodeAnyLevel };

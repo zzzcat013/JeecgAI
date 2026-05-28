@@ -1,15 +1,10 @@
 import { withInstall } from '/@/utils';
-
-import appLogo from './src/AppLogo.vue';
-import appProvider from './src/AppProvider.vue';
-import appSearch from './src/search/AppSearch.vue';
-import appLocalePicker from './src/AppLocalePicker.vue';
-import appDarkModeToggle from './src/AppDarkModeToggle.vue';
+import { defineAsyncComponent } from 'vue';
 
 export { useAppProviderContext } from './src/useAppContext';
 
-export const AppLogo = withInstall(appLogo);
-export const AppProvider = withInstall(appProvider);
-export const AppSearch = withInstall(appSearch);
-export const AppLocalePicker = withInstall(appLocalePicker);
-export const AppDarkModeToggle = withInstall(appDarkModeToggle);
+export const AppLogo = withInstall(defineAsyncComponent(() => import('./src/AppLogo.vue')));
+export const AppProvider = withInstall(defineAsyncComponent(() => import('./src/AppProvider.vue')));
+export const AppSearch = withInstall(defineAsyncComponent(() => import('./src/search/AppSearch.vue')));
+export const AppLocalePicker = withInstall(defineAsyncComponent(() => import('./src/AppLocalePicker.vue')));
+export const AppDarkModeToggle = withInstall(defineAsyncComponent(() => import('./src/AppDarkModeToggle.vue')));

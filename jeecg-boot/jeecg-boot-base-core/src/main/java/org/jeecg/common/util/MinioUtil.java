@@ -152,11 +152,13 @@ public class MinioUtil {
     }
 
     /**
-     * 获取文件外链
-     * @param bucketName
-     * @param objectName
-     * @param expires
-     * @return
+     * 获取私有桶文件的预签名访问URL（带过期时间）
+     * 通过MinIO预签名机制生成临时GET链接，无需公开桶即可让外部访问文件
+     *
+     * @param bucketName 桶名称
+     * @param objectName 文件对象路径（如 "eoafile/2026/04/test.pdf"）
+     * @param expires    链接有效期，单位：秒（注意不是天）
+     * @return 预签名URL，失败返回null
      */
     public static String getObjectUrl(String bucketName, String objectName, Integer expires) {
         initMinio(minioUrl, minioName,minioPass);
@@ -195,10 +197,13 @@ public class MinioUtil {
     }
 
     /**
-     * 上传文件到minio
-     * @param stream
-     * @param relativePath
-     * @return
+     * 通过输入流上传文件到MinIO默认桶
+     * 若桶不存在会自动创建，上传成功后关闭输入流
+     *
+     * @param stream       文件输入流
+     * @param relativePath 文件在桶中的相对路径（如 "upload/2026/04/test.pdf"）
+     * @return 文件完整访问URL（格式：minioUrl + bucketName + "/" + relativePath）
+     * @throws Exception 桶操作或上传过程中的异常
      */
     public static String upload(InputStream stream,String relativePath) throws Exception {
         initMinio(minioUrl, minioName,minioPass);

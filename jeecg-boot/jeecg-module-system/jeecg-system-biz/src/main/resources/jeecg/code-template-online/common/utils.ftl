@@ -120,7 +120,7 @@
           <#return "{type:'${po.fieldDbType}',value:'${po.fieldName}',text:'${po.filedComment}',dictCode:\"${po.dictTable},${po.dictText},${po.dictField}\"}">
       <#elseif po.dictField?? && po.classType!="sel_tree" && po.classType!="cat_tree" && po.classType!="link_down">
           <#return "{type:'${po.fieldDbType}',value:'${po.fieldName}',text:'${po.filedComment}',dictCode:'${po.dictField}'}">
-      <#elseif po.fieldDbType=="Text">
+      <#elseif po.fieldDbType=="Text" || po.fieldDbType=="LongText">
           <#return "{type:'string',value:'${po.fieldName}',text:'${po.filedComment}'}">
       <#elseif po.fieldDbType=="Blob">
           <#return "{type:'byte',value:'${po.fieldName}',text:'${po.filedComment}'}">

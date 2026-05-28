@@ -6,8 +6,10 @@ import org.jeecg.common.constant.SymbolConstant;
 import org.jeecg.modules.system.entity.SysPosition;
 import org.jeecg.modules.system.mapper.SysPositionMapper;
 import org.jeecg.modules.system.service.ISysPositionService;
+import org.jeecg.modules.system.vo.SysPositionVO;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,4 +42,14 @@ public class SysPositionServiceImpl extends ServiceImpl<SysPositionMapper, SysPo
         }
         return "";
     }
+
+    //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+    @Override
+    public List<SysPositionVO> getPositionListByUserIds(List<String> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return this.baseMapper.getPositionListByUserIds(userIds);
+    }
+    //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
 }

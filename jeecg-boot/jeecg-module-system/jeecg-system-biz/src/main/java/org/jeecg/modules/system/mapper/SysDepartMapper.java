@@ -12,9 +12,11 @@ import org.jeecg.modules.system.vo.SysDepartExportVo;
 import org.jeecg.modules.system.vo.SysDepartPositionVo;
 import org.jeecg.modules.system.vo.SysUserDepVo;
 import org.jeecg.modules.system.vo.lowapp.ExportDepartVo;
-import org.springframework.data.repository.query.Param;
+import org.apache.ibatis.annotations.Param;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -42,12 +44,20 @@ public interface SysDepartMapper extends BaseMapper<SysDepart> {
 	public List<SysDepart> queryDepartsByUsername(@Param("username") String username);
 	
 	/**
-	 * 根据用户名查询部门
+	 * 根据 userId 查询部门
 	 *
 	 * @param userId
 	 * @return
 	 */
 	public List<String> queryDepartsByUserId(@Param("userId") String userId);
+
+    /**
+     * 根据 userIds 查询部门ID
+     *
+     * @param userIds 用户ID列表
+     * @return
+     */
+    List<Map<String, String>> queryDepartIdsByUserIds(@Param("userIds") Collection<String> userIds);
 
     /**
      * 通过部门编码获取部门id
@@ -311,4 +321,11 @@ public interface SysDepartMapper extends BaseMapper<SysDepart> {
      * @return
      */
     List<SysUser> getDepartmentHead(@Param("page") Page<SysUser> page, @Param("departId") String departId);
+
+	/**
+	 *获取所有部门
+	 * @param departId
+	 * @return
+	 */
+	List<SysDepartPositionVo> getAllDepartPost(@Param("departId")String departId);
 }

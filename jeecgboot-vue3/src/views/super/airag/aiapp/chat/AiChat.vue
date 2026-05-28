@@ -333,6 +333,7 @@
       initChartData(params.appId);
     } else {
       initChartData();
+      appData.value.metadata = { izDraw: '1', defaultSelect: '0' }  
       quickCommandData.value = [
           { name: '请介绍一下JeecgBoot', descr: "请介绍一下JeecgBoot" },
           { name: 'JEECG有哪些优势？', descr: "JEECG有哪些优势？" },

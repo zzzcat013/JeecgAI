@@ -77,13 +77,12 @@
 <script lang="ts">
   import { defineComponent, ref, reactive, computed, unref } from 'vue';
   import { BasicModal, useModalInner } from '/src/components/Modal';
-  import { JVxeTable } from '/src/components/jeecg/JVxeTable';
   import { columns, columns1 } from './jvxetable.data';
   import { orderCustomerList, orderTicketList, saveOrUpdate } from './jvxetable.api';
   import { useJvxeMethod } from '/@/hooks/system/useJvxeMethods.ts';
   export default defineComponent({
     name: 'JVexTableModal',
-    components: { BasicModal, JVxeTable },
+    components: { BasicModal },
     emits: ['success', 'register'],
     setup(props, { emit }) {
       const tableH = ref(300);

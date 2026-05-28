@@ -46,6 +46,11 @@ declare global {
     path?: EventTarget[];
   }
   interface ImportMetaEnv extends ViteEnv {
+    readonly BASE_URL: string;
+    readonly MODE: string;
+    readonly DEV: boolean;
+    readonly PROD: boolean;
+    readonly SSR: boolean;
     __: unknown;
   }
 
@@ -65,6 +70,8 @@ declare global {
     VITE_GLOB_QIANKUN_MICRO_APP_ENTRY?: string;
     // 当前运行在什么平台
     VITE_GLOB_RUN_PLATFORM?: 'web' | 'electron';
+    // iconify图标使用在线还是本地。可选属性：online, local
+    VITE_GLOB_ICONIFY_USE_TYPE?: 'online' | 'local';
   }
 
   declare function parseInt(s: string | number, radix?: number): number;

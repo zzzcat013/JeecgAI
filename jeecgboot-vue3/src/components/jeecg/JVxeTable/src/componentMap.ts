@@ -1,5 +1,6 @@
 import type { JVxeVueComponent } from './types';
 import { JVxeTypes } from './types/JVxeTypes';
+import { componentMap } from './componentMapStore';
 
 import JVxeSlotCell from './components/cells/JVxeSlotCell';
 import JVxeNormalCell from './components/cells/JVxeNormalCell.vue';
@@ -17,13 +18,11 @@ import JVxeProgressCell from './components/cells/JVxeProgressCell.vue';
 import JVxeTextareaCell from './components/cells/JVxeTextareaCell.vue';
 // import JVxeDepartSelectCell from './components/cells/JVxeDepartSelectCell.vue'
 // import JVxeUserSelectCell from './components/cells/JVxeUserSelectCell.vue'
+import JVxeTreeSelectCell from './components/cells/JVxeTreeSelectCell.vue';
+import JVxeCategorySelectCell from './components/cells/JVxeCategorySelectCell.vue';
 
-let componentMap = new Map<JVxeTypes | string, JVxeVueComponent>();
 // 代码逻辑说明: 【issues/860】生成的一对多代码，热更新之后点击新增卡死[暂时先解决]
 const JVxeComponents = 'JVxeComponents__';
-if (import.meta.env.DEV && componentMap.size === 0 && window[JVxeComponents] && window[JVxeComponents].size > 0) {
-  componentMap = window[JVxeComponents];
-}
 /** span 组件结尾 */
 export const spanEnds: string = ':span';
 
@@ -89,16 +88,10 @@ export function definedComponent() {
 
   // addComponent(JVxeTypes.departSelect, JVxeDepartSelectCell)
   // addComponent(JVxeTypes.userSelect, JVxeUserSelectCell)
+  // update-begin--author:liaozhiyang---date:20260413---for:【issues/7633】online子表支持分类字典树，自定义树
+  addComponent(JVxeTypes.treeSelect, JVxeTreeSelectCell);
+  addComponent(JVxeTypes.catTreeSelect, JVxeCategorySelectCell);
+  // update-end--author:liaozhiyang---date:20260413---for:【issues/7633】online子表支持分类字典树，自定义树
 }
 
-/**
- * 清空注册的组件
- */
-export function clearComponent() {
-  componentMap.clear();
-
-  // 代码逻辑说明: 【issues/860】生成的一对多代码，热更新之后点击新增卡死[暂时先解决]
-  import.meta.env.DEV && (window[JVxeComponents] = componentMap);
-}
-
-export { componentMap };
+export { componentMap, clearComponent } from './componentMapStore';

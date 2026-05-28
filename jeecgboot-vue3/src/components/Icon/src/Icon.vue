@@ -6,10 +6,8 @@
   import type { PropType } from 'vue';
   import { defineComponent, ref, watch, onMounted, nextTick, unref, computed, CSSProperties } from 'vue';
   import SvgIcon from './SvgIcon.vue';
-  import Iconify from '@purge-icons/generated';
   import { isString } from '/@/utils/is';
   import { propTypes } from '/@/utils/propTypes';
-
   const SVG_END_WITH_FLAG = '|svg';
   export default defineComponent({
     name: 'Icon',
@@ -43,18 +41,35 @@
         await nextTick();
         const icon = unref(getIconRef);
         if (!icon) return;
-
-        const svg = Iconify.renderSVG(icon, {});
-        if (svg) {
-          el.textContent = '';
-          el.appendChild(svg);
-        } else {
-          const span = document.createElement('span');
-          span.className = 'iconify';
-          span.dataset.icon = icon;
-          el.textContent = '';
-          el.appendChild(span);
+        // update-begin--author:liaozhiyang---date:20260304---for:【QQYUN-14802】新增unplugin-icons插件，及icon支持online和local两种模式
+        try {
+          let svg: SVGElement | null = null;
+          if (import.meta.env.VITE_GLOB_ICONIFY_USE_TYPE === 'local') {
+            // 使用本地 purge-icons 图标（离线，图标已打包进产物）
+            const iconifyModule = await import('@purge-icons/generated');
+            const Iconify = iconifyModule.default;
+            svg = Iconify.renderSVG(icon, {});
+          } else {
+            // 使用 @iconify/iconify 在线按需加载
+            const iconifyModule = await import('@iconify/iconify');
+            const Iconify = iconifyModule.default;
+            svg = Iconify.renderSVG(icon, {});
+          }
+          if (svg) {
+            el.textContent = '';
+            el.appendChild(svg);
+          } else {
+            // 如果图标不存在，显示占位符
+            const span = document.createElement('span');
+            span.className = 'iconify';
+            span.dataset.icon = icon;
+            el.textContent = '';
+            el.appendChild(span);
+          }
+        } catch (err) {
+          console.error('Failed to render icon:', icon, err);
         }
+        // update-end--author:liaozhiyang---date:20260304---for:【QQYUN-14802】新增unplugin-icons插件，及icon支持online和local两种模式
       };
 
       const getWrapStyle = computed((): CSSProperties => {

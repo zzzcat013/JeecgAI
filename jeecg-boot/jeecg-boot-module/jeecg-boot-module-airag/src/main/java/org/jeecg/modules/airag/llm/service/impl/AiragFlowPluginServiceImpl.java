@@ -24,6 +24,8 @@ import org.jeecg.modules.airag.llm.service.IAiragFlowPluginService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -40,7 +42,16 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
     private IAiragFlowService airagFlowService;
 
     @Override
+    public Map<String, Object> getFlowsToPlugin(String flowIds, String appId, String memoryId) {
+        return doGetFlowsToPlugin(flowIds, appId, memoryId);
+    }
+
+    @Override
     public Map<String, Object> getFlowsToPlugin(String flowIds) {
+        return doGetFlowsToPlugin(flowIds, null, null);
+    }
+
+    private Map<String, Object> doGetFlowsToPlugin(String flowIds, String appId, String memoryId) {
         log.info("开始构建流程插件");
         // 1. 查询所有启用的流程
         LambdaQueryWrapper<AiragFlow> queryWrapper = new LambdaQueryWrapper<>();
@@ -85,8 +96,11 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
                 if (oConvertUtils.isNotEmpty(flow.getDescr())) {
                     description += " : " + flow.getDescr();
                 }
+                // 构建插件请求路径（携带应用上下文参数）
+                String pluginPath = FlowPluginContent.PLUGIN_REQUEST_URL + flow.getId();
+                pluginPath = appendContextParams(pluginPath, appId, memoryId);
                 //构造工具参数
-                String flowTool = buildParameter(parameter, outParams, flow.getId(), tool.getTools(), validToolName, description);
+                String flowTool = buildParameter(parameter, outParams, pluginPath, tool.getTools(), validToolName, description);
                 tool.setTools(flowTool);
                 toolCount++;
             } catch (Exception e) {
@@ -125,17 +139,17 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
      *
      * @param parameter
      * @param outParams
-     * @param flowId
+     * @param pluginPath 插件请求路径（已包含appId等上下文参数）
      * @param tools
      * @param description
      * @param name
      */
-    private String buildParameter(JSONArray parameter, JSONArray outParams, String flowId, String tools, String name, String description) {
+    private String buildParameter(JSONArray parameter, JSONArray outParams, String pluginPath, String tools, String name, String description) {
         JSONArray paramArray = new JSONArray();
         JSONObject parameterObject = new JSONObject();
         parameterObject.put(FlowPluginContent.NAME, name);
         parameterObject.put(FlowPluginContent.DESCRIPTION, description);
-        parameterObject.put(FlowPluginContent.PATH, FlowPluginContent.PLUGIN_REQUEST_URL + flowId);
+        parameterObject.put(FlowPluginContent.PATH, pluginPath);
         parameterObject.put(FlowPluginContent.METHOD, FlowPluginContent.POST);
         parameterObject.put(FlowPluginContent.ENABLED, true);
         parameterObject.put(FlowPluginContent.PARAMETERS, parameter);
@@ -147,6 +161,34 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
             paramArray.add(parameterObject);
         }
         return paramArray.toJSONString();
+    }
+
+    /**
+     * 将应用上下文参数追加到插件请求路径中
+     *
+     * @param path     原始路径
+     * @param appId    应用ID
+     * @param memoryId 记忆库ID
+     * @return 追加查询参数后的路径
+     */
+    private String appendContextParams(String path, String appId, String memoryId) {
+        StringBuilder sb = new StringBuilder(path);
+        boolean hasParam = false;
+        if (oConvertUtils.isNotEmpty(appId)) {
+            sb.append("?appId=").append(urlEncode(appId));
+            hasParam = true;
+        }
+        if (oConvertUtils.isNotEmpty(memoryId)) {
+            sb.append(hasParam ? "&" : "?").append("memoryId=").append(urlEncode(memoryId));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * URL编码
+     */
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     /**

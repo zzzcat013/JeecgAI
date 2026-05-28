@@ -5,6 +5,9 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import io.seata.core.context.RootContext;
 import io.seata.spring.annotation.GlobalTransactional;
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.common.api.vo.Result;
+import org.jeecg.common.exception.JeecgBootBizTipException;
+import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.test.seata.order.dto.PlaceOrderRequest;
 import org.jeecg.modules.test.seata.order.entity.SeataOrder;
 import org.jeecg.modules.test.seata.order.enums.OrderStatus;
@@ -59,13 +62,20 @@ public class SeataOrderServiceImpl implements SeataOrderService {
         orderMapper.insert(order);
         log.info("订单一阶段生成，等待扣库存付款中");
         // 扣减库存并计算总价
-        BigDecimal amount = productClient.reduceStock(productId, count);
+        Result<BigDecimal> productRes = productClient.reduceStock(productId, count);
+        if (!productRes.isSuccess()) {
+            String message = productRes.getMessage();
+            message = oConvertUtils.isEmpty(message) ? "操作失败" : message;
+            throw new JeecgBootBizTipException(message);
+        }
+        BigDecimal amount = productRes.getResult();
         // 扣减余额
-        String str = accountClient.reduceBalance(userId, amount);
+        Result<?> accountRes = accountClient.reduceBalance(userId, amount);
         // feign响应被二次封装，判断使主事务回滚
-        JSONObject jsonObject = JSONObject.parseObject(str);
-        if (jsonObject.getInteger("code") != 200) {
-            throw new RuntimeException();
+        if (!accountRes.isSuccess()) {
+            String message = accountRes.getMessage();
+            message = oConvertUtils.isEmpty(message) ? "操作失败" : message;
+            throw new JeecgBootBizTipException(message);
         }
 
         order.setStatus(OrderStatus.SUCCESS);

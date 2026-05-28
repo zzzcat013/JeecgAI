@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -102,6 +103,23 @@ public class JeecgBootExceptionHandler {
 	public Result<?> handlerNoFoundException(Exception e) {
 		log.error(e.getMessage(), e);
 		addSysLog(e);
+		return Result.error(404, "路径不存在，请检查路径是否正确");
+	}
+
+	/**
+	 * 处理静态资源不存在异常（Spring Boot 3.2+）
+	 * WebSocket路径被当作静态资源请求时会触发此异常，降级为debug日志避免刷屏
+	 */
+	@ExceptionHandler(NoResourceFoundException.class)
+	public Result<?> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request) {
+		String uri = request.getRequestURI();
+		// WebSocket路径的非upgrade请求，降级为debug日志
+		if (uri.contains("Socket/") || uri.contains("websocket/") || uri.contains("Websocket/")) {
+			log.debug("WebSocket路径被当作静态资源请求: {}", uri);
+		} else {
+			log.error(e.getMessage(), e);
+			addSysLog(e);
+		}
 		return Result.error(404, "路径不存在，请检查路径是否正确");
 	}
 

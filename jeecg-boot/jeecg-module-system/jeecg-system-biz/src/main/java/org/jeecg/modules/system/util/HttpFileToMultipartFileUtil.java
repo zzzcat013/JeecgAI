@@ -4,6 +4,7 @@ import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.jeecg.common.util.MyCommonsMultipartFile;
+import org.jeecg.common.util.filter.SsrfFileTypeFilter;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
@@ -26,6 +27,7 @@ public class HttpFileToMultipartFileUtil {
      * @throws Exception
      */
     public static MultipartFile httpFileToMultipartFile(String fileUrl, String filename) throws Exception {
+        SsrfFileTypeFilter.checkSsrfHttpUrl(fileUrl);
         byte[] bytes = downloadImageData(fileUrl);
         return convertByteToMultipartFile(bytes, filename);
     }

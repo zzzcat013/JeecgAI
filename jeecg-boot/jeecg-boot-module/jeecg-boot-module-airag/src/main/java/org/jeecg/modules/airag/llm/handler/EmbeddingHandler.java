@@ -28,6 +28,10 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.jeecg.ai.factory.AiModelFactory;
 import org.jeecg.ai.factory.AiModelOptions;
 import org.jeecg.common.exception.JeecgBootException;
+import org.jeecg.common.util.filter.SsrfFileTypeFilter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import org.jeecg.config.AiChatConfig;
 import org.jeecg.common.system.util.JwtUtil;
 import org.jeecg.common.util.*;
 import org.jeecg.modules.airag.common.handler.IEmbeddingHandler;
@@ -36,12 +40,14 @@ import org.jeecg.modules.airag.llm.config.EmbedStoreConfigBean;
 import org.jeecg.modules.airag.llm.config.KnowConfigBean;
 import org.jeecg.modules.airag.llm.consts.LLMConsts;
 import org.jeecg.modules.airag.llm.document.TikaDocumentParser;
+import org.jeecg.modules.airag.llm.document.WebPageParser;
 import org.jeecg.modules.airag.llm.entity.AiragKnowledge;
 import org.jeecg.modules.airag.llm.entity.AiragKnowledgeDoc;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
 import org.jeecg.modules.airag.llm.mapper.AiragKnowledgeMapper;
 import org.jeecg.modules.airag.llm.mapper.AiragModelMapper;
 import org.jeecg.modules.airag.llm.service.IAiragKnowledgeService;
+import org.jeecg.modules.airag.llm.splitter.CustomDocumentSplitter;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,6 +95,9 @@ public class EmbeddingHandler implements IEmbeddingHandler {
 
     @Autowired
     KnowConfigBean knowConfigBean;
+
+    @Autowired(required = false)
+    private AiChatConfig aiChatConfig;
 
     /**
      * 默认分段长度
@@ -142,6 +151,13 @@ public class EmbeddingHandler implements IEmbeddingHandler {
      */
     private static final Pattern PATTERN_MD_IMAGE = Pattern.compile("!\\[(.*?)]\\((.*?)\\)");
 
+    //update-begin---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格向量化分段时被截断修复-----------
+    /**
+     * 正则匹配: HTML表格完整块（跨行，大小写不敏感）
+     */
+    private static final Pattern PATTERN_HTML_TABLE = Pattern.compile("(?is)<table\\b.*?</table>");
+    //update-end---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格向量化分段时被截断修复-----------
+
     /**
      * 正则匹配: html图片src属性
      * src="xxx"
@@ -191,7 +207,9 @@ public class EmbeddingHandler implements IEmbeddingHandler {
                     doc.setContent(content);
                     break;
                 case KNOWLEDGE_DOC_TYPE_WEB:
-                    // TODO author: chenrui for:读取网站内容 date:2025/2/18
+                    content = parseWebPage(doc);
+                    // 将解析的网页内容回写到文档，便于后续查看
+                    doc.setContent(content);
                     break;
             }
         }
@@ -210,7 +228,7 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         // 删除旧数据
         embeddingStore.removeAll(metadataKey(EMBED_STORE_METADATA_DOCID).isEqualTo(doc.getId()));
         // 分段器
-        DocumentSplitter splitter = DocumentSplitters.recursive(DEFAULT_SEGMENT_SIZE, DEFAULT_OVERLAP_SIZE);
+        DocumentSplitter splitter = createDocumentSplitter(doc);
         // 分段并存储
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
                 .documentSplitter(splitter)
@@ -240,16 +258,154 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         }
         //update-end---author:wangshuai---date:2025-12-26---for:【QQYUN-14265】【AI】支持记忆---
         Document from = Document.from(content, metadata);
-        //update-begin---author:jeecg---date:2026-02-26---for:[#9374]【AI知识库】千帆向量报错，添加异常处理防止空指针
-        try {
-            ingestor.ingest(from);
-        } catch (Exception e) {
-            log.error("向量存储失败，请检查向量模型配置是否正确", e);
-            throw new JeecgBootException("向量存储失败：" + e.getMessage());
+        //update-begin---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格分段时被截断，保留完整表格块-----------
+        boolean hasHtmlTable = content != null && PATTERN_HTML_TABLE.matcher(content).find();
+        if (hasHtmlTable) {
+            try {
+                List<TextSegment> segments = splitDocumentPreservingHtmlTables(from, splitter);
+                List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
+                embeddingStore.addAll(embeddings, segments);
+            } catch (Exception e) {
+                log.error("向量存储失败，请检查向量模型配置是否正确", e);
+                throw new JeecgBootException("向量存储失败：" + e.getMessage());
+            }
+        } else {
+            //update-begin---author:jeecg---date:2026-02-26---for:[#9374]【AI知识库】千帆向量报错，添加异常处理防止空指针
+            try {
+                ingestor.ingest(from);
+            } catch (Exception e) {
+                log.error("向量存储失败，请检查向量模型配置是否正确", e);
+                throw new JeecgBootException("向量存储失败：" + e.getMessage());
+            }
+            //update-end---author:jeecg---date:2026-02-26---for:[#9374]【AI知识库】千帆向量报错，添加异常处理防止空指针
         }
-        //update-end---author:jeecg---date:2026-02-26---for:[#9374]【AI知识库】千帆向量报错，添加异常处理防止空指针
+        //update-end---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格分段时被截断，保留完整表格块-----------
+
         return metadata.toMap();
     }
+
+    /**
+     * 创建分段器
+     *
+     * @param doc
+     * @return
+     */
+    private DocumentSplitter createDocumentSplitter(AiragKnowledgeDoc doc) {
+        DocumentSplitter splitter = null;
+        int maxSegment = DEFAULT_SEGMENT_SIZE;
+        int overlapSize = DEFAULT_OVERLAP_SIZE;
+
+        if (oConvertUtils.isNotEmpty(doc.getMetadata())) {
+            try {
+                JSONObject json = JSONObject.parseObject(doc.getMetadata());
+
+                //update-begin---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
+                // 文档使用知识库默认分段策略：读取知识库自身的 metadata 来决定分段方式
+                Boolean useKnowledgeDefault = json.getBoolean(LLMConsts.USE_KNOWLEDGE_DEFAULT);
+                if (Boolean.TRUE.equals(useKnowledgeDefault)) {
+                    if (oConvertUtils.isNotEmpty(doc.getKnowledgeId())) {
+                        AiragKnowledge knowledge = airagKnowledgeMapper.selectById(doc.getKnowledgeId());
+                        if (knowledge != null && oConvertUtils.isNotEmpty(knowledge.getMetadata())) {
+                            // 用知识库的 metadata 覆盖，后续逻辑统一处理
+                            json = JSONObject.parseObject(knowledge.getMetadata());
+                        } else {
+                            // 知识库没有配置分段策略，使用默认分段器
+                            return DocumentSplitters.recursive(maxSegment, overlapSize);
+                        }
+                    } else {
+                        return DocumentSplitters.recursive(maxSegment, overlapSize);
+                    }
+                }
+                //update-end---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
+
+                Object segmentStrategy = json.get(LLMConsts.SEGMENT_STRATEGY);
+                //update-begin---author:wangshuai ---date:2026-04-09  for：【issue/9418】AI知识库上传文件太大向量化失败-----------
+                // 1. 不论策略是auto还是custom，优先使用前端传入的分段大小和重叠度
+                Integer sizeObj = json.getInteger(LLMConsts.MAX_SEGMENT);
+                if (sizeObj != null && sizeObj > 0) {
+                    maxSegment = sizeObj;
+                }
+                Double overlapObj = json.getDouble(LLMConsts.OVERLAP);
+                if (overlapObj != null && overlapObj >= 0) {
+                    double rate = overlapObj / 100;
+                    overlapSize = (int) (maxSegment * rate);
+                }
+                if(segmentStrategy != null && LLMConsts.SEGMENT_STRATEGY_CUSTOM.equals(segmentStrategy.toString())){
+                //update-end---author:wangshuai ---date:2026-04-09  for：【issue/9418】AI知识库上传文件太大向量化失败-----------
+                    String splitChar = json.getString(LLMConsts.SEPARATOR);
+                    if (oConvertUtils.isNotEmpty(splitChar)) {
+                        //自定义
+                        if(LLMConsts.SEGMENT_STRATEGY_CUSTOM.equals(splitChar)){
+                            splitChar = oConvertUtils.getString(json.getString(LLMConsts.CUSTOM_SEPARATOR),"\n");
+                        }
+                        // 处理转义字符
+                        splitChar = splitChar.replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r");
+                        String textRules = json.getString(LLMConsts.TEXT_RULES);
+                        
+                        splitter = new CustomDocumentSplitter(textRules, splitChar, maxSegment, overlapSize);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析自定义分词配置失败: {}", e.getMessage());
+            }
+        }
+
+        if (splitter == null) {
+            splitter = DocumentSplitters.recursive(maxSegment, overlapSize);
+        }
+        return splitter;
+    }
+
+    //update-begin---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格分段时被截断，新增保留表格完整性的分段辅助方法-----------
+    /**
+     * 按 HTML 表格边界分段：表格块完整保留，表格外文本交给 splitter 正常分段
+     */
+    public static List<TextSegment> splitDocumentPreservingHtmlTables(Document document, DocumentSplitter splitter) {
+        String text = document.text();
+        Metadata metadata = document.metadata();
+        List<TextSegment> result = new ArrayList<>();
+        Matcher matcher = PATTERN_HTML_TABLE.matcher(text);
+        int lastEnd = 0;
+        while (matcher.find()) {
+            String before = text.substring(lastEnd, matcher.start());
+            if (!before.isBlank()) {
+                appendSplitText(before, metadata, splitter, result);
+            }
+            appendSegment(matcher.group(), metadata, result);
+            lastEnd = matcher.end();
+        }
+        String remaining = text.substring(lastEnd);
+        if (!remaining.isBlank()) {
+            appendSplitText(remaining, metadata, splitter, result);
+        }
+        reindexSegments(result);
+        return result;
+    }
+
+    /**
+     * 将非表格文本交给 splitter 分段后追加到 result
+     */
+    public static void appendSplitText(String text, Metadata metadata, DocumentSplitter splitter, List<TextSegment> result) {
+        List<TextSegment> segments = splitter.split(Document.from(text, metadata));
+        result.addAll(segments);
+    }
+
+    /**
+     * 将文本作为单个完整段追加到 result（不经过分段器，用于保留完整表格块）
+     */
+    public static void appendSegment(String text, Metadata metadata, List<TextSegment> result) {
+        result.add(TextSegment.from(text, metadata));
+    }
+
+    /**
+     * 为分段列表的 metadata 写入从 0 开始的连续 index，供检索时标识顺序
+     */
+    public static void reindexSegments(List<TextSegment> segments) {
+        for (int i = 0; i < segments.size(); i++) {
+            segments.get(i).metadata().put("index", String.valueOf(i));
+        }
+    }
+    //update-end---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格分段时被截断，新增保留表格完整性的分段辅助方法-----------
 
     /**
      * 向量查询(多知识库)
@@ -490,7 +646,7 @@ public class EmbeddingHandler implements IEmbeddingHandler {
     }
 
     /**
-     * 查询向量模型数据
+     * 查询向量模型数据，若未指定或不存在则回退到 yml 中配置的默认向量模型
      *
      * @param modelId
      * @return
@@ -498,10 +654,43 @@ public class EmbeddingHandler implements IEmbeddingHandler {
      * @date 2025/2/20 20:08
      */
     private AiragModel getEmbedModelData(String modelId) {
-        AssertUtils.assertNotEmpty("向量模型不能为空", modelId);
-        AiragModel model = airagModelMapper.getByIdIgnoreTenant(modelId);
-        AssertUtils.assertNotEmpty("向量模型不存在", model);
-        AssertUtils.assertEquals("仅支持向量模型", LLMConsts.MODEL_TYPE_EMBED, model.getModelType());
+        //update-begin---author:wangshuai---date:2026-03-09---for:【QQYUN-14645】添加默认向量模型---
+        if (oConvertUtils.isNotEmpty(modelId)) {
+            AiragModel model = airagModelMapper.getByIdIgnoreTenant(modelId);
+            if (model != null) {
+                AssertUtils.assertEquals("仅支持向量模型", LLMConsts.MODEL_TYPE_EMBED, model.getModelType());
+                // 判断模型是否已激活，未激活则回退到默认模型
+                if (model.getActivateFlag() != null && model.getActivateFlag() == 1) {
+                    return model;
+                }
+                log.warn("向量模型[{}]未激活，尝试使用 yml 中配置的默认向量模型", modelId);
+            }
+        }
+        // 回退到 yml 默认向量模型
+        if (aiChatConfig != null && oConvertUtils.isNotEmpty(aiChatConfig.getAiModelEmbed().getApiKey())) {
+            log.info("使用 yml 中配置的默认向量模型: {}", aiChatConfig.getAiModelEmbed().getModel());
+            return buildDefaultEmbedModel(aiChatConfig.getAiModelEmbed());
+        }
+        AssertUtils.assertNotEmpty("向量模型不能为空，请先配置向量模型或在 yml 中设置默认向量模型(jeecg.ai-chat.ai-model-embed)", modelId);
+        return null;
+        //update-end---author:wangshuai---date:2026-03-09---for:【QQYUN-14645】添加默认向量模型---
+    }
+
+    /**
+     * 根据 yml 配置构建默认向量模型对象
+     *
+     * @param embedConfig yml 中的向量模型配置
+     * @return AiragModel
+     */
+    private AiragModel buildDefaultEmbedModel(AiChatConfig.ModelConfig embedConfig) {
+        AiragModel model = new AiragModel();
+        model.setModelName(embedConfig.getModel());
+        model.setBaseUrl(embedConfig.getApiHost());
+        model.setProvider(embedConfig.getProvider());
+        model.setModelType(LLMConsts.MODEL_TYPE_EMBED);
+        JSONObject credential = new JSONObject();
+        credential.put("apiKey", embedConfig.getApiKey());
+        model.setCredential(credential.toJSONString());
         return model;
     }
 
@@ -581,10 +770,48 @@ public class EmbeddingHandler implements IEmbeddingHandler {
             JSONObject modelCredential = JSONObject.parseObject(model.getCredential());
             modelOpBuilder.apiKey(oConvertUtils.getString(modelCredential.getString("apiKey"), null));
             modelOpBuilder.secretKey(oConvertUtils.getString(modelCredential.getString("secretKey"), null));
+            if(modelCredential.containsKey("httpVersionOne")){
+                modelOpBuilder.izHttpVersionOne(modelCredential.getInteger("httpVersionOne") == 1);
+            }
         }
         modelOpBuilder.topNumber(5);
         modelOpBuilder.similarity(0.75);
         return modelOpBuilder.build();
+    }
+
+    /**
+     * 解析网页内容，使用Jsoup爬取并转换为Markdown
+     *
+     * @param doc 知识库文档（metadata中需包含website字段）
+     * @return Markdown格式的网页内容
+     * @date 2026/3/19
+     */
+    private String parseWebPage(AiragKnowledgeDoc doc) {
+        String metadata = doc.getMetadata();
+        AssertUtils.assertNotEmpty("请先配置网页URL", metadata);
+        JSONObject metadataJson = JSONObject.parseObject(metadata);
+        String website = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_WEBSITE);
+        AssertUtils.assertNotEmpty("请先配置网页URL", website);
+
+        Matcher matcher = LLMConsts.WEB_PATTERN.matcher(website);
+        if (!matcher.matches()) {
+            throw new JeecgBootException("网页URL格式不正确，请以http://或https://开头");
+        }
+
+        try {
+            WebPageParser webPageParser = new WebPageParser();
+            String content = webPageParser.parseToMarkdown(website);
+            if (oConvertUtils.isEmpty(content)) {
+                throw new JeecgBootException("网页内容为空，请检查URL是否可访问");
+            }
+            log.info("网页解析成功, URL: {}, 内容长度: {}", website, content.length());
+            return content;
+        } catch (JeecgBootException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("网页解析失败, URL: {}, 错误: {}", website, e.getMessage(), e);
+            throw new JeecgBootException("网页解析失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -671,29 +898,28 @@ public class EmbeddingHandler implements IEmbeddingHandler {
 
     @NotNull
     private static StringBuffer replaceImageUrl(String content, String abstractBaseUrl, String relativeBaseUrl) {
-        // 1. 处理 Markdown 图片语法 ![alt text](image url)
+        // 正则表达式匹配md文件中的图片语法 ![alt text](image url)
         Matcher matcher = PATTERN_MD_IMAGE.matcher(content);
+
         StringBuffer sb = new StringBuffer();
         while (matcher.find()) {
             String imageUrl = matcher.group(2);
-            String replacement = resolveNetworkUrl(imageUrl, abstractBaseUrl, relativeBaseUrl);
-            matcher.appendReplacement(sb, "![" + matcher.group(1) + "](" + replacement + ")");
-        }
-        matcher.appendTail(sb);
-        String processedContent = sb.toString();
-
-        // 2. 处理 HTML 图片 src 属性
-        matcher = PATTERN_HTML_SRC.matcher(processedContent);
-        sb = new StringBuffer();
-        while (matcher.find()) {
-            String imageUrl = matcher.group(1);
-            // 简单判断是否为图片资源，避免误替换其他 src
-            if (isImageResource(imageUrl)) {
-                String replacement = resolveNetworkUrl(imageUrl, abstractBaseUrl, relativeBaseUrl);
-                matcher.appendReplacement(sb, "src=\"" + replacement + "\"");
+            // 检查是否是本地图片路径
+            if (!imageUrl.startsWith("http")) {
+                // 替换成网络图片路径
+                String networkImageUrl = abstractBaseUrl + imageUrl;
+                if(imageUrl.startsWith("/")) {
+                    // 绝对路径
+                    networkImageUrl = abstractBaseUrl + imageUrl;
+                }else{
+                    // 相对路径
+                    networkImageUrl = relativeBaseUrl + imageUrl;
+                }
+                // 修改图片路径中//->/，但保留http://和https://
+                networkImageUrl = networkImageUrl.replaceAll("(?<!http:)(?<!https:)//", "/");
+                matcher.appendReplacement(sb, "![" + matcher.group(1) + "](" + networkImageUrl + ")");
             } else {
-                // 不替换
-                matcher.appendReplacement(sb, matcher.group(0));
+                matcher.appendReplacement(sb, "![" + matcher.group(1) + "](" + imageUrl + ")");
             }
         }
         matcher.appendTail(sb);
@@ -701,24 +927,72 @@ public class EmbeddingHandler implements IEmbeddingHandler {
     }
 
     /**
-     * 解析网络图片地址
+     * 通过MinerU解析文件
+     *
+     * @param doc
+     * @author chenrui
+     * @date 2025/4/1 17:37
      */
-    private static String resolveNetworkUrl(String imageUrl, String abstractBaseUrl, String relativeBaseUrl) {
-        // 检查是否是本地图片路径
-        if (!imageUrl.startsWith("http")) {
-            // 替换成网络图片路径
-            String networkImageUrl;
-            if(imageUrl.startsWith("/")) {
-                // 绝对路径
-                networkImageUrl = abstractBaseUrl + imageUrl;
-            }else{
-                // 相对路径
-                networkImageUrl = relativeBaseUrl + imageUrl;
-            }
-            // 修改图片路径中//->/，但保留http://和https://
-            return networkImageUrl.replaceAll("(?<!http:)(?<!https:)//", "/");
+    private void parseFileByMinerU(AiragKnowledgeDoc doc) {
+        String metadata = doc.getMetadata();
+        AssertUtils.assertNotEmpty("请先上传文件", metadata);
+        JSONObject metadataJson = JSONObject.parseObject(metadata);
+        if (!metadataJson.containsKey(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH)) {
+            throw new JeecgBootException("请先上传文件");
         }
-        return imageUrl;
+        String filePath = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH);
+        AssertUtils.assertNotEmpty("请先上传文件", filePath);
+        filePath = ensureFile(filePath);
+
+        File docFile = new File(filePath);
+        String fileType = FilenameUtils.getExtension(filePath);
+        if (!docFile.exists()
+                || "txt".equalsIgnoreCase(fileType)
+                || "md".equalsIgnoreCase(fileType)) {
+            return ;
+        }
+
+        // 安全校验：拒绝文件名/路径中含有 Shell 注入字符的文件，防止命令注入
+        try {
+            CommandExecUtil.validateFilePath(docFile.getAbsolutePath());
+            CommandExecUtil.validateFilePath(docFile.getName());
+        } catch (IllegalArgumentException e) {
+            log.error("文件路径包含非法字符，拒绝执行 MinerU 解析: {}", e.getMessage());
+            throw new JeecgBootException("文件名包含非法字符，无法处理该文件");
+        }
+
+        // 使用 String[] 数组构建命令，避免 split(" ") 带来的参数边界问题
+        String[] command;
+        if (oConvertUtils.isNotEmpty(knowConfigBean.getCondaEnv())) {
+            command = new String[]{"conda", "run", "-n", knowConfigBean.getCondaEnv(), "magic-pdf"};
+        } else {
+            command = new String[]{"magic-pdf"};
+        }
+
+        String outputPath = docFile.getParentFile().getAbsolutePath();
+        String[] args = {
+                "-p", docFile.getAbsolutePath(),
+                "-o", outputPath,
+        };
+
+        try {
+            String execLog = CommandExecUtil.execCommand(command, args);
+            log.info("执行命令行:" + Arrays.toString(command) + " args:" + Arrays.toString(args) + "\n log::" + execLog);
+            // 如果成功,替换文件路径和静态资源路径
+            String fileBaseName = FilenameUtils.getBaseName(docFile.getName());
+            String newFileDir = outputPath + File.separator + fileBaseName + File.separator + "auto" + File.separator ;
+            // 先检查文件是否存在,存在才替换
+            File convertedFile = new File(newFileDir + fileBaseName + ".md");
+            if (convertedFile.exists()) {
+                log.info("文件转换成md成功,替换文件路径和静态资源路径");
+                newFileDir = newFileDir.replaceFirst("^" + uploadpath, "");
+                metadataJson.put(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH, newFileDir + fileBaseName + ".md");
+                metadataJson.put(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH, newFileDir);
+                doc.setMetadata(metadataJson.toJSONString());
+            }
+        } catch (IOException e) {
+            log.error("文件转换md失败,使用传统提取方案{}", e.getMessage(), e);
+        }
     }
 
     /**
@@ -759,18 +1033,22 @@ public class EmbeddingHandler implements IEmbeddingHandler {
             FileDownloadUtils.download2DiskFromNet(filePath, tempFilePath);
             filePath = tempFilePath;
         } else {
-            //本地文件
-            // 如果已经是绝对路径，且包含 uploadpath，则直接使用
-            File file = new File(filePath);
-            if (file.isAbsolute() && file.exists()) {
-                return filePath;
+            //update-begin---author:wangshuai---date:2026-03-30---for:【issues/9424】CommandExecUtil 命令执行过程中存在疑似路径遍历漏洞/【issues/9425】EmbeddingHandler 知识库解析过程中疑似存在路径遍历漏洞---
+            // 1. 路径遍历检查：拒绝 .. 和 %2e 等绕过手段
+            SsrfFileTypeFilter.checkPathTraversal(filePath);
+            // 2. 标准化路径并校验是否在 uploadpath 范围内
+            Path root = Paths.get(uploadpath).toAbsolutePath().normalize();
+            //update-begin---author:wangshuai ---date:2026-04-13  for：zip文件 filePath 以 \ 或 / 开头，在Windows下被Path.resolve当成驱动器根路径导致误判路径遍历，先剥掉前导分隔符-----------
+            // 去除前导分隔符，保证作为相对路径 resolve 到 uploadpath 之下
+            String relativePath = filePath.replaceAll("^[\\\\/]+", "");
+            Path target = root.resolve(relativePath).toAbsolutePath().normalize();
+            //update-end---author:wangshuai ---date:2026-04-13  for：zip文件 filePath 以 \ 或 / 开头，在Windows下被Path.resolve当成驱动器根路径导致误判路径遍历，先剥掉前导分隔符-----------
+            if (!target.startsWith(root)) {
+                log.error("检测到路径遍历攻击! filePath: {}, 解析后: {}", filePath, target);
+                throw new JeecgBootException("文件路径包含非法字符");
             }
-            
-            // 如果不以 uploadpath 开头，则拼接
-            String normalizedUploadPath = new File(uploadpath).getAbsolutePath();
-            if (!file.getAbsolutePath().startsWith(normalizedUploadPath)) {
-                filePath = uploadpath + File.separator + filePath;
-            }
+            filePath = target.toString();
+            //update-end---author:wangshuai---date:2026-03-30---for:【issues/9424】CommandExecUtil 命令执行过程中存在疑似路径遍历漏洞/【issues/9425】EmbeddingHandler 知识库解析过程中疑似存在路径遍历漏洞---
         }
         return filePath;
     }

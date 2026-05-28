@@ -51,5 +51,5 @@ public interface ISysAnnouncementSendService extends IService<SysAnnouncementSen
 	 * @param busId
 	 * @param busType
 	 */
-    void updateReadFlagByBusId(String busId, String busType);
+    boolean updateReadFlagByBusId(String busId, String busType);
 }

@@ -360,8 +360,8 @@
   const isThinking = ref<boolean>(false);
   //是否开启网络搜索
   const enableSearch = ref<boolean>(false);
-  //是否显示网络搜索按钮（只有千问模型支持）
-  const showWebSearch = ref<boolean>(false);
+  //是否显示网络搜索按钮（默认显示）
+  const showWebSearch = ref<boolean>(true);
   //模型provider信息
   const modelProvider = ref<string>('');
   //是否显示深度思考( 只有deepsee-reason支持 )
@@ -565,7 +565,7 @@
 
   // 停止响应
   const handleStop = () => {
-    console.log('ai 聊天：：：---停止响应');
+    console.log('ai 聊天：：：---停止响应, 当前loading:', loading.value, ', 调用栈:', new Error().stack?.split('\n').slice(1,4).join(' <- '));
     if (loading.value) {
       loading.value = false;
     }
@@ -666,7 +666,7 @@
         params: param,
         adapter: 'fetch',
         responseType: 'stream',
-        timeout: 5 * 60 * 1000,
+        timeout: 60 * 60 * 1000,
       },
       {
         isTransformResponse: false,
@@ -1037,59 +1037,34 @@
       }
       //update-begin---author:wangshuai---date:2025-03-12---for:【QQYUN-11555】聊天时要流式显示消息---
       let result = decoder.decode(value, { stream: true });
-      result = buffer + result;
-      const lines = result.split('\n\n');
-      for (let line of lines) {
-        if (line.startsWith('data:')) {
-          let content = line.replace('data:', '').trim();
-          if(!content){
-            continue;
-          }
-          if(!content.endsWith('}')){
-            buffer = buffer + content;
-            continue;
-          }
-          buffer = "";
-          try {
-            //update-begin---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
-            if(content.indexOf(":::card:::") !== -1){
-              content = content.replace(/\s+/g, '');
-            }
-            let parse = JSON.parse(content);
-            await renderText(parse,conversationId,text,options).then((res)=>{
-              text = res.returnText;
-              conversationId = res.conversationId;
-            });
-            //update-end---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
-          } catch (error) {
-            console.log('Error parsing update:', error);
-          }
-          //update-end---author:wangshuai---date:2025-03-12---for:【QQYUN-11555】聊天时要流式显示消息---
-        }else{
-          if(!line){
-            continue;
-          }
-          if(!line.endsWith('}')){
-            buffer = buffer + line;
-            continue;
-          }
-          buffer = "";
-          //update-begin---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
-          try {
-            if(line.indexOf(":::card:::") !== -1){
-              line = line.replace(/\s+/g, '');
-            }
-            let parse = JSON.parse(line);
-            await renderText(parse, conversationId, text, options).then((res) => {
-              text = res.returnText;
-              conversationId = res.conversationId;
-            });
-          } catch (error) {
-            console.log('Error parsing update:', error);
-          }
-          //update-end---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
+      buffer += result;
+      // 按SSE协议用 \n\n 分割完整事件，最后一个元素可能不完整需保留在buffer中
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (let part of parts) {
+        if (!part || !part.trim()) {
+          continue;
         }
+        let content = part.startsWith('data:') ? part.replace('data:', '').trim() : part.trim();
+        if (!content) {
+          continue;
+        }
+        //update-begin---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
+        try {
+          if(content.indexOf(":::card:::") !== -1){
+            content = content.replace(/\s+/g, '');
+          }
+          let parse = JSON.parse(content);
+          await renderText(parse, conversationId, text, options).then((res) => {
+            text = res.returnText;
+            conversationId = res.conversationId;
+          });
+        } catch (error) {
+          console.log('JSON解析失败, content长度:', content.length, ', error:', error);
+        }
+        //update-end---author:wangshuai---date:2025-03-13---for:【QQYUN-11572】发布到线上不能实时动态，内容不能加载出来，得刷新才能看到全部回答---
       }
+      //update-end---author:wangshuai---date:2025-03-12---for:【QQYUN-11555】聊天时要流式显示消息---
     }
     //update-begin---author:wangshuai---date:2025-11-05---for: 如果是断线重连并且文本为空，需要移出前面两条会话---
     if(!text && isReConnect && chatData.value.length >1){
@@ -1118,7 +1093,7 @@
       const result = await defHttp.get({ url: '/airag/chat/receive/' + requestId ,
         adapter: 'fetch',
         responseType: 'stream',
-        timeout: 5 * 60 * 1000
+        timeout: 60 * 60 * 1000
       }, { isTransformResponse: false }).catch(async (err)=>{
         loading.value = false;
         localStorage.removeItem('chat_requestId_' + uuid.value);
@@ -1240,29 +1215,28 @@
 
         //是否显示绘图工具
         showDraw.value = metadata.izDraw === '1';
-        //是否选中生成图片
-        enableDraw.value = metadata.izDraw === '1';
+        //是否选中生成图片（defaultSelect 为 0 时默认不选中）
+        const defaultSelect = metadata.defaultSelect || metadata.izDraw;
+        enableDraw.value = defaultSelect === '1';
+        
         drawModelId.value = metadata.drawModelId;
 
         if (metadata && metadata.modelInfo) {
           modelProvider.value = metadata.modelInfo.provider || '';
           modelName.value = metadata.modelInfo.modelName || '';
-          // 只有千问模型支持网络搜索
-          showWebSearch.value = modelProvider.value === 'QWEN';
           showThink.value = modelName.value === 'deepseek-reasoner';
         } else {
-          showWebSearch.value = false;
           showThink.value = false;
         }
       } catch (e) {
         console.error('解析模型信息失败', e);
-        showWebSearch.value = false;
         showThink.value = false;
+        enableDraw.value = false;
       }
     } else {
-      showWebSearch.value = false;
       showThink.value = false;
       showDraw.value = false;
+      enableDraw.value = false;
     }
   }
 

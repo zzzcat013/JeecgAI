@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.jeecg.qywx.api.base.JwAccessTokenAPI;
 import com.jeecg.qywx.api.core.common.AccessToken;
@@ -43,6 +44,7 @@ import org.jeecg.modules.system.entity.*;
 import org.jeecg.modules.system.mapper.*;
 import org.jeecg.modules.system.model.SysDepartTreeModel;
 import org.jeecg.modules.system.service.*;
+import org.jeecg.modules.system.vo.SysPositionVO;
 import org.jeecg.modules.system.vo.thirdapp.JwDepartmentTreeVo;
 import org.jeecg.modules.system.vo.thirdapp.JwSysUserDepartVo;
 import org.jeecg.modules.system.vo.thirdapp.JwUserDepartVo;
@@ -353,6 +355,40 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
             // 获取本地所有用户
             sysUsers = userMapper.selectList(Wrappers.emptyWrapper());
         }
+        if (CollectionUtils.isEmpty(sysUsers)) {
+            return syncInfo;
+        }
+        //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+        List<String> userIds = sysUsers.stream().map(SysUser::getId).collect(Collectors.toList());
+        // ① 批量预加载 sys_third_account → Map<sysUserId, SysThirdAccount>
+        Map<String, SysThirdAccount> thirdAccountMap = sysThirdAccountService
+                .listBySysUserIds(userIds, THIRD_TYPE)
+                .stream()
+                .collect(Collectors.toMap(SysThirdAccount::getSysUserId, a -> a, (a, b) -> a));
+        // ② 批量预加载用户-部门关系 → Map<userId, List<departId>>
+        LambdaQueryWrapper<SysUserDepart> udQw = new LambdaQueryWrapper<>();
+        udQw.in(SysUserDepart::getUserId, userIds);
+        Map<String, List<String>> userDepartIdsMap = sysUserDepartService.list(udQw)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        SysUserDepart::getUserId,
+                        Collectors.mapping(SysUserDepart::getDepId, Collectors.toList())
+                ));
+        // ③ 批量预加载所有涉及的部门 → Map<departId, SysDepart>
+        Set<String> allDepartIds = userDepartIdsMap.values().stream()
+                .flatMap(Collection::stream).collect(Collectors.toSet());
+        Map<String, SysDepart> departMap = Collections.emptyMap();
+        if (!allDepartIds.isEmpty()) {
+            departMap = sysDepartService.listByIds(allDepartIds)
+                    .stream()
+                    .collect(Collectors.toMap(SysDepart::getId, d -> d, (a, b) -> a));
+        }
+        // ④ 批量预加载职位 → Map<userId, List<SysPositionVO>>
+        Map<String, List<SysPositionVO>> positionMap = sysPositionService
+                .getPositionListByUserIds(userIds)
+                .stream()
+                .collect(Collectors.groupingBy(SysPositionVO::getUserId));
+        //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
 
         // 循环判断新用户和需要更新的用户
         for1:
@@ -367,7 +403,9 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
              * 2. 本地表里没有，就先用手机号判断，不通过再用username判断。
              */
             User qwUser;
-            SysThirdAccount sysThirdAccount = sysThirdAccountService.getOneBySysUserId(sysUser.getId(), THIRD_TYPE);
+            //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+            SysThirdAccount sysThirdAccount = thirdAccountMap.get(sysUser.getId());
+            //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
             for (User qwUserTemp : qwUsers) {
                 if (sysThirdAccount == null || oConvertUtils.isEmpty(sysThirdAccount.getThirdUserId()) || !sysThirdAccount.getThirdUserId().equals(qwUserTemp.getUserid())) {
                     // sys_third_account 表匹配失败，尝试用手机号匹配
@@ -383,7 +421,9 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
 //                    }
                 }
                 // 循环到此说明用户匹配成功，进行更新操作
-                qwUser = this.sysUserToQwUser(sysUser, qwUserTemp);
+                //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+                qwUser = this.sysUserToQwUser(sysUser, qwUserTemp, userDepartIdsMap, departMap, positionMap);
+                //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
                 int errCode = JwUserAPI.updateUser(qwUser, accessToken);
                 // 收集错误信息
                 this.syncUserCollectErrInfo(errCode, sysUser, syncInfo);
@@ -392,7 +432,9 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
                 continue for1;
             }
             // 循环到此说明是新用户，直接调接口创建
-            qwUser = this.sysUserToQwUser(sysUser);
+            //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+            qwUser = this.sysUserToQwUser(sysUser, userDepartIdsMap, departMap, positionMap);
+            //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
             int errCode = JwUserAPI.createUser(qwUser, accessToken);
             // 收集错误信息
             boolean apiSuccess = this.syncUserCollectErrInfo(errCode, sysUser, syncInfo);
@@ -554,6 +596,79 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         return this.sysUserToQwUser(sysUser, user);
     }
 
+    //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+    /**
+     * 【同步用户】将SysUser转为企业微信的User对象（创建新用户，使用批量预加载Map）
+     */
+    private User sysUserToQwUser(SysUser sysUser, Map<String, List<String>> userDepartIdsMap,
+                                 Map<String, SysDepart> departMap, Map<String, List<SysPositionVO>> positionMap) {
+        User user = new User();
+        user.setUserid(sysUser.getUsername());
+        return this.sysUserToQwUser(sysUser, user, userDepartIdsMap, departMap, positionMap);
+    }
+
+    /**
+     * 【同步用户】将SysUser转为企业微信的User对象（更新旧用户，使用批量预加载Map）
+     */
+    private User sysUserToQwUser(SysUser sysUser, User user, Map<String, List<String>> userDepartIdsMap,
+                                 Map<String, SysDepart> departMap, Map<String, List<SysPositionVO>> positionMap) {
+        user.setName(sysUser.getRealname());
+        user.setMobile(sysUser.getPhone());
+        // 查询并同步用户部门关系（使用预加载Map替代单次查询）
+        List<SysDepart> departList = this.getUserDepart(sysUser, userDepartIdsMap, departMap);
+        if (departList != null) {
+            List<Integer> departmentIdList = new ArrayList<>();
+            List<Integer> isLeaderInDept = new ArrayList<>();
+            List<String> manageDepartIdList = new ArrayList<>();
+            if (oConvertUtils.isNotEmpty(sysUser.getDepartIds())) {
+                manageDepartIdList = Arrays.asList(sysUser.getDepartIds().split(","));
+            }
+            for (SysDepart sysDepart : departList) {
+                if (oConvertUtils.isNotEmpty(sysDepart.getQywxIdentifier())) {
+                    try {
+                        departmentIdList.add(Integer.parseInt(sysDepart.getQywxIdentifier()));
+                    } catch (NumberFormatException ignored) {
+                        continue;
+                    }
+                    if (CommonConstant.USER_IDENTITY_2.equals(sysUser.getUserIdentity())) {
+                        isLeaderInDept.add(manageDepartIdList.contains(sysDepart.getId()) ? 1 : 0);
+                    } else {
+                        isLeaderInDept.add(0);
+                    }
+                }
+            }
+            user.setDepartment(departmentIdList.toArray(new Integer[]{}));
+            user.setIs_leader_in_dept(isLeaderInDept.toArray(new Integer[]{}));
+        }
+        if (user.getDepartment() == null || user.getDepartment().length == 0) {
+            user.setDepartment(new Integer[]{1});
+            user.setIs_leader_in_dept(new Integer[]{0});
+        }
+        // 职务翻译（使用预加载Map替代单次查询）
+        List<SysPositionVO> positionList = positionMap.getOrDefault(sysUser.getId(), Collections.emptyList());
+        if (!positionList.isEmpty()) {
+            String positionName = positionList.stream().map(SysPositionVO::getName).collect(Collectors.joining(SymbolConstant.COMMA));
+            user.setPosition(positionName);
+        }
+        if (sysUser.getSex() != null) {
+            user.setGender(sysUser.getSex().toString());
+        }
+        user.setEmail(sysUser.getEmail());
+        if (sysUser.getStatus() != null) {
+            if (CommonConstant.USER_UNFREEZE.equals(sysUser.getStatus()) || CommonConstant.USER_FREEZE.equals(sysUser.getStatus())) {
+                user.setEnable(sysUser.getStatus() == 1 ? 1 : 0);
+            } else {
+                user.setEnable(1);
+            }
+        }
+        user.setTelephone(sysUser.getTelephone());
+        if (CommonConstant.DEL_FLAG_1.equals(sysUser.getDelFlag())) {
+            user.setEnable(0);
+        }
+        return user;
+    }
+    //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+
     /**
      * 【同步用户】将SysUser转为企业微信的User对象（更新旧用户）
      */
@@ -647,6 +762,24 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         List<SysDepart> departList = sysDepartService.list(departQueryWrapper);
         return departList.size() == 0 ? null : departList;
     }
+
+    //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+    /**
+     * 查询用户和部门的关系（使用批量预加载Map，消除N+1查询）
+     */
+    private List<SysDepart> getUserDepart(SysUser sysUser, Map<String, List<String>> userDepartIdsMap,
+                                          Map<String, SysDepart> departMap) {
+        List<String> departIds = userDepartIdsMap.get(sysUser.getId());
+        if (departIds == null || departIds.isEmpty()) {
+            return null;
+        }
+        List<SysDepart> departList = departIds.stream()
+                .map(departMap::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return departList.isEmpty() ? null : departList;
+    }
+    //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
 
     /**
      * 【同步用户】将企业微信的User对象转为SysUser（创建新用户）

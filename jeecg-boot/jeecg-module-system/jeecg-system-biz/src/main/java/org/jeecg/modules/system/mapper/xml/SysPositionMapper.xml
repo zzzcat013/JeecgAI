@@ -19,4 +19,15 @@
             #{positionId}
         </foreach>
     </select>
+
+    <!--批量通过用户id列表查询职位，结果含userId字段，供批量同步场景分组使用-->
+    <select id="getPositionListByUserIds" resultType="org.jeecg.modules.system.vo.SysPositionVO">
+        SELECT sp.name, sp.id, sup.user_id AS userId
+        FROM sys_position sp
+                 INNER JOIN sys_user_position sup ON sp.id = sup.position_id
+        WHERE sup.user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </select>
 </mapper>

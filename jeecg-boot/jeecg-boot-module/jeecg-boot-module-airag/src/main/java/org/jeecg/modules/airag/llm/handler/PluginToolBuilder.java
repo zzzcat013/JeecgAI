@@ -277,7 +277,15 @@ public class PluginToolBuilder {
 
                 Object value = args.get(paramName);
                 if (value != null) {
-                    url = url.replace("{" + paramName + "}", value.toString());
+                    //update-begin---author:wangshuai---date:2026-03-30---for:【issues/9421】buildUrl路径遍历漏洞修复---
+                    String paramValue = value.toString();
+                    // 防止路径遍历注入：拒绝包含 ..、/ 、\ 的路径参数
+                    if (paramValue.contains("..") || paramValue.contains("/") || paramValue.contains("\\")
+                            || paramValue.toLowerCase().contains("%2e") || paramValue.toLowerCase().contains("%2f")) {
+                        throw new IllegalArgumentException("Path参数包含非法字符: " + paramName);
+                    }
+                    url = url.replace("{" + paramName + "}", paramValue);
+                    //update-end---author:wangshuai---date:2026-03-30---for:【issues/9421】buildUrl路径遍历漏洞修复---
                 }
             }
         }

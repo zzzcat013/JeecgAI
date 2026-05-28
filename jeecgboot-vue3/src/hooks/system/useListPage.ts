@@ -329,8 +329,10 @@ export function useListTable(tableProps: TableProps): [
 
   // 发送请求之前调用的方法
   function beforeFetch(params) {
+    // 判断是否已有排序参数（defSort 为数组时会转换为 defSortString）
+    const hasSortParams = params.column || params.defSortString || params.order;
     // 默认以 createTime 降序排序
-    return Object.assign({ column: 'createTime', order: 'desc' }, params);
+    return Object.assign(hasSortParams ? {} : { column: 'createTime', order: 'desc' }, params);
   }
 
   // 合并方法

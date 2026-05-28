@@ -34,6 +34,16 @@ public interface IAiragVariableService {
     void initVariable(String userId, String appId, String name, String defaultValue);
 
     /**
+     * 获取变量值
+     *
+     * @param username 用户名
+     * @param appId    应用ID
+     * @param name     变量名
+     * @return 变量值，不存在返回null
+     */
+    String getVariable(String username, String appId, String name);
+
+    /**
      * 添加变量更新工具
      *
      * @param params

@@ -1,5 +1,6 @@
 package org.jeecg.modules.test.seata.product.controller;
 
+import org.jeecg.common.api.vo.Result;
 import org.jeecg.modules.test.seata.product.service.SeataProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,7 +21,7 @@ public class SeataProductController {
     private SeataProductService seataProductService;
 
     @PostMapping("/reduceStock")
-    public BigDecimal reduceStock(Long productId, Integer count, HttpServletRequest request) {
+    public Result<BigDecimal> reduceStock(Long productId, Integer count, HttpServletRequest request) {
         return seataProductService.reduceStock(productId, count);
     }
 }

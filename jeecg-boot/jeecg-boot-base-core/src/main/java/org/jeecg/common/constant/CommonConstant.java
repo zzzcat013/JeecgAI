@@ -249,7 +249,7 @@ public interface CommonConstant {
     String UPLOAD_TYPE_OSS = "alioss";
 
     /**
-     * 文档上传自定义桶名称
+     * 文档上传自定义桶名称 (私有加密桶名)—— 知识库功能
      */
     String UPLOAD_CUSTOM_BUCKET = "eoafile";
     /**

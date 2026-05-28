@@ -70,11 +70,9 @@
   import adTextImg from '/@/assets/loginmini/icon/jeecg_ad_text.png';
   import { useI18n } from '/@/hooks/web/useI18n';
   import { useDesign } from "/@/hooks/web/useDesign";
-  import { GithubFilled, WechatFilled, DingtalkCircleFilled, createFromIconfontCN } from '@ant-design/icons-vue';
+  import { GithubFilled, WechatFilled, DingtalkCircleFilled } from '@ant-design/icons-vue';
+  import { IconFont } from '/@/utils/iconfont2';
 
-  const IconFont = createFromIconfontCN({
-    scriptUrl: '//at.alicdn.com/t/font_2316098_umqusozousr.js',
-  });
   const { prefixCls } = useDesign('minilogin');
   const { t } = useI18n();
   const qrCodeUrl = ref<string>('');

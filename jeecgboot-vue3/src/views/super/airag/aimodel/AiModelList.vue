@@ -38,7 +38,7 @@
         <a-card class="model-card" @click="handleEditClick(item)">
           <div class="model-header">
             <div class="flex">
-              <img :src="getImage(item.provider)" class="header-img" />
+              <img :src="getImage(item.provider)" :class="['header-img', item.provider === 'VLLM' ? 'header-img-lg' : '']" />
               <div class="header-text">{{ item.name }}</div>
             </div>
           </div>
@@ -75,6 +75,9 @@
                     <Icon icon="ant-design:setting-outlined" size="16"></Icon>
                     <span class="ml-4">模型参数配置</span>
                   </a-menu-item>-->
+                  <a-menu-item v-if="item.activateFlag" key="deactivate" @click.prevent.stop="handleDeactivateClick(item)">
+                    <Icon icon="ant-design:stop-outlined" size="16"></Icon> 取消激活
+                  </a-menu-item>
                   <a-menu-item key="delete" @click.prevent.stop="handleDeleteClick(item)">
                     <Icon icon="ant-design:delete-outlined" size="16"></Icon> 删除
                   </a-menu-item>
@@ -108,7 +111,7 @@
   import { reactive, ref } from 'vue';
   import AiModelModal from './components/AiModelModal.vue';
   import { useModal } from '@/components/Modal';
-  import { deleteModel, list } from './model.api';
+  import { deleteModel, list, editModel } from './model.api';
   import { imageList } from './model.data';
   import { Pagination } from 'ant-design-vue';
   import JInput from '@/components/Form/src/jeecg/components/JInput.vue';
@@ -229,6 +232,15 @@
       }
 
       /**
+       * 取消激活模型
+       * @param item
+       */
+      async function handleDeactivateClick(item) {
+        await editModel({ id: item.id, activateFlag: 0 });
+        reload();
+      }
+
+      /**
        * 查询
        */
       function searchQuery() {
@@ -266,6 +278,7 @@
         handlePageChange,
         getImage,
         handleDeleteClick,
+        handleDeactivateClick,
         searchQuery,
         searchReset,
         queryParam,
@@ -295,6 +308,11 @@
           width: 32px;
           height: 32px;
           margin-right: 12px;
+          object-fit: contain;
+        }
+        .header-img-lg {
+          width: 48px;
+          height: 48px;
         }
         .header-text {
           font-size: 16px;

@@ -397,6 +397,26 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
             
             String sourcesPath = workDir + "files";
 
+            // 通过filePath 检查文件是不是压缩包(zip)
+            String zipFileName = FilenameUtils.getBaseName(zipFile.getName());
+            String fileExt = FilenameUtils.getExtension(zipFile.getName());
+            if (null == fileExt || !fileExt.equalsIgnoreCase("zip")) {
+                throw new JeecgBootException("请上传zip压缩包");
+            }
+
+            //update-begin---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
+            // 判断知识库是否配置了默认分段策略
+            boolean knowledgeHasDefaultSegment = false;
+            AiragKnowledge knowledge = airagKnowledgeMapper.selectById(knowId);
+            if (knowledge != null && oConvertUtils.isNotEmpty(knowledge.getMetadata())) {
+                try {
+                    JSONObject kmeta = JSONObject.parseObject(knowledge.getMetadata());
+                    knowledgeHasDefaultSegment = Boolean.TRUE.equals(kmeta.getBoolean(LLMConsts.ENABLE_SEGMENT));
+                } catch (Exception ignore) {}
+            }
+            final boolean useKnowledgeDefault = knowledgeHasDefaultSegment;
+            //update-end---author:wangshuai ---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
+            
             // 解压缩文件
             List<AiragKnowledgeDoc> docList = new ArrayList<>();
             // 传入 sourcesPath 给 lambda 表达式使用
@@ -456,7 +476,13 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
 
                 JSONObject metadata = new JSONObject();
                 metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH, fullRelativePath);
-                metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH, relativeSourcePath);
+                metadata.put(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH, sourcesPath);
+                //update-begin---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
+                // 知识库有默认分段策略，文档标记使用知识库默认
+                if (useKnowledgeDefault) {
+                    metadata.put(LLMConsts.USE_KNOWLEDGE_DEFAULT, true);
+                }
+                //update-end---wangshuai---date:20260414  for：【QQYUN-14932】创建知识库时，可以创建一个分段策略，知识库里面的文档默认使用知识库的分段策略------------
                 doc.setMetadata(metadata.toJSONString());
                 docList.add(doc);
             });
@@ -518,6 +544,13 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
                     throw new IOException("解压文件数量超限，可能是zip bomb攻击");
                 }
 
+                //update-begin---author:scott ---date:2026-04-16  for：【issues/9551】macOS压缩包隐藏文件过滤-----------
+                if (shouldSkipZipEntry(entry.getName())) {
+                    log.info("跳过压缩包中的隐藏文件: {}", entry.getName());
+                    continue;
+                }
+                //update-end---author:scott ---date:2026-04-16  for：【issues/9551】macOS压缩包隐藏文件过滤-----------
+
                 Path newPath = safeResolve(targetDir, entry.getName());
 
                 if (entry.isDirectory()) {
@@ -543,6 +576,23 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
             }
         }
     }
+
+    //update-begin---author:scott ---date:2026-04-16  for：【issues/9551】macOS压缩包隐藏文件过滤-----------
+    /**
+     * 过滤压缩包中的系统隐藏文件，例如 macOS 自动生成的 __MACOSX 和 ._ 文件。
+     */
+    static boolean shouldSkipZipEntry(String entryName) {
+        if (oConvertUtils.isEmpty(entryName)) {
+            return true;
+        }
+        String normalizedName = entryName.replace("\\", "/");
+        if (normalizedName.startsWith("__MACOSX/")) {
+            return true;
+        }
+        String fileName = Paths.get(normalizedName).getFileName().toString();
+        return fileName.startsWith("._") || fileName.equals(".DS_Store");
+    }
+    //update-end---author:scott ---date:2026-04-16  for：【issues/9551】macOS压缩包隐藏文件过滤-----------
 
     /**
      * 安全解析路径，防止Zip Slip攻击

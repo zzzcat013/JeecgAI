@@ -26,6 +26,7 @@ import org.jeecg.common.util.encryption.EncryptedString;
 import org.jeecg.config.JeecgBaseConfig;
 import org.jeecg.config.shiro.IgnoreAuth;
 import org.jeecg.modules.base.service.BaseCommonService;
+import org.jeecg.modules.system.constant.DefIndexConst;
 import org.jeecg.modules.system.entity.SysDepart;
 import org.jeecg.modules.system.entity.SysRoleIndex;
 import org.jeecg.modules.system.entity.SysUser;
@@ -188,6 +189,11 @@ public class LoginController {
 	    String username = JwtUtil.getUsername(token);
 		LoginUser sysUser = sysBaseApi.getUserByName(username);
 	    if(sysUser!=null) {
+			//update-begin---author:zhangdaihao ---date:2026-04-15  for：【issue/9517】校验token签名，防止伪造token强制他人下线(DoS)-----------
+			if (!JwtUtil.verify(token, username, sysUser.getPassword())) {
+				return Result.error("Token无效!");
+			}
+			//update-end---author:zhangdaihao ---date:2026-04-15  for：【issue/9517】校验token签名，防止伪造token强制他人下线(DoS)-----------
 			asyncClearLogoutCache(token, sysUser); // 异步清理
 			SecurityUtils.getSubject().logout();
 	    	return Result.ok("退出登录成功！");
@@ -214,6 +220,9 @@ public class LoginController {
 			redisUtil.del(CommonConstant.PREFIX_USER_TOKEN_PC + sysUser.getUsername());
 			redisUtil.del(CommonConstant.PREFIX_USER_TOKEN_APP + sysUser.getUsername());
 			redisUtil.del(CommonConstant.PREFIX_USER_TOKEN_PHONE + sysUser.getUsername());
+
+			// 清空用户的默认首页缓存
+			redisUtil.del(DefIndexConst.CACHE_TYPE + sysUser.getUsername());
 			baseCommonService.addLog("用户名: "+sysUser.getRealname()+",退出成功！", CommonConstant.LOG_TYPE_1, null, sysUser);
 			log.debug("【退出成功操作】异步处理，退出后，清理用户缓存： "+sysUser.getRealname());
 		});

@@ -38,7 +38,8 @@
   import { bindThirdAppAccount, deleteThirdAccount, getThirdAccountByUserId } from './UserSetting.api';
   import { useUserStore } from '/@/store/modules/user';
   import { useModal } from '/@/components/Modal';
-  import { DingtalkCircleFilled, createFromIconfontCN, WechatFilled } from '@ant-design/icons-vue';
+  import { DingtalkCircleFilled, WechatFilled } from '@ant-design/icons-vue';
+  import { IconFont } from '/@/utils/iconfont2';
   import { useGlobSetting } from '/@/hooks/setting';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { Modal } from 'ant-design-vue';
@@ -46,9 +47,6 @@
 
   const { prefixCls } = useDesign('j-user-tenant-setting-container');
 
-  const IconFont = createFromIconfontCN({
-    scriptUrl: '//at.alicdn.com/t/font_2316098_umqusozousr.js',
-  });
   const userStore = useUserStore();
 
   //绑定微信的数据

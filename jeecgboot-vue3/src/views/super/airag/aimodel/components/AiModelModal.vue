@@ -25,7 +25,7 @@
             <a-card class="model-card" @click="handleClick(item)">
               <div class="model-header">
                 <div class="flex">
-                  <img :src="getImage(item.value)" class="header-img" />
+                  <img :src="getImage(item.value)" :class="['header-img', item.value === 'VLLM' ? 'header-img-lg' : '']" />
                   <div class="header-text">{{ item.title }}</div>
                 </div>
               </div>
@@ -55,6 +55,21 @@
                     <span v-else-if="item === 'IMAGE'">图像模型</span>
                   </a-select-option>
                 </a-select>
+              </template>
+
+              <template #extraParams="{ model, field }">
+                <a-input v-model:value="model[field]" readonly placeholder="点击右侧按钮编辑JSON参数">
+                  <template #suffix>
+                    <FullscreenOutlined style="cursor: pointer;" @click="openExtraParamsModal" />
+                  </template>
+                </a-input>
+                <div style="margin-top: 4px; color: #999; font-size: 12px; line-height: 1.5;">
+                  目前只支持图片传递，固定格式为 "image_url":"图片地址"（适用于qwen-vl-ocr等视觉模型）<br/>
+                  在qwen3.5-plus最新视觉模型中需要额外传递 "incremental_output": true
+                </div>
+                <a-modal v-model:open="extraParamsVisible" title="编辑额外参数" width="600px" @ok="saveExtraParams" destroyOnClose>
+                  <JCodeEditor v-model:value="extraParamsTemp"  language="javascript" fullScreen height="500px" />
+                </a-modal>
               </template>
 
               <template #modelName="{ model, field }">
@@ -122,7 +137,9 @@
   import { editModel, queryById, saveModel, testConn } from '../model.api';
   import { useMessage } from '/@/hooks/web/useMessage';
   const {createMessage: $message, createConfirm} = useMessage();
+  import { FullscreenOutlined } from '@ant-design/icons-vue';
   import AiModelSeniorForm from './AiModelSeniorForm.vue';
+  import JCodeEditor from '/@/components/Form/src/jeecg/components/JCodeEditor.vue';
   import { cloneDeep } from "lodash-es";
   export default {
     name: 'AddModelModal',
@@ -131,6 +148,8 @@
       BasicModal,
       AiModelSeniorForm,
       AutoComplete,
+      JCodeEditor,
+      FullscreenOutlined,
     },
     emits: ['success', 'register'],
     setup(props, { emit }) {
@@ -166,6 +185,41 @@
       const testLoading = ref<boolean>(false);
       //模型是否已激活
       const modelActivate = ref<boolean>(false);
+      //特殊参数
+      const extraParamsVisible = ref<boolean>(false);
+      const extraParamsTemp = ref<string>('');
+
+      /**
+       * 打开特殊参数编辑弹窗
+       */
+      function openExtraParamsModal() {
+        const formVal = getFieldsValue();
+        let val = formVal.extraParams || '';
+        if (val) {
+          try {
+            val = JSON.stringify(JSON.parse(val), null, 2);
+          } catch (e) {}
+        }
+        extraParamsTemp.value = val;
+        extraParamsVisible.value = true;
+      }
+
+      /**
+       * 保存特殊参数
+       */
+      function saveExtraParams() {
+        const val = extraParamsTemp.value;
+        if (val) {
+          try {
+            JSON.parse(val);
+          } catch (e) {
+            $message.error('JSON格式不正确，请检查');
+            return;
+          }
+        }
+        setFieldsValue({ extraParams: val });
+        extraParamsVisible.value = false;
+      }
 
       const getImage = (name) => {
         return imageList.value[name];
@@ -176,11 +230,12 @@
       }
 
       //表单配置
-      const [registerForm, { resetFields, setFieldsValue, validate, clearValidate }] = useForm({
+      const [registerForm, { resetFields, setFieldsValue, getFieldsValue, validate, clearValidate }] = useForm({
         schemas: formSchema,
         showActionButtonGroup: false,
         layout: 'vertical',
         wrapperCol: { span: 24 },
+        labelCol: { span: 24 },
       });
 
       //注册modal
@@ -204,6 +259,9 @@
               if(credential.apiKey){
                 values.result.apiKey = credential.apiKey;
               }
+              if (credential.httpVersionOne) {
+                values.result.httpVersionOne = credential.httpVersionOne;
+              }
             }
             let provider = values.result.provider;
             let data = model.data.filter((item) => {
@@ -222,7 +280,12 @@
               modelActivate.value = false;
             }
             if(values.result.modelParams){
-              modelParams.value = JSON.parse(values.result.modelParams)
+              let allParams = JSON.parse(values.result.modelParams);
+              if (allParams.extraParams) {
+                values.result.extraParams = JSON.stringify(allParams.extraParams, null, 2);
+                delete allParams.extraParams;
+              }
+              modelParams.value = allParams;
             }
             modelTypeDisabled.value = true;
             //表单赋值
@@ -308,14 +371,25 @@
           let values = await validate();
           let credential = {
             apiKey: values.apiKey,
-            secretKey: values.secretKey
+            secretKey: values.secretKey,
+            httpVersionOne: values.httpVersionOne,
           }
+          let params = {};
           if(modelParamsRef.value){
-            let modelParams = modelParamsRef.value.emitChange();
-            if(modelParams){
-              values.modelParams = JSON.stringify(modelParams);
+            let seniorParams = modelParamsRef.value.emitChange();
+            if(seniorParams){
+              params = { ...seniorParams };
             }
           }
+          if (values.extraParams) {
+            try {
+              params.extraParams = JSON.parse(values.extraParams);
+            } catch(e) {}
+          }
+          if (Object.keys(params).length > 0) {
+            values.modelParams = JSON.stringify(params);
+          }
+          delete values.extraParams;
           if(modelActivate.value){
             values.activateFlag = 1
           }else{
@@ -361,13 +435,26 @@
           let credential = {
             apiKey: values.apiKey,
             secretKey: values.secretKey,
+            httpVersionOne: values.httpVersionOne,
           };
+          let params = {};
           if (modelParamsRef.value) {
-            let modelParams = modelParamsRef.value.emitChange();
-            if (modelParams) {
-              values.modelParams = JSON.stringify(modelParams);
+            //update-begin---author:wangshuai---date:2026-03-20---for:【issues/8】保存激活qwen-vl-ocr模型报错---
+            let seniorParams = modelParamsRef.value.emitChange();
+            if (seniorParams) {
+              params = { ...seniorParams };
+            //update-end---author:wangshuai---date:2026-03-20---for:【issues/8】保存激活qwen-vl-ocr模型报错---
             }
           }
+          if (values.extraParams) {
+            try {
+              params.extraParams = JSON.parse(values.extraParams);
+            } catch(e) {}
+          }
+          if (Object.keys(params).length > 0) {
+            values.modelParams = JSON.stringify(params);
+          }
+          delete values.extraParams;
           values.credential = JSON.stringify(credential);
           if (!values.provider) {
             values.provider = modelData.value.value;
@@ -461,6 +548,10 @@
         getTitle,
         test,
         testLoading,
+        extraParamsVisible,
+        extraParamsTemp,
+        openExtraParamsModal,
+        saveExtraParams,
       };
     },
   };
@@ -492,6 +583,11 @@
           width: 32px;
           height: 32px;
           margin-right: 12px;
+          object-fit: contain;
+        }
+        .header-img-lg {
+          width: 48px;
+          height: 48px;
         }
         .header-text {
           width: calc(100% - 80px);

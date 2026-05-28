@@ -1,4 +1,5 @@
-import { FormSchema, JCronValidator } from '/@/components/Form';
+import { FormSchema } from '/@/components/Form';
+import JCronValidator from '/@/components/Form/src/jeecg/components/JEasyCron/validator';
 import { usePermission } from '/@/hooks/web/usePermission';
 
 const { isDisabledAuth } = usePermission();
@@ -935,7 +936,20 @@ export const schemas: FormSchema[] = [
     label: '选中值',
     colProps: { span: 12 },
   },
-
+  {
+    field: 'tabsSelectUser',
+    component: 'Input',
+    label: '用户选择',
+    helpMessage: ['插槽模式-自己保存查询条件'],
+    slot: 'tabsSelectUser',
+    colProps: { span: 14 },
+  },
+  {
+    field: 'tabsSelectUser',
+    component: 'JEllipsis',
+    label: '选中值',
+    colProps: { span: 10 },
+  },
   {
     field: 'orderAuth',
     component: 'Input',
@@ -952,5 +966,4 @@ export const schemas: FormSchema[] = [
     label: '选中值',
     colProps: { span: 12 },
   },
-  
 ];

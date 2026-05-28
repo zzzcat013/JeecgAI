@@ -135,7 +135,7 @@ public class SysUserDepartServiceImpl extends ServiceImpl<SysUserDepartMapper, S
 			realname = realname.trim();
 		}
 		List<SysUser> userList = this.baseMapper.queryDepartUserList(depCode, realname);
-		Map<String, SysUser> map = new HashMap(5);
+		Map<String, SysUser> map = new LinkedHashMap(5);
 		for (SysUser sysUser : userList) {
 			// 返回的用户数据去掉密码信息
 			sysUser.setSalt("");

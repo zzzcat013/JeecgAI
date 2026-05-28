@@ -8,6 +8,7 @@ import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.util.CommonUtils;
 import org.jeecg.config.shiro.IgnoreAuth;
 import org.jeecg.modules.airag.app.service.IAiragChatService;
+import org.jeecg.modules.airag.app.vo.AiDrawGenerateVo;
 import org.jeecg.modules.airag.app.vo.AiWriteGenerateVo;
 import org.jeecg.modules.airag.app.vo.ChatConversation;
 import org.jeecg.modules.airag.app.vo.ChatSendParams;
@@ -266,10 +267,30 @@ public class AiragChatController {
      * @return
      */
     @PostMapping("/genAiPoster")
-    public Result<String> genAiPoster(@RequestBody ChatSendParams chatSendParams){
-        String imageUrl = chatService.genAiPoster(chatSendParams);
+    public Result<String> genAiPoster(@RequestBody AiDrawGenerateVo aiDrawGenerateVo){
+        String imageUrl = chatService.genAiPoster(aiDrawGenerateVo);
         return Result.OK(imageUrl);
     }
+
+    //update-begin---author:wangshuai ---date:2026-04-15  for：【QQYUN-14568】AI海报生成改为异步，支持切换菜单后重新获取结果-----------
+    /**
+     * 异步提交AI海报生成任务，立即返回taskId
+     */
+    @PostMapping("/genAiPosterAsync")
+    public Result<String> genAiPosterAsync(@RequestBody AiDrawGenerateVo aiDrawGenerateVo) {
+        String taskId = chatService.genAiPosterAsync(aiDrawGenerateVo);
+        return Result.OK(taskId);
+    }
+
+    /**
+     * 查询AI海报异步任务结果
+     * status: pending / success / failed
+     */
+    @GetMapping("/getAiPosterResult/{taskId}")
+    public Result<?> getAiPosterResult(@PathVariable String taskId) {
+        return chatService.getAiPosterResult(taskId);
+    }
+    //update-end---author:wangshuai ---date:2026-04-15  for：【QQYUN-14568】AI海报生成改为异步，支持切换菜单后重新获取结果-----------
 
 
     /**

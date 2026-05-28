@@ -33,8 +33,10 @@ public class SqlInjectionUtil {
 	private static String specialReportXssStr = "exec |peformance_schema|information_schema|extractvalue|updatexml|geohash|gtid_subset|gtid_subtract|insert |alter |delete |grant |update |drop |master |truncate |declare |--";
 	/**
 	 * 字典专用—sql注入关键词
+	 *
+	 * @updateBy: sunjianlei 20260331 加上 substring 注入检测
 	 */
-	private static String specialDictSqlXssStr = "exec |peformance_schema|information_schema|extractvalue|updatexml|geohash|gtid_subset|gtid_subtract|insert |select |delete |update |drop |count |chr |mid |master |truncate |char |declare |;|+|--";
+	private static String specialDictSqlXssStr = "exec |peformance_schema|information_schema|extractvalue|updatexml|geohash|gtid_subset|gtid_subtract|insert |select |delete |update |drop |count |chr |mid |master |truncate |char |declare |;|+|--|substring |substring(";
 	/**
 	 * 完整匹配的key，不需要考虑前空格
 	 */
@@ -62,6 +64,27 @@ public class SqlInjectionUtil {
 			"show\\s+databases",
 			"sleep\\(\\d*\\)",
 			"sleep\\(.*\\)",
+			// update-begin---author:sjlei---date:20260413  for：【#9523】修复 SQL 注入漏洞
+			// 时间盲注函数（#9523）：MySQL BENCHMARK、PostgreSQL pg_sleep、SQL Server WAITFOR DELAY
+			"benchmark\\s*\\(",
+			"pg_sleep\\s*\\(",
+			"waitfor\\s+delay",
+			// update-end-----author:sjlei---date:20260413  for：【#9523】修复 SQL 注入漏洞
+			// update-begin---author:zhangdaihao---date:20260427  for：【issue/9571】修复字典/Online报表 boolean-blind 信息泄露
+			// 通过 case-when + database()/version() 等函数 + LIKE 前缀枚举进行字符级数据提取（绕过 select/union 黑名单），
+			"database\\s*\\(",
+			"version\\s*\\(",
+			"current_user\\s*\\(",
+			"current_database\\s*\\(",
+			"current_schema\\s*\\(",
+			"session_user\\s*\\(",
+			"system_user\\s*\\(",
+			"ascii\\s*\\(",
+			"unhex\\s*\\(",
+			"load_file\\s*\\(",
+			"into\\s+outfile",
+			"into\\s+dumpfile",
+			// update-end-----author:zhangdaihao---date:20260427  for：【issue/9571】修复字典/Online报表 boolean-blind 信息泄露
 	};
 	/**
 	 * sql注释的正则
@@ -146,7 +169,20 @@ public class SqlInjectionUtil {
 	private static boolean isExistSqlInjectKeyword(String sql, String keyword) {
 		if (sql.startsWith(keyword.trim())) {
 			return true;
-		} else if (sql.contains(keyword)) {
+		}
+		// update-begin---author:zhangdaihao---date:20260427  for：【issue/9572】修复 SQL 黑名单 keyword( 紧贴形式绕过
+		// 原来对带 trailing space 的关键字（如 "select "）只能匹配 "select " 形式，
+		// 导致 id=(select(id)from(sys_user)where(...)) 的 select( 形式绕过检测。
+		// 这里补充：对带 trailing space 的关键字，额外检测 trimmedKeyword + "(" 形式。
+		// FULL_MATCHING_KEYWRODS（;、+、--）保持原匹配逻辑不变。
+		if (keyword.endsWith(" ") && !FULL_MATCHING_KEYWRODS.contains(keyword)) {
+			String trimmedKeyword = keyword.trim();
+			if (sql.contains(trimmedKeyword + "(")) {
+				return true;
+			}
+		}
+		// update-end-----author:zhangdaihao---date:20260427  for：【issue/9572】修复 SQL 黑名单 keyword( 紧贴形式绕过
+		if (sql.contains(keyword)) {
 			// 需要匹配的，sql注入关键词
 			String matchingText = " " + keyword;
 			if(FULL_MATCHING_KEYWRODS.contains(keyword)){
@@ -156,6 +192,18 @@ public class SqlInjectionUtil {
 			if (sql.contains(matchingText)) {
 				return true;
 			} else {
+				// update-begin---author:sjlei---date:20260413  for：【#9524】修复 SQL 注入漏洞
+				// 检测关键词前紧跟非字母分隔符的情况，原来只检测前置空格，
+				// 导致 (updatexml(、(extractvalue( 等写法绕过检测（#9524）
+				String[] sqlTokenPrefixes = {"(", ",", "=", "!", "<", ">"};
+				for (String prefix : sqlTokenPrefixes) {
+					if (sql.contains(prefix + keyword)) {
+						return true;
+					}
+				}
+				// update-end-----author:sjlei---date:20260413  for：【#9524】修复 SQL 注入漏洞
+
+				// 检测编码空格绕过（%09 %0A %0D 等可替代空格的字符）
 				String regularStr = "\\s+\\S+" + keyword;
 				List<String> resultFindAll = ReUtil.findAll(regularStr, sql, 0, new ArrayList<String>());
 				for (String res : resultFindAll) {

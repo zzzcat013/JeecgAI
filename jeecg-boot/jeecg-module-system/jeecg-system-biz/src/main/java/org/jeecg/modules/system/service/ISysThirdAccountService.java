@@ -79,4 +79,14 @@ public interface ISysThirdAccountService extends IService<SysThirdAccount> {
      * @return
      */
     SysThirdAccount getOneByUuidAndThirdType(String unionid, String thirdType,Integer tenantId,String thirdUserId);
+
+    /**
+     * 批量通过本地用户id列表查询第三方账号（用于全量同步批量预加载）
+     *
+     * @param sysUserIds 本地用户id列表
+     * @param thirdType  第三方类型
+     * @return 第三方账号列表
+     */
+    List<SysThirdAccount> listBySysUserIds(List<String> sysUserIds, String thirdType);
+
 }

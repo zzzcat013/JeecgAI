@@ -102,7 +102,9 @@
    */
   function handleViewFile(filePath) {
     if (filePath) {
-      let url = encodeURIComponent(encryptByBase64(filePath));
+      //update-begin-author:scott---date:2026-04-16--for: 【Github #8855】修复文件预览路径处理问题，filePath需要先拼接完整URL再编码
+      let url = encodeURIComponent(encryptByBase64(getFileAccessHttpUrl(filePath)));
+      //update-end-author:scott---date:2026-04-16--for: 【Github #8855】修复文件预览路径处理问题，filePath需要先拼接完整URL再编码
       let previewUrl = `${glob.viewUrl}?url=` + url;
       //update-begin-author:liusq---date:2025-12-16--for: JHHB-1139桌面端 文件预览统一修改 
       if($electron.isElectron()){

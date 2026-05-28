@@ -4,12 +4,20 @@
     :value="arrayValue"
     @change="onChange"
     mode="multiple"
-    :filter-option="filterOption"
+    :filter-option="useLoadDict ? false : filterOption"
     :disabled="disabled"
     :placeholder="placeholder"
     allowClear
+    showSearch
     :getPopupContainer="getParentContainer"
+    :notFoundContent="loading ? undefined : null"
+    @search="handleSearch"
+    @dropdown-visible-change="handleDropdownVisibleChange"
+    @popupScroll="handlePopupScroll"
   >
+    <template #notFoundContent>
+      <a-spin v-if="loading" size="small" />
+    </template>
     <template v-for="item of getOptions" :key="item.key">
       <a-select-option :value="item.value" :getPopupContainer="getParentContainer">
         <span :class="item.class" :style="item.style">{{ item.text }}</span>
@@ -22,8 +30,9 @@
   import { useRuleFormItem } from '/@/hooks/component/useFormItem';
   import { propTypes } from '/@/utils/propTypes';
   import { useAttrs } from '/@/hooks/core/useAttrs';
-  import { getDictItems } from '/@/api/common/api';
+  import { initDictOptions } from '/@/utils/dict/index';
   import { setPopContainer } from '/@/utils';
+  import { useScrollLoadDict } from '../hooks/useSelectMultipleScrollLoad';
 
   export default defineComponent({
     name: 'JSelectMultiple',
@@ -73,16 +82,27 @@
         type: Boolean,
         default: false,
       },
+      // update-begin--author:liaozhiyang---date:20260204---for:【issues/9307】online下拉加载表字典需滚动加载
+      // 分页时每页条数，仅当 scrollLoad 为 true 且 dictCode 为字典表格式时生效
+      pageSize: { type: Number, default: 10 },
+      // 是否滚动加载，为 true 且 dictCode 为字典表格式(table,text,code)时走 /sys/dict/loadDict/，否则走 initDictOptions
+      scrollLoad: { type: Boolean, default: false },
+      // update-begin--author:liaozhiyang---date:20260204---for:【issues/9307】online下拉加载表字典需滚动加载
     },
     emits: ['options-change', 'change', 'input', 'update:value'],
-    setup(props, { emit, refs }) {
+    setup(props, { emit }) {
       //console.info(props);
       const emitData = ref<any[]>([]);
-      const arrayValue = ref<any[]>(!props.value ? [] : props.value.split(props.spliter));
+      const arrayValue = ref<any[]>(
+        !props.value ? [] : Array.isArray(props.value) ? props.value : (props.value as string).split(props.spliter)
+      );
       const dictOptions = ref<any[]>([]);
       const attrs = useAttrs();
       const [state, , , formItemContext] = useRuleFormItem(props, 'value', 'change', emitData);
-
+      // update-begin--author:liaozhiyang---date:20260204---for:【issues/9307】online下拉加载表字典需滚动加载
+      const scrollLoadApi = useScrollLoadDict(props, dictOptions, arrayValue);
+      const { useLoadDict, loading, loadDictOptions: loadDictOptionsScroll, ensureValueInOptions, handleSearch, handleDropdownVisibleChange, handlePopupScroll, isDictTable } = scrollLoadApi;
+      // update-end--author:liaozhiyang---date:20260204---for:【issues/9307】online下拉加载表字典需滚动加载
       // 处理下拉选项
       const getOptions = computed(() => {
         if (!Array.isArray(dictOptions.value)) {
@@ -128,15 +148,19 @@
           if (!val) {
             arrayValue.value = [];
           } else {
-            arrayValue.value = props.value.split(props.spliter);
+            arrayValue.value = Array.isArray(props.value) ? props.value : (props.value as string).split(props.spliter);
           }
+          if (useLoadDict.value) ensureValueInOptions();
         }
       );
 
       //适用于 动态改变下拉选项的操作
       watch(()=>props.options, ()=>{
         if (props.dictCode) {
-          // nothing to do
+          // update-begin--author:liaozhiyang---date:20260325---for:【QQYUN-15021】online js增强修改下拉不生效
+          // online js增强改变options
+          dictOptions.value = props.options;
+          // update-end--author:liaozhiyang---date:20260325---for:【QQYUN-15021】online js增强修改下拉不生效
         } else {
           dictOptions.value = props.options;
         }
@@ -165,23 +189,21 @@
         }
       }
 
-      // 根据字典code查询字典项
-      function loadDictOptions() {
-        // 代码逻辑说明: 字典数据请求前将参数编码处理，但是不能直接编码，因为可能之前已经编码过了
-        let temp = props.dictCode || '';
-        if (temp.indexOf(',') > 0 && temp.indexOf(' ') > 0) {
-          // 编码后 是不包含空格的
-          temp = encodeURI(temp);
-        }
-        getDictItems(temp).then((res) => {
-          if (res) {
-            dictOptions.value = res.map((item) => ({ value: item.value, label: item.text, color:item.color }));
-            //console.info('res', dictOptions.value);
-          } else {
-            console.error('getDictItems error: : ', res);
+      async function loadDictOptions() {
+        // update-begin--author:liaozhiyang---date:20260204---for:【issues/9307】online下拉加载表字典需滚动加载
+        if (useLoadDict.value) {
+          loadDictOptionsScroll();
+        } else {
+          const code = props.dictCode ?? '';
+          try {
+            const dictData = await initDictOptions(code);
+            dictOptions.value = dictData;
+          } catch (error) {
+            console.error('initDictOptions error:', error);
             dictOptions.value = [];
           }
-        });
+        }
+        // update-end--author:liaozhiyang---date:20260204---for:【issues/9307】online下拉加载表字典需滚动加载
       }
 
       // 代码逻辑说明: VUEN-1145 下拉多选，搜索时，查不到数据
@@ -198,6 +220,12 @@
         arrayValue,
         getParentContainer,
         filterOption,
+        isDictTable,
+        useLoadDict,
+        loading,
+        handlePopupScroll,
+        handleSearch,
+        handleDropdownVisibleChange,
       };
     },
   });

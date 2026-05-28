@@ -41,7 +41,6 @@
     import { defHttp } from '/@/utils/http/axios';
     import {ref, computed, unref,reactive, onMounted, defineProps } from 'vue';
     import {BasicForm, useForm} from '/@/components/Form/index';
-    import { JVxeTable } from '/@/components/jeecg/JVxeTable'
     import { useJvxeMethod } from '/@/hooks/system/useJvxeMethods.ts'
     <#list subTables as sub>
       <#if sub.foreignRelationType =='1'>
@@ -81,7 +80,8 @@
 
     const props = defineProps({
       formData: { type: Object, default: ()=>{} },
-      formBpm: { type: Boolean, default: true }
+      formBpm: { type: Boolean, default: true },
+      showSubmitButton: { type: Boolean, default: true },
     });
     const formDisabled = computed(()=>{
       if(props.formBpm === true){
@@ -93,7 +93,7 @@
     });
     // 是否显示提交按钮
     const showFlowSubmitButton = computed(()=>{
-      if(props.formBpm === true){
+      if(props.formBpm === true && props.showSubmitButton === true){
         if(props.formData.disabled === false){
           return true
         }

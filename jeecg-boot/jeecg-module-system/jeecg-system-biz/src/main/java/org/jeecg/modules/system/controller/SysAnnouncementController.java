@@ -9,6 +9,7 @@ import com.jeecg.dingtalk.api.core.response.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.jeecg.common.api.dto.PushMessageDTO;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.config.TenantContext;
@@ -110,6 +111,7 @@ public class SysAnnouncementController {
 	 * @param req
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:list")
 	@RequestMapping(value = "/list", method = RequestMethod.GET)
 	public Result<IPage<SysAnnouncement>> queryPageList(SysAnnouncement sysAnnouncement,
 									  @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
@@ -136,6 +138,7 @@ public class SysAnnouncementController {
 	 * @param sysAnnouncement
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:add")
 	@RequestMapping(value = "/add", method = RequestMethod.POST)
 	public Result<SysAnnouncement> add(@RequestBody SysAnnouncement sysAnnouncement) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -143,6 +146,10 @@ public class SysAnnouncementController {
 			// 代码逻辑说明: 标题处理xss攻击的问题
 			String title = XssUtils.scriptXss(sysAnnouncement.getTitile());
 			sysAnnouncement.setTitile(title);
+			//update-begin---author:liusq ---date:2025-04-13  for：【issues/9521】富文本msgContent字段未做XSS过滤，存在存储型XSS漏洞-----------
+			String msgContent = XssUtils.richTextXss(sysAnnouncement.getMsgContent());
+			sysAnnouncement.setMsgContent(msgContent);
+			//update-end---author:liusq ---date:2025-04-13  for：【issues/9521】富文本msgContent字段未做XSS过滤，存在存储型XSS漏洞-----------
 			// 【安全校验】校验附件文件名，防止路径遍历攻击
 			SsrfFileTypeFilter.checkPathTraversalBatch(sysAnnouncement.getFiles());
 			sysAnnouncement.setDelFlag(CommonConstant.DEL_FLAG_0.toString());
@@ -165,6 +172,7 @@ public class SysAnnouncementController {
 	 * @param sysAnnouncement
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:edit")
 	@RequestMapping(value = "/edit", method = {RequestMethod.PUT,RequestMethod.POST})
 	public Result<SysAnnouncement> eidt(@RequestBody SysAnnouncement sysAnnouncement) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -176,6 +184,10 @@ public class SysAnnouncementController {
 				// 代码逻辑说明: 标题处理xss攻击的问题
 				String title = XssUtils.scriptXss(sysAnnouncement.getTitile());
 				sysAnnouncement.setTitile(title);
+				//update-begin---author:liusq ---date:2025-04-13  for：【issues/9521】富文本msgContent字段未做XSS过滤，存在存储型XSS漏洞-----------
+				String msgContent = XssUtils.richTextXss(sysAnnouncement.getMsgContent());
+				sysAnnouncement.setMsgContent(msgContent);
+				//update-end---author:liusq ---date:2025-04-13  for：【issues/9521】富文本msgContent字段未做XSS过滤，存在存储型XSS漏洞-----------
 				// 【安全校验】校验附件文件名，防止路径遍历攻击
 				SsrfFileTypeFilter.checkPathTraversalBatch(sysAnnouncement.getFiles());
 				sysAnnouncement.setNoticeType(NoticeTypeEnum.NOTICE_TYPE_SYSTEM.getValue());
@@ -196,6 +208,7 @@ public class SysAnnouncementController {
 	 * @param sysAnnouncement
 	 * @return
 	 */
+	//@RequiresPermissions("system:sysAnnouncement:editIzTop")
 	@RequestMapping(value = "/editIzTop", method = {RequestMethod.PUT,RequestMethod.POST})
 	public Result<SysAnnouncement> editIzTop(@RequestBody SysAnnouncement sysAnnouncement) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -216,6 +229,7 @@ public class SysAnnouncementController {
 	 * @param id
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:delete")
 	@RequestMapping(value = "/delete", method = RequestMethod.DELETE)
 	public Result<SysAnnouncement> delete(@RequestParam(name="id",required=true) String id) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -238,6 +252,7 @@ public class SysAnnouncementController {
 	 * @param ids
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:deleteBatch")
 	@RequestMapping(value = "/deleteBatch", method = RequestMethod.DELETE)
 	public Result<SysAnnouncement> deleteBatch(@RequestParam(name="ids",required=true) String ids) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -278,6 +293,7 @@ public class SysAnnouncementController {
 	 * @param id
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:doReleaseData")
 	@RequestMapping(value = "/doReleaseData", method = RequestMethod.GET)
 	public Result<SysAnnouncement> doReleaseData(@RequestParam(name="id",required=true) String id, HttpServletRequest request) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -358,6 +374,7 @@ public class SysAnnouncementController {
 	 * @param id
 	 * @return
 	 */
+	@RequiresPermissions("system:sysAnnouncement:doReovkeData")
 	@RequestMapping(value = "/doReovkeData", method = RequestMethod.GET)
 	public Result<SysAnnouncement> doReovkeData(@RequestParam(name="id",required=true) String id, HttpServletRequest request) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -467,6 +484,7 @@ public class SysAnnouncementController {
      *
      * @param request
      */
+    @RequiresPermissions("system:sysAnnouncement:exportXls")
     @RequestMapping(value = "/exportXls")
     public ModelAndView exportXls(SysAnnouncement sysAnnouncement,HttpServletRequest request) {
         // Step.1 组装查询条件
@@ -491,6 +509,7 @@ public class SysAnnouncementController {
      * @param response
      * @return
      */
+    @RequiresPermissions("system:sysAnnouncement:importExcel")
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response) {
         MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
@@ -532,6 +551,7 @@ public class SysAnnouncementController {
 	 * @param anntId
 	 * @return
 	 */
+	//@RequiresPermissions("system:sysAnnouncement:syncNotic")
 	@RequestMapping(value = "/syncNotic", method = RequestMethod.GET)
 	public Result<SysAnnouncement> syncNotic(@RequestParam(name="anntId",required=false) String anntId, HttpServletRequest request) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
@@ -681,7 +701,7 @@ public class SysAnnouncementController {
 		Result<Page<SysAnnouncementSend>> result = new Result<>();
 		//----------------------------------------------------------------------------------------
 		// step.1 此接口过慢，可以采用缓存一小时方案
-		String keyString = String.format(CommonConstant.CACHE_KEY_USER_LAST_ANNOUNT_TIME_1HOUR + "_" + noticeType, userId);
+		String keyString = String.format(CommonConstant.CACHE_KEY_USER_LAST_ANNOUNT_TIME_1HOUR, userId) + "_" + noticeType;
 		if (redisTemplate.hasKey(keyString)) {
 			log.debug("[SysAnnouncementSend Redis] 通过Redis缓存查询用户最后一次收到系统通知时间，userId={}", userId);
 			Page<SysAnnouncementSend> pageList = (Page<SysAnnouncementSend>) redisTemplate.opsForValue().get(keyString);

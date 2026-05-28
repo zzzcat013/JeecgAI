@@ -7,6 +7,9 @@
         { source: '${fieldName}', target: '${dashedToCamel(targetFields[fieldName_index])}' },
     </#list>
       ],
+      props:{
+       multi: ${col.extendParams.popupMulti?c},
+      },
     <#if col.readonly=='Y'>
         disabled:true,
     </#if>

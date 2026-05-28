@@ -2,7 +2,7 @@
 <template>
     <div style="min-height: 400px">
         <BasicForm @register="registerForm"></BasicForm>
-        <div style="width: 100%;text-align: center" v-if="!formDisabled">
+        <div style="width: 100%;text-align: center" v-if="!formDisabled && showFlowSubmitButton">
             <a-button @click="submitForm" pre-icon="ant-design:check" type="primary">提 交</a-button>
         </div>
     </div>
@@ -24,6 +24,7 @@
         props:{
             formData: propTypes.object.def({}),
             formBpm: propTypes.bool.def(true),
+            showSubmitButton: propTypes.bool.def(true),
         },
         setup(props){
             const [registerForm, { setFieldsValue, setProps, getFieldsValue }] = useForm({

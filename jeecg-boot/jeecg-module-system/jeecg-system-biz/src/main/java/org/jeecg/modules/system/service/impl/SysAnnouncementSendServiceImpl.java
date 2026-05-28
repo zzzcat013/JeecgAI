@@ -86,18 +86,15 @@ public class SysAnnouncementSendServiceImpl extends ServiceImpl<SysAnnouncementS
      * @param busType
      */
     @Override
-    public void updateReadFlagByBusId(String busId, String busType) {
-        SysAnnouncement announcement = sysAnnouncementMapper.selectOne(new QueryWrapper<SysAnnouncement>().eq("bus_type",busType).eq("bus_id",busId));
-        if(oConvertUtils.isNotEmpty(announcement)){
-            LoginUser sysUser = (LoginUser)SecurityUtils.getSubject().getPrincipal();
-            String userId = sysUser.getId();
-            LambdaUpdateWrapper<SysAnnouncementSend> updateWrapper = new UpdateWrapper().lambda();
-            updateWrapper.set(SysAnnouncementSend::getReadFlag, CommonConstant.HAS_READ_FLAG);
-            updateWrapper.set(SysAnnouncementSend::getReadTime, new Date());
-            updateWrapper.eq(SysAnnouncementSend::getAnntId,announcement.getId());
-            updateWrapper.eq(SysAnnouncementSend::getUserId,userId);
-            SysAnnouncementSend announcementSend = new SysAnnouncementSend();
-            sysAnnouncementSendMapper.update(announcementSend, updateWrapper);
+    public boolean updateReadFlagByBusId(String busId, String busType) {
+        boolean updateFlag = false;
+        LoginUser sysUser = (LoginUser)SecurityUtils.getSubject().getPrincipal();
+        String userId = sysUser.getId();
+        List<String> unReadAnnouncementsIds = sysAnnouncementSendMapper.getUnReadAnnByBusAndUserId(busId,busType,userId);
+        if(CollectionUtil.isNotEmpty(unReadAnnouncementsIds)){
+            sysAnnouncementSendMapper.updateReaded(userId, unReadAnnouncementsIds);
+            updateFlag =  true;
         }
+        return updateFlag;
     }
 }

@@ -135,7 +135,11 @@ public class QueryGenerator {
 		//权限规则自定义SQL表达式
 		for (String c : ruleMap.keySet()) {
 			if(oConvertUtils.isNotEmpty(c) && c.startsWith(SQL_RULES_COLUMN)){
-				queryWrapper.and(i ->i.apply(getSqlRuleValue(ruleMap.get(c).getRuleValue())));
+				// update-begin---author:sunjianlei ---date:20260331  for：【#9434】修复 QueryGenerator 自定义权限规则逻辑存在 SQL 注入漏洞
+				String sqlRule = getSqlRuleValue(ruleMap.get(c).getRuleValue());
+				SqlInjectionUtil.filterContent(sqlRule, null);
+				queryWrapper.and(i ->i.apply(sqlRule));
+				// update-end-----author:sunjianlei ---date:20260331  for：【#9434】修复 QueryGenerator 自定义权限规则逻辑存在 SQL 注入漏洞
 			}
 		}
 		
@@ -165,26 +169,23 @@ public class QueryGenerator {
 				//区间查询
 				doIntervalQuery(queryWrapper, parameterMap, type, name, column);
 				//判断单值  参数带不同标识字符串 走不同的查询
-				//TODO 这种前后带逗号的支持分割后模糊查询(多选字段查询生效) 示例：,1,3,
+				// update-begin--author:claude--date:20260330--for:【issues/9265】多选字段查询精确匹配，避免值1匹配到值10
+				//多选字段查询生效 示例：,1,3,  使用精确边界匹配（兼容所有数据库）
 				if (null != value && value.toString().startsWith(COMMA) && value.toString().endsWith(COMMA)) {
 					String multiLikeval = value.toString().replace(",,", COMMA);
 					String[] vals = multiLikeval.substring(1, multiLikeval.length()).split(COMMA);
 					final String field = oConvertUtils.camelToUnderline(column);
-					if(vals.length>1) {
-						queryWrapper.and(j -> {
-                            log.info("---查询过滤器，Query规则---field:{}, rule:{}, value:{}", field, "like", vals[0]);
-							j = j.like(field,vals[0]);
-							for (int k=1;k<vals.length;k++) {
-								j = j.or().like(field,vals[k]);
-								log.info("---查询过滤器，Query规则 .or()---field:{}, rule:{}, value:{}", field, "like", vals[k]);
-							}
-							//return j;
-						});
-					}else {
-						log.info("---查询过滤器，Query规则---field:{}, rule:{}, value:{}", field, "like", vals[0]);
-						queryWrapper.and(j -> j.like(field,vals[0]));
-					}
-				}else {
+					queryWrapper.and(j -> {
+						log.info("---查询过滤器，Query规则(多选精确匹配)---field:{}, rule:{}, value:{}", field, "multi_select", vals[0]);
+						j = j.eq(field, vals[0]).or().likeRight(field, vals[0] + ",").or().like(field, "," + vals[0] + ",").or().likeLeft(field, "," + vals[0]);
+						for (int k = 1; k < vals.length; k++) {
+							log.info("---查询过滤器，Query规则(多选精确匹配) .or()---field:{}, rule:{}, value:{}", field, "multi_select", vals[k]);
+							j = j.or().eq(field, vals[k]).or().likeRight(field, vals[k] + ",").or().like(field, "," + vals[k] + ",").or().likeLeft(field, "," + vals[k]);
+						}
+					});
+				}
+				// update-end--author:claude--date:20260330--for:【issues/9265】多选字段查询精确匹配，避免值1匹配到值10
+				else {
 					// 代码逻辑说明: [TV360X-378]增加自定义字段查询规则功能------------
 					QueryRuleEnum rule;
 					if(null != customRuleMap && customRuleMap.containsKey(name)) {
@@ -576,10 +577,16 @@ public class QueryGenerator {
 			value = val.substring(1, val.length() - 1);
 			//mysql 模糊查询之特殊字符下划线 （_、\）
 			value = specialStrConvert(value.toString());
-		} else if (rule == QueryRuleEnum.LEFT_LIKE || rule == QueryRuleEnum.NE) {
+		} else if (rule == QueryRuleEnum.LEFT_LIKE) {
 			value = val.substring(1);
 			//mysql 模糊查询之特殊字符下划线 （_、\）
 			value = specialStrConvert(value.toString());
+		//update-begin---author:scott ---date:20260416  for：【PR#9322】修复NE规则与LEFT_LIKE共用substring(1)导致ID首位字符丢失-----------
+		} else if (rule == QueryRuleEnum.NE) {
+			if (val.startsWith(QueryRuleEnum.NE.getValue())) {
+				value = val.substring(1);
+			}
+		//update-end---author:scott ---date:20260416  for：【PR#9322】修复NE规则与LEFT_LIKE共用substring(1)导致ID首位字符丢失-----------
 		} else if (rule == QueryRuleEnum.RIGHT_LIKE) {
 			value = val.substring(0, val.length() - 1);
 			//mysql 模糊查询之特殊字符下划线 （_、\）
@@ -754,6 +761,7 @@ public class QueryGenerator {
 			queryWrapper.notLikeRight(name, value);
 			break;
 		// 代码逻辑说明: [TV360X-378]下拉多框根据条件查询不出来:增加自定义字段查询规则功能------------
+		// update-begin--author:claude--date:20260330--for:【issues/9265】LIKE_WITH_OR多选查询精确匹配，避免值1匹配到值10
 		case LIKE_WITH_OR:
 			final String nameFinal = name;
 			Object[] vals;
@@ -769,14 +777,15 @@ public class QueryGenerator {
 				vals = new Object[]{value};
 			}
 			queryWrapper.and(j -> {
-				log.info("---查询过滤器，Query规则---field:{}, rule:{}, value:{}", nameFinal, "like", vals[0]);
-				j = j.like(nameFinal, vals[0]);
+				log.info("---查询过滤器，Query规则(多选精确匹配)---field:{}, rule:{}, value:{}", nameFinal, "multi_select", vals[0]);
+				j = j.eq(nameFinal, vals[0]).or().likeRight(nameFinal, vals[0] + ",").or().like(nameFinal, "," + vals[0] + ",").or().likeLeft(nameFinal, "," + vals[0]);
 				for (int k = 1; k < vals.length; k++) {
-					j = j.or().like(nameFinal, vals[k]);
-					log.info("---查询过滤器，Query规则 .or()---field:{}, rule:{}, value:{}", nameFinal, "like", vals[k]);
+					log.info("---查询过滤器，Query规则(多选精确匹配) .or()---field:{}, rule:{}, value:{}", nameFinal, "multi_select", vals[k]);
+					j = j.or().eq(nameFinal, vals[k]).or().likeRight(nameFinal, vals[k] + ",").or().like(nameFinal, "," + vals[k] + ",").or().likeLeft(nameFinal, "," + vals[k]);
 				}
 			});
 			break;
+			// update-end--author:claude--date:20260330--for:【issues/9265】LIKE_WITH_OR多选查询精确匹配，避免值1匹配到值10
 		default:
 			log.info("--查询规则未匹配到---");
 			break;
@@ -984,7 +993,11 @@ public class QueryGenerator {
 		PropertyDescriptor[] origDescriptors = PropertyUtils.getPropertyDescriptors(clazz);
 		for (String c : ruleMap.keySet()) {
 			if(oConvertUtils.isNotEmpty(c) && c.startsWith(SQL_RULES_COLUMN)){
-				queryWrapper.and(i ->i.apply(getSqlRuleValue(ruleMap.get(c).getRuleValue())));
+				// update-begin---author:sunjianlei ---date:20260331  for：【#9434】修复 QueryGenerator 自定义权限规则逻辑存在 SQL 注入漏洞
+				String sqlRule = getSqlRuleValue(ruleMap.get(c).getRuleValue());
+				SqlInjectionUtil.filterContent(sqlRule, null);
+				queryWrapper.and(i ->i.apply(sqlRule));
+				// update-end-----author:sunjianlei ---date:20260331  for：【#9434】修复 QueryGenerator 自定义权限规则逻辑存在 SQL 注入漏洞
 			}
 		}
 		String name, column;

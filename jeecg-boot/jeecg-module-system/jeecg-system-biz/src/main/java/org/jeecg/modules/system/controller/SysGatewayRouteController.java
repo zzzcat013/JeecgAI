@@ -34,6 +34,7 @@ public class SysGatewayRouteController extends JeecgController<SysGatewayRoute, 
 	@Autowired
 	private ISysGatewayRouteService sysGatewayRouteService;
 
+    @RequiresPermissions("system:gateway:updateAll")
     @PostMapping(value = "/updateAll")
     public Result<?> updateAll(@RequestBody JSONObject json) {
         sysGatewayRouteService.updateAll(json);

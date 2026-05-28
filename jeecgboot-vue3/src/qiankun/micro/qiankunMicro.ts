@@ -6,7 +6,7 @@ import type {MainAppProps} from "#/main";
 
 import {destroyStore} from "@/store";
 import {destroyRouter} from "@/router";
-import {clearComponent} from "@/components/jeecg/JVxeTable/src/componentMap";
+import { clearComponent } from '@/components/jeecg/JVxeTable/src/componentMapStore';
 
 import {renderWithQiankun} from 'vite-plugin-qiankun/dist/helper';
 

@@ -191,6 +191,52 @@ jeecg:
     apiKey: ??
     apiHost: https://api.deepseek.com/v1
     timeout: 60
+    skills-dir:
+    skills-shell-dir:
+    # AI文生图绘画
+    ai-model-draw:
+      # 提供商 OPENAI/ZHIPU/QWEN
+      provider: QWEN
+      model: wan2.2-t2i-flash
+      apiKey: sk-??
+      apiHost: https://dashscope.aliyuncs.com/api/v1/
+      timeout: 60
+    # AI图生图绘画
+    ai-model-pic-draw:
+      # 提供商 QWEN
+      provider: QWEN
+      # 目前只支持 wan2.5-i2i-preview和wanx2.1-imageedit模型
+      model: wan2.5-i2i-preview
+      apiKey: sk-??
+      apiHost: https://dashscope.aliyuncs.com/api/v1/
+      timeout: 60
+    # AI语音
+    ai-model-voice:
+      provider: ZHIPU
+      model: glm-tts
+      apiKey: ??
+      apiHost: https://open.bigmodel.cn/api/paas/v4
+      timeout: 60
+      # tongtong、chuichui、xiaochen、jam、kazi、douji、luodo
+      voice: tongtong
+      speed: 1.0
+      volume: 0.0
+    # AI视频
+    ai-model-video:
+      provider: ZHIPU
+      model: ??
+      apiKey: sk-??
+      apiHost: https://api.deepseek.com/v1
+      timeout: 60
+      ffmpeg-path:
+      edge-tts-path:
+    # 默认向量模型
+    ai-model-embed:
+      provider: QWEN
+      model: text-embedding-v1
+      apiKey: sk-??
+      apiHost: https://dashscope.aliyuncs.com/api/v1/services/
+      timeout: 60
   # AIRag向量库
   ai-rag:
     embed-store:
@@ -200,6 +246,12 @@ jeecg:
       user: postgres
       password: postgres
       table: embeddings
+    # Brave Search 联网检索（AI Agent 工具）
+    brave-search:
+      api-key: ??
+      endpoint: https://api.search.brave.com/res/v1/web/search
+      count: 10
+      timeout: 15
   # 平台上线安全配置
   firewall:
     # 数据源安全 (开启后，Online报表和图表的数据源为必填)

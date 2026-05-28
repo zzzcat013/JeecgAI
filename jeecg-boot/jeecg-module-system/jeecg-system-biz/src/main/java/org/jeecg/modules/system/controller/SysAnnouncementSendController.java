@@ -285,14 +285,14 @@ public class SysAnnouncementSendController {
 			 @RequestParam(name="busId",required=true) String busId,
 			 @RequestParam(name="busType",required=false) String busType) {
 		 //更新阅读状态
-		 sysAnnouncementSendService.updateReadFlagByBusId(busId,busType);
-
-		 //刷新未读数量
-		 JSONObject obj = new JSONObject();
-		 obj.put(WebsocketConst.MSG_CMD, WebsocketConst.CMD_USER);
-		 LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
-		 webSocket.sendMessage(sysUser.getId(), obj.toJSONString());
-
+		 boolean updateFlag = sysAnnouncementSendService.updateReadFlagByBusId(busId,busType);
+		 if(updateFlag){
+			//刷新未读数量
+			JSONObject obj = new JSONObject();
+			obj.put(WebsocketConst.MSG_CMD, WebsocketConst.CMD_USER);
+			LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+			webSocket.sendMessage(sysUser.getId(), obj.toJSONString());
+		 }
 		 return Result.ok();
 	 }
 }

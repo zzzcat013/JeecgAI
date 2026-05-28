@@ -550,7 +550,9 @@ export function useMethods(props: JVxeTableProps, { emit }, data: JVxeDataProps,
     // true = 删除新增，false=只删除id
     let removeNewLine = optOrRm?.removeNewLine ?? true;
     for (let row of rows) {
-      let item = cloneDeep(row);
+      // update-begin--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
+      let item = { ...row };
+      // update-end--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
       if (insertRecords.includes(row)) {
         handler ? handler({ item, row, insertRecords }) : null;
         if (removeNewLine) {
@@ -870,8 +872,9 @@ export function useMethods(props: JVxeTableProps, { emit }, data: JVxeDataProps,
     }
     let records: Recordable[] = [];
     for (let row of rows) {
-      let item = cloneDeep(row);
-      records.push(item);
+      // update-begin--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
+      records.push({ ...row });
+      // update-end--author:liaozhiyang---date:20260316---for:【QQYUN-13751】jVxetable优化
     }
     return records;
   }

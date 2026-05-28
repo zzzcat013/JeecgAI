@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.system.base.controller.JeecgController;
 import org.jeecg.common.system.query.QueryGenerator;
@@ -42,6 +43,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @return
      */
     @Operation(summary = "MCP-分页列表查询")
+    @RequiresPermissions("airag:mcp:list")
     @GetMapping(value = "/list")
     public Result<IPage<AiragMcp>> queryPageList(AiragMcp airagMcp,
                                                  @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo,
@@ -61,6 +63,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @return
      */
     @Operation(summary = "MCP-保存")
+    @RequiresPermissions("airag:mcp:save")
     @PostMapping(value = "/save")
     public Result<String> save(@RequestBody AiragMcp airagMcp) {
         return airagMcpService.edit(airagMcp);
@@ -77,6 +80,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @date 2025/10/21 10:54
      */
     @Operation(summary = "MCP-保存并同步")
+    @RequiresPermissions("airag:mcp:save")
     @PostMapping(value = "/saveAndSync")
     public Result<?> saveAndSync(@RequestBody AiragMcp airagMcp) {
         Result<String> saveResult = airagMcpService.edit(airagMcp);
@@ -99,6 +103,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @date 2025/10/20 20:09
      */
     @Operation(summary = "MCP-同步MCP信息")
+    @RequiresPermissions("airag:mcp:save")
     @PostMapping(value = "/sync/{id}")
     public Result<?> sync(@PathVariable(name = "id", required = true) String id) {
         return airagMcpService.sync(id);
@@ -114,6 +119,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @date 2025/10/20 20:13
      */
     @Operation(summary = "MCP-启用/禁用MCP信息")
+    @RequiresPermissions("airag:mcp:save")
     @PostMapping(value = "/status/{id}/{action}")
     public Result<?> toggleStatus(@PathVariable(name = "id",required = true) String id,
                                   @PathVariable(name = "action", required = true) String action) {
@@ -129,6 +135,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @date 2025/10/30
      */
     @Operation(summary = "MCP-保存插件工具")
+    @RequiresPermissions("airag:mcp:save")
     @PostMapping(value = "/saveTools")
     public Result<String> saveTools(@RequestBody SaveToolsDTO dto) {
         return airagMcpService.saveTools(dto.getId(), dto.getTools());
@@ -141,6 +148,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @return
      */
     @Operation(summary = "MCP-通过id删除")
+    @RequiresPermissions("airag:mcp:delete")
     @DeleteMapping(value = "/delete")
     public Result<String> delete(@RequestParam(name = "id", required = true) String id) {
         airagMcpService.removeById(id);
@@ -154,6 +162,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @return
      */
     @Operation(summary = "MCP-通过id查询")
+    //@RequiresPermissions("airag:mcp:queryById")
     @GetMapping(value = "/queryById")
     public Result<AiragMcp> queryById(@RequestParam(name = "id", required = true) String id) {
         AiragMcp airagMcp = airagMcpService.getById(id);
@@ -169,7 +178,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @param request
      * @param airagMcp
      */
-//    @RequiresPermissions("llm:airag_mcp:exportXls")
+    @RequiresPermissions("airag:mcp:export")
     @RequestMapping(value = "/exportXls")
     public ModelAndView exportXls(HttpServletRequest request, AiragMcp airagMcp) {
         return super.exportXls(request, airagMcp, AiragMcp.class, "MCP");
@@ -182,7 +191,7 @@ public class AiragMcpController extends JeecgController<AiragMcp, IAiragMcpServi
      * @param response
      * @return
      */
-//    @RequiresPermissions("llm:airag_mcp:importExcel")
+    @RequiresPermissions("airag:mcp:import")
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response) {
         return super.importExcel(request, response, AiragMcp.class);

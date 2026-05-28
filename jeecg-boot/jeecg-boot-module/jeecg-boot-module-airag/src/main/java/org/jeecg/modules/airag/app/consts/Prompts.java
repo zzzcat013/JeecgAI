@@ -173,4 +173,9 @@ public class Prompts {
      */
     public static final String AI_TOUCHE_PROMPT = "请针对如下内容：[{}] 进行润色。 回复格式：{}，语气：{}，语言：{}，长度：{}。";
 
+    /**
+     * ai绘画提示词
+     */
+    public static final String AI_DRAW_PROMPT = "风格：{}，视角：{}，人物镜头：{}，灯光：{}，图片尺寸：{};";
+
 }

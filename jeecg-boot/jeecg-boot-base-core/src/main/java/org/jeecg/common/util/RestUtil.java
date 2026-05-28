@@ -8,6 +8,8 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
@@ -235,7 +237,7 @@ public class RestUtil {
         }
         // 发送请求
         HttpEntity<String> request = new HttpEntity<>(body, headers);
-        return RT.exchange(url, method, request, responseType);
+        return RT.exchange(URI.create(url), method, request, responseType);
     }
 
     /**
@@ -308,7 +310,7 @@ public class RestUtil {
 
         // 发送请求
         HttpEntity<String> request = new HttpEntity<>(body, headers);
-        return restTemplate.exchange(url, method, request, responseType);
+        return restTemplate.exchange(URI.create(url), method, request, responseType);
     }
 
     /**
@@ -341,7 +343,10 @@ public class RestUtil {
             Object object = source.get(key);
             if (object != null) {
                 if (!StringUtils.isEmpty(object.toString())) {
-                    value = object.toString();
+                    //update-begin---author:sjlei---date:20260414  for：【jeecg-ai#17】修复工具节点参数值含{}时URI模板展开报错-----------
+                    // URL 编码参数值，防止值中含 {}、空格等特殊字符导致 URI 解析异常
+                    value = URLEncoder.encode(object.toString(), StandardCharsets.UTF_8);
+                    //update-end-----author:sjlei---date:20260414  for：【jeecg-ai#17】修复工具节点参数值含{}时URI模板展开报错-----------
                 }
             }
             urlVariables.append("&").append(key).append("=").append(value);

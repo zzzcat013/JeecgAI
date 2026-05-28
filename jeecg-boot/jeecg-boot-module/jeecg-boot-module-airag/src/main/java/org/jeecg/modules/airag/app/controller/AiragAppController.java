@@ -23,8 +23,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.jeecg.common.system.vo.DictModel;
 
 /**
  * @Description: AI应用
@@ -63,6 +65,25 @@ public class AiragAppController extends JeecgController<AiragApp, IAiragAppServi
     }
 
     /**
+     * 字典列表查询（不分页，按创建时间倒序）
+     *
+     * @param airagApp 支持通过实体字段动态过滤，如 type 等
+     * @param req HTTP请求
+     * @return 应用字典列表
+     */
+    @GetMapping(value = "/listDict")
+    public Result<List<DictModel>> listDict(AiragApp airagApp, HttpServletRequest req) {
+        QueryWrapper<AiragApp> queryWrapper = QueryGenerator.initQueryWrapper(airagApp, req.getParameterMap());
+        queryWrapper.select("id", "name");
+        queryWrapper.orderByDesc("create_time");
+        List<AiragApp> list = airagAppService.list(queryWrapper);
+        List<DictModel> dictList = list.stream()
+            .map(app -> new DictModel(app.getId(), app.getName()))
+            .collect(Collectors.toList());
+        return Result.OK(dictList);
+    }
+
+    /**
      * 新增或编辑
      *
      * @param airagApp
@@ -70,10 +91,24 @@ public class AiragAppController extends JeecgController<AiragApp, IAiragAppServi
      */
     @RequestMapping(value = "/edit", method = {RequestMethod.PUT, RequestMethod.POST})
     @RequiresPermissions("airag:app:edit")
-    public Result<String> edit(@RequestBody AiragApp airagApp) {
+    public Result<String> edit(@RequestBody AiragApp airagApp, HttpServletRequest request) {
         AssertUtils.assertNotEmpty("参数异常", airagApp);
         AssertUtils.assertNotEmpty("请输入应用名称", airagApp.getName());
         AssertUtils.assertNotEmpty("请选择应用类型", airagApp.getType());
+        //update-begin---author:zhangdaihao ---date:20260415  for：[issues/9462]AI应用edit接口跨租户数据写入漏洞------------
+        //SaaS多租户隔离：禁止跨租户写入，防止通过请求体伪造tenantId污染其他租户数据
+        if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+            String currentTenantId = TokenUtils.getTenantIdByRequest(request);
+            if (airagApp.getId() != null && !airagApp.getId().isEmpty()) {
+                AiragApp dbApp = airagAppService.getById(airagApp.getId());
+                if (dbApp == null || !dbApp.getTenantId().equals(currentTenantId)) {
+                    return Result.error("保存AI应用失败，不能修改其他租户的AI应用！");
+                }
+            }
+            //强制使用当前登录租户，忽略客户端传入值
+            airagApp.setTenantId(currentTenantId);
+        }
+        //update-end---author:zhangdaihao ---date:20260415  for：[issues/9462]AI应用edit接口跨租户数据写入漏洞------------
         airagApp.setStatus(AiAppConsts.STATUS_ENABLE);
         airagAppService.saveOrUpdate(airagApp);
         return Result.OK("保存完成!", airagApp.getId());

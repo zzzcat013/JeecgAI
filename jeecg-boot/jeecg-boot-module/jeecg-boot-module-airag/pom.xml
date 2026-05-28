@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.jeecgframework.boot3</groupId>
         <artifactId>jeecg-boot-module</artifactId>
-        <version>3.9.1</version>
+        <version>3.9.2</version>
     </parent>
 
     <artifactId>jeecg-boot-module-airag</artifactId>
@@ -41,14 +41,14 @@
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-bom</artifactId>
-                <version>1.9.1</version>
+                <version>1.12.2</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-community-bom</artifactId>
-                <version>1.9.1-beta17</version>
+                <version>1.12.1-beta21</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -75,7 +75,7 @@
         <dependency>
             <groupId>org.jeecgframework.boot3</groupId>
             <artifactId>jeecg-aiflow</artifactId>
-            <version>3.9.1-beta1</version>
+            <version>3.9.2-beta</version>
             <exclusions>
                 <exclusion>
                     <groupId>commons-io</groupId>
@@ -162,6 +162,10 @@
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-google-ai-gemini</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-community-zhipu-ai</artifactId>
             <exclusions>
                 <exclusion>
@@ -233,11 +237,28 @@
             <artifactId>tika-parser-text-module</artifactId>
             <version>${apache-tika.version}</version>
         </dependency>
+        <!--skills-->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-skills</artifactId>
+        </dependency>
+        <!--命令模式-->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-experimental-skills-shell</artifactId>
+            <version>1.12.2-beta22</version>
+        </dependency>
         <!-- word模版引擎 -->
         <dependency>
             <groupId>com.deepoove</groupId>
             <artifactId>poi-tl</artifactId>
             <version>1.12.2</version>
+        </dependency>
+        <!-- jsoup HTML parser library @ https://jsoup.org/ -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.22.1</version>
         </dependency>
     </dependencies>
 

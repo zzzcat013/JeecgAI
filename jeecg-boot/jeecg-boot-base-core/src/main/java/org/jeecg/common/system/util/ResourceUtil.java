@@ -144,7 +144,9 @@ public class ResourceUtil {
      */
     private static void processEnumClass(String classname) {
         try {
-            Class<?> clazz = Class.forName(classname);
+            //update-begin---author:scott ---date:20260416  for：【PR#9538】Class.forName使用上下文类加载器，增强部署兼容性-----------
+            Class<?> clazz = Class.forName(classname, true, Thread.currentThread().getContextClassLoader());
+            //update-end---author:scott ---date:20260416  for：【PR#9538】Class.forName使用上下文类加载器，增强部署兼容性-----------
             EnumDict enumDict = clazz.getAnnotation(EnumDict.class);
 
             if (enumDict != null) {

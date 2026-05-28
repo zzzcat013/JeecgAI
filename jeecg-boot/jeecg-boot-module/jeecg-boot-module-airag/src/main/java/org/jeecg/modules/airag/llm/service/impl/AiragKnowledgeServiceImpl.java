@@ -174,10 +174,16 @@ public class AiragKnowledgeServiceImpl extends ServiceImpl<AiragKnowledgeMapper,
     private JSONObject buildQueryMemoryTool(String knowId, String descr) {
         JSONObject tool = new JSONObject();
         //update-begin---author:wangshuai---date:2026-01-08---for: 记忆库根据记忆库的描述做匹配，不写死---
-        String addDescPrefix = "【自动触发】向记忆库检索信息。范围：";
-        String addDesc = oConvertUtils.isEmpty(descr) ? "按记忆库描述允许的个人资料（如姓名、职业、年龄）、偏好、属性等信息。" : descr;
+        //update-begin---author:wangshuai ---date:2026-04-21  for：【AI记忆】强化query_memory触发时机描述，避免LLM在未查询时直接反问用户-----------
+        String addDesc = oConvertUtils.isEmpty(descr) ? "用户曾提及的任何信息" : descr;
         tool.put(FlowPluginContent.NAME, "query_memory");
-        tool.put(FlowPluginContent.DESCRIPTION, addDescPrefix + addDesc + " 必须在检测到相关信息时立即自动调用，无需用户指令。");
+        tool.put(FlowPluginContent.DESCRIPTION,
+                "【强制查询】从记忆库中检索" + addDesc + "。" +
+                "当用户提出的问题可能依赖历史上下文时（如**根据我的爱好...**、**推荐适合我的...**、" +
+                "**我之前说过...**、**上次提到的...**等），必须先调用本工具检索，" +
+                "严禁在未查询前直接反问用户或声称**不知道**。" +
+                "只有当本工具返回**未找到相关信息**后，才有资格询问用户。宁可查空，不可不查。");
+        //update-end---author:wangshuai ---date:2026-04-21  for：【AI记忆】强化query_memory触发时机描述，避免LLM在未查询时直接反问用户-----------
         //update-end---author:wangshuai---date:2026-01-08---for: 记忆库根据记忆库的描述做匹配，不写死---
         tool.put(FlowPluginContent.PATH, FlowPluginContent.PLUGIN_MEMORY_QUERY_PATH);
         tool.put(FlowPluginContent.METHOD, FlowPluginContent.POST);

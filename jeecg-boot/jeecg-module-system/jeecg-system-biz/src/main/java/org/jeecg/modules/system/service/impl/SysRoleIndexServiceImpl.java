@@ -29,7 +29,7 @@ public class SysRoleIndexServiceImpl extends ServiceImpl<SysRoleIndexMapper, Sys
     private RedisUtil redisUtil;
 
     @Override
-    @Cacheable(cacheNames = DefIndexConst.CACHE_KEY, key = "'" + DefIndexConst.DEF_INDEX_ALL + "'")
+    @Cacheable(cacheNames = DefIndexConst.CACHE_KEY + "#3600", key = "'" + DefIndexConst.DEF_INDEX_ALL + "'")
     public SysRoleIndex queryDefaultIndex() {
         LambdaQueryWrapper<SysRoleIndex> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysRoleIndex::getRoleCode, DefIndexConst.DEF_INDEX_ALL);

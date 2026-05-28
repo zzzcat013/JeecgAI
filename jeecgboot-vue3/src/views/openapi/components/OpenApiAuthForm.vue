@@ -5,18 +5,18 @@
         <a-form ref="formRef" class="antd-modal-form" :labelCol="labelCol" :wrapperCol="wrapperCol" name="OpenApiAuthForm">
           <a-row>
 						<a-col :span="24">
-							<a-form-item label="授权名称" v-bind="validateInfos.name" id="OpenApiAuthForm-name" name="name">
-								<a-input v-model:value="formData.name" placeholder="请输入授权名称"  allow-clear ></a-input>
+							<a-form-item label="授权对象" v-bind="validateInfos.name" id="OpenApiAuthForm-name" name="name">
+								<a-input v-model:value="formData.name" placeholder="请输入授权对象"  allow-clear ></a-input>
 							</a-form-item>
 						</a-col>
 						<a-col :span="24">
-							<a-form-item label="AK" v-bind="validateInfos.ak" id="OpenApiAuthForm-ak" name="ak">
-								<a-input v-model:value="formData.ak" placeholder="请输入AK" disabled allow-clear ></a-input>
+							<a-form-item label="访问密钥（AK）" v-bind="validateInfos.ak" id="OpenApiAuthForm-ak" name="ak">
+								<a-input v-model:value="formData.ak" placeholder="自动生成" disabled allow-clear ></a-input>
 							</a-form-item>
 						</a-col>
 						<a-col :span="24">
-							<a-form-item label="SK" v-bind="validateInfos.sk" id="OpenApiAuthForm-sk" name="sk">
-								<a-input v-model:value="formData.sk" placeholder="请输入SK" disabled allow-clear ></a-input>
+							<a-form-item label="签名密钥（SK）" v-bind="validateInfos.sk" id="OpenApiAuthForm-sk" name="sk">
+								<a-input v-model:value="formData.sk" placeholder="自动生成" disabled allow-clear ></a-input>
 							</a-form-item>
 						</a-col>
 <!--						<a-col :span="24">-->
@@ -63,7 +63,7 @@
   const confirmLoading = ref<boolean>(false);
   //表单验证
   const validatorRules = reactive({
-    name:[{ required: true, message: '请输入授权名称!'},],
+    name:[{ required: true, message: '请输入授权对象!'},],
     systemUserId:[{ required: true, message: '请输入关联系统用户名!'},],
   });
   const { resetFields, validate, validateInfos } = useForm(formData, validatorRules, { immediate: false });

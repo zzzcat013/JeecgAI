@@ -1,5 +1,7 @@
 package org.jeecg.modules.message.websocket;
 
+import java.io.EOFException;
+import java.nio.channels.ClosedChannelException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import jakarta.websocket.*;
@@ -56,7 +58,7 @@ public class WebSocket {
             sessionPool.remove(userId);
             log.debug("【系统 WebSocket】连接断开，总数为:" + sessionPool.size());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("【系统 WebSocket】连接断开异常", e);
         }
     }
 
@@ -135,8 +137,13 @@ public class WebSocket {
      */
     @OnError
     public void onError(Session session, Throwable t) {
-        log.warn("【系统 WebSocket】消息出现错误");
-        t.printStackTrace();
+        // ClosedChannelException / EOFException 是应用关闭时 Tomcat 主动断开连接的正常现象，降级为 debug
+        Throwable cause = t.getCause() != null ? t.getCause() : t;
+        if (cause instanceof ClosedChannelException || cause instanceof EOFException) {
+            log.debug("【系统 WebSocket】连接已关闭（正常关闭）: {}", t.getMessage());
+        } else {
+            log.warn("【系统 WebSocket】消息出现错误", t);
+        }
     }
     //==========【系统 WebSocket接受、推送消息等方法 —— 具体服务节点推送ws消息】========================================================================================
     

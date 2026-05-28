@@ -4,6 +4,7 @@ import cn.hutool.core.util.ObjectUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.jeecg.dingtalk.api.base.JdtBaseAPI;
 import com.jeecg.dingtalk.api.core.response.Response;
@@ -40,6 +41,7 @@ import org.jeecg.modules.system.mapper.*;
 import org.jeecg.modules.system.model.SysDepartTreeModel;
 import org.jeecg.modules.system.model.ThirdLoginModel;
 import org.jeecg.modules.system.service.*;
+import org.jeecg.modules.system.vo.SysPositionVO;
 import org.jeecg.modules.system.vo.thirdapp.JdtDepartmentTreeVo;
 import org.jeecg.modules.system.vo.thirdapp.SyncInfoVo;
 import org.springframework.beans.BeanUtils;
@@ -346,6 +348,41 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
             // 获取本地所有用户
             sysUsers = userMapper.selectList(Wrappers.emptyWrapper());
         }
+        if (CollectionUtils.isEmpty(sysUsers)) {
+            return syncInfo;
+        }
+        //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+        List<String> userIds = sysUsers.stream().map(SysUser::getId).collect(Collectors.toList());
+        // ① 批量预加载 sys_third_account → Map<sysUserId, SysThirdAccount>
+        Map<String, SysThirdAccount> thirdAccountMap = sysThirdAccountService
+                .listBySysUserIds(userIds, THIRD_TYPE)
+                .stream()
+                .collect(Collectors.toMap(SysThirdAccount::getSysUserId, a -> a, (a, b) -> a));
+        // ② 批量预加载用户-部门关系 → Map<userId, List<departId>>
+        LambdaQueryWrapper<SysUserDepart> udQw = new LambdaQueryWrapper<>();
+        udQw.in(SysUserDepart::getUserId, userIds);
+        Map<String, List<String>> userDepartIdsMap = sysUserDepartService.list(udQw)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        SysUserDepart::getUserId,
+                        Collectors.mapping(SysUserDepart::getDepId, Collectors.toList())
+                ));
+        // ③ 批量预加载所有涉及的部门 → Map<departId, SysDepart>
+        Set<String> allDepartIds = userDepartIdsMap.values().stream()
+                .flatMap(Collection::stream).collect(Collectors.toSet());
+        Map<String, SysDepart> departMap = Collections.emptyMap();
+        if (!allDepartIds.isEmpty()) {
+            departMap = sysDepartService.listByIds(allDepartIds)
+                    .stream()
+                    .collect(Collectors.toMap(SysDepart::getId, d -> d, (a, b) -> a));
+        }
+        // ④ 批量预加载职位 → Map<userId, List<SysPositionVO>>
+        Map<String, List<SysPositionVO>> positionMap = sysPositionService
+                .getPositionListByUserIds(userIds)
+                .stream()
+                .collect(Collectors.groupingBy(SysPositionVO::getUserId));
+        //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+
         // 查询钉钉所有的部门，用于同步用户和部门的关系
         List<Department> allDepartment = JdtDepartmentAPI.listAll(accessToken);
 
@@ -361,7 +398,9 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
              * 1. 查询 sys_third_account（第三方账号表）是否有数据，如果有代表已同步
              * 2. 本地表里没有，就先用手机号判断，不通过再用username(用户账号)判断。
              */
-            SysThirdAccount sysThirdAccount = sysThirdAccountService.getOneBySysUserId(sysUser.getId(), THIRD_TYPE);
+            //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+            SysThirdAccount sysThirdAccount = thirdAccountMap.get(sysUser.getId());
+            //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
             if (sysThirdAccount != null && oConvertUtils.isNotEmpty(sysThirdAccount.getThirdUserId())) {
                 // sys_third_account 表匹配成功，通过第三方userId查询出第三方userInfo
                 dtUserInfo = JdtUserAPI.getUserById(sysThirdAccount.getThirdUserId(), accessToken);
@@ -384,12 +423,16 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
             if (dtUserInfo != null && dtUserInfo.isSuccess() && dtUserInfo.getResult() != null) {
                 User dtUser = dtUserInfo.getResult();
                 dtUserId = dtUser.getUserid();
-                User updateQwUser = this.sysUserToDtUser(sysUser, dtUser, allDepartment);
+                //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+                User updateQwUser = this.sysUserToDtUser(sysUser, dtUser, allDepartment, userDepartIdsMap, departMap, positionMap);
+                //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
                 Response<JSONObject> updateRes = JdtUserAPI.update(updateQwUser, accessToken);
                 // 收集成功/失败信息
                 apiSuccess = this.syncUserCollectErrInfo(updateRes, sysUser, syncInfo);
             } else {
-                User newQwUser = this.sysUserToDtUser(sysUser, allDepartment);
+                //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+                User newQwUser = this.sysUserToDtUser(sysUser, allDepartment, userDepartIdsMap, departMap, positionMap);
+                //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
                 Response<String> createRes = JdtUserAPI.create(newQwUser, accessToken);
                 dtUserId = createRes.getResult();
                 // 收集成功/失败信息
@@ -611,6 +654,56 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
         return user;
     }
 
+    //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+    /**
+     * 【同步用户】将SysUser转为【钉钉】的User对象（创建新用户，使用批量预加载Map，消除N+1查询）
+     */
+    private User sysUserToDtUser(SysUser sysUser, List<Department> allDepartment,
+                                 Map<String, List<String>> userDepartIdsMap, Map<String, SysDepart> departMap,
+                                 Map<String, List<SysPositionVO>> positionMap) {
+        User user = new User();
+        user.setUserid(sysUser.getUsername());
+        return this.sysUserToDtUser(sysUser, user, allDepartment, userDepartIdsMap, departMap, positionMap);
+    }
+
+    /**
+     * 【同步用户】将SysUser转为【钉钉】的User对象（更新旧用户，使用批量预加载Map，消除N+1查询）
+     */
+    private User sysUserToDtUser(SysUser sysUser, User user, List<Department> allDepartment,
+                                 Map<String, List<String>> userDepartIdsMap, Map<String, SysDepart> departMap,
+                                 Map<String, List<SysPositionVO>> positionMap) {
+        user.setName(sysUser.getRealname());
+        user.setMobile(sysUser.getPhone());
+        user.setTelephone(sysUser.getTelephone());
+        user.setJob_number(sysUser.getWorkNo());
+        // 职务翻译（使用预加载Map替代单次查询）
+        List<SysPositionVO> positionList = positionMap.getOrDefault(sysUser.getId(), Collections.emptyList());
+        if (!positionList.isEmpty()) {
+            String positionName = positionList.stream().map(SysPositionVO::getName).collect(Collectors.joining(SymbolConstant.COMMA));
+            user.setTitle(positionName);
+        }
+        user.setEmail(sysUser.getEmail());
+        // 查询并同步用户部门关系（使用预加载Map替代单次查询）
+        List<SysDepart> departList = this.getUserDepart(sysUser, userDepartIdsMap, departMap);
+        if (departList != null) {
+            List<Integer> departmentIdList = new ArrayList<>();
+            for (SysDepart sysDepart : departList) {
+                Department department = this.getDepartmentByDepartId(sysDepart.getId(), allDepartment);
+                if (department != null) {
+                    departmentIdList.add(department.getDept_id());
+                }
+            }
+            user.setDept_id_list(departmentIdList.toArray(new Integer[]{}));
+            user.setDept_order_list(null);
+        }
+        if (oConvertUtils.isEmpty(user.getDept_id_list())) {
+            user.setDept_id_list(1);
+            user.setDept_order_list(null);
+        }
+        return user;
+    }
+    //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+
 
     /**
      * 【同步用户】将【钉钉】的User对象转为SysUser（创建新用户）
@@ -693,6 +786,24 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
         List<SysDepart> departList = sysDepartService.list(departQueryWrapper);
         return departList.size() == 0 ? null : departList;
     }
+
+    //update-begin---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
+    /**
+     * 查询用户和部门的关系（使用批量预加载Map，消除N+1查询）
+     */
+    private List<SysDepart> getUserDepart(SysUser sysUser, Map<String, List<String>> userDepartIdsMap,
+                                          Map<String, SysDepart> departMap) {
+        List<String> departIds = userDepartIdsMap.get(sysUser.getId());
+        if (departIds == null || departIds.isEmpty()) {
+            return null;
+        }
+        List<SysDepart> departList = departIds.stream()
+                .map(departMap::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return departList.isEmpty() ? null : departList;
+    }
+    //update-end---author:sjlei ---date:2026-04-17  for：【#9496】全量同步N+1查询性能优化-----------
 
     /**
      * 根据sysDepartId查询钉钉的部门

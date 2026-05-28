@@ -5,7 +5,6 @@
       <li>2. 使用 sortKey 属性可以自定义排序保存的 key，默认为 orderNum。</li>
       <li>3. 使用 sortBegin 属性可以自定义排序的起始值，默认为 0。</li>
       <li>4. sortKey 定义的字段不需要定义在 columns 中也能正常获取到值。</li>
-      <li>5. 当存在 fixed 列时，拖拽排序将会失效，仅能上下排序。</li>
     </ol>
 
     <p> 以下示例开启了拖拽排序，排序值保存字段为 sortNum，排序起始值为 3<br /> </p>

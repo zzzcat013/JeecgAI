@@ -1,153 +1,147 @@
-<!--用户选择框-->
 <template>
   <div>
-    <BasicModal v-bind="$attrs" @register="register" title="数据对比" width="50%" destroyOnClose :showOkBtn="false">
-      <a-row :gutter="6" v-if="dataVersionList" style="margin-left: 2px">
-        <span style="margin-top: 5px; margin-right: 3px; margin-left: 4px">版本对比:</span>
-        <a-select placeholder="版本号" @change="handleChange1" v-model:value="params.dataId1">
-          <a-select-option v-for="(log, logindex) in dataVersionList" :key="log.value" :value="log.value">
-            {{ log.text }}
-          </a-select-option>
-        </a-select>
+    <BasicModal v-bind="$attrs" @register="register" title="数据版本对比" width="60%" destroyOnClose :showOkBtn="false">
+      <!-- 版本选择区 -->
+      <div class="compare-header">
+        <div class="compare-header__info">
+          <span class="compare-header__label">数据表：</span>
+          <a-tag color="blue">{{ dataTable }}</a-tag>
+          <span class="compare-header__label" style="margin-left: 16px">数据ID：</span>
+          <span class="compare-header__id">{{ dataId }}</span>
+        </div>
+        <div class="compare-header__selector">
+          <span class="compare-header__label">版本对比：</span>
+          <a-select
+            placeholder="选择版本"
+            @change="handleChange1"
+            v-model:value="params.dataId1"
+            style="width: 120px"
+          >
+            <a-select-option v-for="log in dataVersionList" :key="log.value" :value="log.value">
+              V{{ log.text }}
+            </a-select-option>
+          </a-select>
+          <span class="compare-header__vs">VS</span>
+          <a-select
+            placeholder="选择版本"
+            @change="handleChange2"
+            v-model:value="params.dataId2"
+            style="width: 120px"
+          >
+            <a-select-option v-for="log in dataVersionList" :key="log.value" :value="log.value">
+              V{{ log.text }}
+            </a-select-option>
+          </a-select>
+        </div>
+      </div>
 
-        <a-select placeholder="版本号" @change="handleChange2" style="padding-left: 10px" v-model:value="params.dataId2">
-          <a-select-option v-for="(log, logindex) in dataVersionList" :key="log.value" :value="log.value">
-            {{ log.text }}
-          </a-select-option>
-        </a-select>
-      </a-row>
-      <BasicTable
-        :columns="columns"
-        v-bind="getBindValue"
-        :rowClassName="setDataCss"
-        :striped="false"
-        :showIndexColumn="false"
-        :pagination="false"
-        :canResize="false"
-        :bordered="true"
-        :dataSource="dataSource"
-        :searchInfo="searchInfo"
-        v-if="isUpdate"
-      >
-        <template #dataVersionTitle1="{ record }"> <Icon icon="icon-park-outline:grinning-face" /> 版本:{{ dataVersion1Num }} </template>
-        <template #dataVersionTitle2="{ record }"> <Icon icon="icon-park-outline:grinning-face" /> 版本:{{ dataVersion2Num }} </template>
-        <template #avatarslot="{ record }">
-          <div class="anty-img-wrap" v-if="record.dataVersion1 != record.dataVersion2">
-            <Icon icon="mdi:arrow-right-bold" style="color: red"></Icon>
-          </div>
-        </template>
-      </BasicTable>
+      <!-- 差异统计 -->
+      <div class="compare-stats" v-if="dataSource.length > 0">
+        <a-tag color="red">{{ diffCount }} 处差异</a-tag>
+        <a-tag color="green">{{ dataSource.length - diffCount }} 处相同</a-tag>
+        <span class="compare-stats__total">共 {{ dataSource.length }} 个字段</span>
+      </div>
+
+      <!-- 对比表格 -->
+      <div class="compare-table" v-if="isUpdate">
+        <table class="compare-table__inner">
+          <thead>
+            <tr>
+              <th class="col-field">字段名</th>
+              <th class="col-value">
+                <span class="version-tag version-tag--left">V{{ dataVersion1Num }}</span>
+              </th>
+              <th class="col-status"></th>
+              <th class="col-value">
+                <span class="version-tag version-tag--right">V{{ dataVersion2Num }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, idx) in dataSource" :key="idx" :class="{ 'row-diff': row.isDiff, 'row-same': !row.isDiff }">
+              <td class="col-field">
+                <span class="field-name">{{ row.code }}</span>
+              </td>
+              <td class="col-value" :class="{ 'cell-diff': row.isDiff }">
+                <span class="cell-text">{{ formatValue(row.dataVersion1) }}</span>
+              </td>
+              <td class="col-status">
+                <span v-if="row.isDiff" class="diff-icon">≠</span>
+                <span v-else class="same-icon">=</span>
+              </td>
+              <td class="col-value" :class="{ 'cell-diff': row.isDiff }">
+                <span class="cell-text">{{ formatValue(row.dataVersion2) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </BasicModal>
   </div>
 </template>
 <script lang="ts">
-  import { defineComponent, unref, ref, reactive, watch } from 'vue';
+  import { defineComponent, unref, ref, reactive, computed } from 'vue';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { queryCompareList, queryDataVerList } from './datalog.api';
-  import { createAsyncComponent } from '/@/utils/factory/createAsyncComponent';
-  import { useAttrs } from '/@/hooks/core/useAttrs';
-  import { selectProps } from '/@/components/Form/src/jeecg/props/props';
   import { useMessage } from '/@/hooks/web/useMessage';
 
   export default defineComponent({
     name: 'DataLogCompareModal',
     components: {
-      //此处需要异步加载BasicTable
       BasicModal,
-      BasicTable: createAsyncComponent(() => import('/@/components/Table/src/BasicTable.vue'), { loading: true }),
-    },
-    props: {
-      ...selectProps,
     },
     emits: ['register', 'btnOk'],
-    setup(props, { emit, refs }) {
+    setup() {
       const { createMessage } = useMessage();
-      const attrs = useAttrs();
-      const getBindValue = Object.assign({}, unref(props), unref(attrs));
-      const dataSource = ref([]);
+      const dataSource = ref<any[]>([]);
       const dataVersion1Num = ref('');
       const dataVersion2Num = ref('');
       const isUpdate = ref(true);
-      const searchInfo = {};
-      const dataId1 = ref('');
-      const dataId2 = ref('');
       const dataId = ref('');
-      const dataTable1 = ref('');
-      const dataID3 = ref('');
       const dataTable = ref('');
-      const confirmLoading = ref(false);
-      const dataVersionList = ref([]);
-      let params = reactive({ dataId1: '', dataId2: '' });
-      let dataLog = reactive({});
-      const [register, { setModalProps, closeModal }] = useModalInner(async (data) => {
+      const dataVersionList = ref<any[]>([]);
+      const params = reactive({ dataId1: '', dataId2: '' });
+
+      const diffCount = computed(() => dataSource.value.filter((r) => r.isDiff).length);
+
+      const [register, { setModalProps }] = useModalInner(async (data) => {
         isUpdate.value = !!data?.isUpdate;
         if (unref(isUpdate)) {
-          let checkedRows = data.selectedRows;
+          const checkedRows = data.selectedRows;
           dataTable.value = checkedRows[0].dataTable;
           dataId.value = checkedRows[0].dataId;
-          dataId1.value = checkedRows[0].id;
-          dataId2.value = checkedRows[1].id;
-          params.dataId1 = dataId1.value;
-          params.dataId2 = dataId2.value;
+          params.dataId1 = checkedRows[0].id;
+          params.dataId2 = checkedRows[1].id;
           await initDataVersionList();
           await initTableData();
         }
       });
 
-      //定义表格列
-      const columns = [
-        {
-          title: '字段名',
-          dataIndex: 'code',
-          width: 20,
-          align: 'left',
-        },
-        {
-          dataIndex: 'dataVersion1',
-          align: 'left',
-          width: 60,
-          slots: { title: 'dataVersionTitle1' },
-        },
-        {
-          title: '',
-          dataIndex: 'imgshow',
-          align: 'center',
-          slots: { customRender: 'avatarslot' },
-          width: 5,
-        },
-        {
-          align: 'left',
-          dataIndex: 'dataVersion2',
-          width: 60,
-          filters: [],
-          filterMultiple: false,
-          slots: { title: 'dataVersionTitle2' },
-        },
-      ];
       async function initTableData() {
-        console.info('params', params);
         queryCompareList(unref(params)).then((res) => {
-          console.info('test', res);
           dataVersion1Num.value = res[0].dataVersion;
           dataVersion2Num.value = res[1].dataVersion;
-          let json1 = JSON.parse(res[0].dataContent);
-          let json2 = JSON.parse(res[1].dataContent);
-          let data = [];
-          for (var item1 in json1) {
-            for (var item2 in json2) {
-              if (item1 == item2) {
-                data.push({
-                  code: item1,
-                  imgshow: '',
-                  dataVersion1: json1[item1],
-                  dataVersion2: json2[item2],
-                });
-              }
-            }
-          }
+          const json1 = JSON.parse(res[0].dataContent);
+          const json2 = JSON.parse(res[1].dataContent);
+          // 收集所有字段（兼顾两边都有的和只有一边有的）
+          const allKeys = new Set([...Object.keys(json1), ...Object.keys(json2)]);
+          const data: any[] = [];
+          allKeys.forEach((fieldKey) => {
+            const v1 = json1[fieldKey] ?? '';
+            const v2 = json2[fieldKey] ?? '';
+            data.push({
+              code: fieldKey,
+              dataVersion1: v1,
+              dataVersion2: v2,
+              isDiff: String(v1) !== String(v2),
+            });
+          });
+          // 差异项排前面
+          data.sort((a, b) => (a.isDiff === b.isDiff ? 0 : a.isDiff ? -1 : 1));
           dataSource.value = data;
         });
       }
+
       function handleChange1(value) {
         if (params.dataId2 == value) {
           createMessage.warning('相同版本号不能比较');
@@ -156,6 +150,7 @@
         params.dataId1 = value;
         initTableData();
       }
+
       function handleChange2(value) {
         if (params.dataId1 == value) {
           createMessage.warning('相同版本号不能比较');
@@ -164,57 +159,223 @@
         params.dataId2 = value;
         initTableData();
       }
-      function setDataCss(record) {
-        let className = 'trcolor';
-        const dataVersion1 = record.dataVersion1;
-        const dataVersion2 = record.dataVersion2;
-        if (dataVersion1 != dataVersion2) {
-          return className;
-        }
-      }
+
       async function initDataVersionList() {
         queryDataVerList({ dataTable: dataTable.value, dataId: dataId.value }).then((res) => {
-          dataVersionList.value = res.map((value, key, arr) => {
-            let item = {};
-            item['text'] = value['dataVersion'];
-            item['value'] = value['id'];
-            return item;
-          });
+          dataVersionList.value = res.map((value) => ({
+            text: value['dataVersion'],
+            value: value['id'],
+          }));
         });
       }
 
+      function formatValue(val) {
+        if (val === null || val === undefined || val === '') return '--';
+        return String(val);
+      }
+
       return {
-        //config,
-        searchInfo,
         dataSource,
-        setDataCss,
         isUpdate,
         dataVersionList,
         dataVersion1Num,
         dataVersion2Num,
-        queryCompareList,
-        initDataVersionList,
         register,
         handleChange1,
         handleChange2,
         params,
-        getBindValue,
-        columns,
+        dataTable,
+        dataId,
+        diffCount,
+        formatValue,
       };
     },
   });
 </script>
-<style scoped>
-  .anty-img-wrap {
-    height: 25px;
-    position: relative;
+<style lang="less" scoped>
+  .compare-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #fafafa;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    &__info {
+      display: flex;
+      align-items: center;
+    }
+
+    &__label {
+      font-size: 13px;
+      color: #8c8c8c;
+      white-space: nowrap;
+    }
+
+    &__id {
+      font-size: 12px;
+      color: #595959;
+      font-family: 'Consolas', 'Monaco', monospace;
+      word-break: break-all;
+    }
+
+    &__selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    &__vs {
+      font-weight: 600;
+      color: #faad14;
+      font-size: 14px;
+    }
   }
 
-  .anty-img-wrap > img {
-    max-height: 100%;
+  .compare-stats {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__total {
+      font-size: 12px;
+      color: #8c8c8c;
+      margin-left: 4px;
+    }
   }
 
-  .marginCss {
-    margin-top: 20px;
+  .compare-table {
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    overflow: hidden;
+
+    &__inner {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+
+      thead {
+        tr {
+          background: #fafafa;
+        }
+
+        th {
+          padding: 10px 12px;
+          font-weight: 500;
+          color: #595959;
+          border-bottom: 1px solid #f0f0f0;
+          text-align: left;
+        }
+      }
+
+      tbody {
+        tr {
+          transition: background 0.2s;
+
+          &:hover {
+            background: #fafafa;
+          }
+
+          &:not(:last-child) td {
+            border-bottom: 1px solid #f5f5f5;
+          }
+        }
+
+        td {
+          padding: 8px 12px;
+          color: #333;
+          vertical-align: top;
+        }
+      }
+    }
+  }
+
+  .col-field {
+    width: 140px;
+    min-width: 120px;
+  }
+
+  .col-value {
+    width: 40%;
+  }
+
+  .col-status {
+    width: 36px;
+    text-align: center !important;
+  }
+
+  .field-name {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    color: #1890ff;
+  }
+
+  .cell-text {
+    word-break: break-all;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .row-diff {
+    .field-name {
+      font-weight: 600;
+    }
+  }
+
+  .cell-diff {
+    background: #fff7e6;
+
+    .cell-text {
+      color: #d46b08;
+      font-weight: 500;
+    }
+  }
+
+  .diff-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff1f0;
+    color: #ff4d4f;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .same-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #f6ffed;
+    color: #52c41a;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .version-tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+
+    &--left {
+      background: #e6f7ff;
+      color: #1890ff;
+    }
+
+    &--right {
+      background: #f6ffed;
+      color: #52c41a;
+    }
   }
 </style>

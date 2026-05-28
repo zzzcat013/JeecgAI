@@ -1,5 +1,25 @@
 <template>
-  <PageWrapper title="Icon组件示例">
+  <PageWrapper title="图标使用示例">
+    <CollapseContainer title="Icon组件中iconfiy图标使用（不推荐使用，项目中所有图标都构建在一个js且首屏就加载，没有分割到chuck中，不是按需引入）" class="my-5">
+      <div class="flex justify-around flex-wrap">
+        <Icon icon="ion:layers-outline" :size="30" />
+        <Icon icon="ion:bar-chart-outline" :size="30" />
+        <Icon icon="ion:tv-outline" :size="30" />
+        <Icon icon="ion:settings-outline" :size="30" />
+        <Icon icon="ion:language" :size="30" />
+      </div>
+    </CollapseContainer>
+
+    <CollapseContainer title="推荐直接使用iconify原生组件（分割到chunk中，按需引入）" class="my-5">
+      <div class="flex justify-around flex-wrap">
+        <IconifyonLayersOutline class="text-30px" />
+        <IconifyIonBarChartOutline class="text-30px" />
+        <IconifyIonTvOutline class="text-30px" />
+        <IconifyIonSettingsOutline class="text-30px" />
+        <IconIonLanguage class="text-30px" />
+      </div>
+    </CollapseContainer>
+
     <CollapseContainer title="Antv Icon使用 (直接按需引入相应组件即可)">
       <div class="flex justify-around">
         <GithubFilled :style="{ fontSize: '30px' }" />
@@ -9,15 +29,6 @@
         <IeCircleFilled :style="{ fontSize: '30px' }" />
         <TaobaoCircleFilled :style="{ fontSize: '30px' }" />
         <CodepenCircleFilled :style="{ fontSize: '30px' }" />
-      </div>
-    </CollapseContainer>
-
-    <CollapseContainer title="IconIfy 组件使用" class="my-5">
-      <div class="flex justify-around flex-wrap">
-        <Icon icon="ion:layers-outline" :size="30" />
-        <Icon icon="ion:bar-chart-outline" :size="30" />
-        <Icon icon="ion:tv-outline" :size="30" />
-        <Icon icon="ion:settings-outline" :size="30" />
       </div>
     </CollapseContainer>
 
@@ -68,7 +79,7 @@
 
   import { openWindow } from '/@/utils';
   import { PageWrapper } from '/@/components/Page';
-
+  import IconIonLanguage from '~icons/ion/language'
   export default defineComponent({
     components: {
       PageWrapper,
@@ -84,6 +95,7 @@
       Alert,
       IconPicker,
       SvgIcon,
+      IconIonLanguage,
     },
     setup() {
       return {

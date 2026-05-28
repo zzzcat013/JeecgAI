@@ -109,4 +109,11 @@ public class AiragKnowledge implements Serializable {
     @Excel(name="类型(knowledge知识 memory 记忆)", width = 15)
     @Schema(description = "类型(knowledge知识 memory 记忆)")
     private java.lang.String type;
+
+    /**
+     * 元数据
+     */
+    @Excel(name = "元数据", width = 15)
+    @Schema(description = "元数据")
+    private java.lang.String metadata;
 }

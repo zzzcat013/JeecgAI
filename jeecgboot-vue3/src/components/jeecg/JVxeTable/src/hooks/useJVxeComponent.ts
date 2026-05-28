@@ -142,8 +142,12 @@ export function useJVxeComponent(props: JVxeComponent.Props) {
     (newValue) => {
       // -update-begin--author:liaozhiyang---date:20241210---for：【issues/7497】隐藏某一列后，字典没翻译，恢复后正常
       // TODO 先这样修复解决问题，根因后期再看看
-      enhanced = getEnhanced(props.type);
+      // enhanced = getEnhanced(props.type);
       // -update-end--author:liaozhiyang---date:20241210---for：【issues/7497】隐藏某一列后，字典没翻译，恢复后
+      // 解决online中对同一条数据点击编辑多次他表字段变成空格的问题
+      if (props.type === 'input' && originColumn.value.flag === 'link-table-field' && (newValue === undefined || newValue === null)) {
+        return;
+      }
       // 验证值格式
       let getValue = enhanced.getValue(newValue, ctx);
       if (newValue !== getValue) {

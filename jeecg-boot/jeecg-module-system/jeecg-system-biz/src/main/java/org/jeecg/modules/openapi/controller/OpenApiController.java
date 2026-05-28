@@ -9,11 +9,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.google.common.collect.Lists;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.CommonConstant;
+import org.jeecg.common.exception.JeecgBootBizTipException;
 import org.jeecg.common.system.base.controller.JeecgController;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.util.JwtUtil;
+import org.jeecg.common.util.CommonUtils;
 import org.jeecg.common.util.RedisUtil;
-import org.jeecg.common.util.RestUtil;
+import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.openapi.entity.OpenApi;
 import org.jeecg.modules.openapi.entity.OpenApiAuth;
 import org.jeecg.modules.openapi.entity.OpenApiHeader;
@@ -24,6 +26,7 @@ import org.jeecg.modules.openapi.service.OpenApiService;
 import org.jeecg.modules.openapi.swagger.*;
 import org.jeecg.modules.system.entity.SysUser;
 import org.jeecg.modules.system.service.ISysUserService;
+import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -78,8 +81,13 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
      * @param openApi
      * @return
      */
+    @RequiresRoles({"admin"})
     @PostMapping(value = "/add")
     public Result<?> add(@RequestBody OpenApi openApi) {
+        if (openApi == null) {
+            return Result.error("请求参数不能为空");
+        }
+        validOriginUrl(openApi.getOriginUrl());
         service.save(openApi);
         return Result.ok("添加成功！");
     }
@@ -90,8 +98,13 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
      * @param openApi
      * @return
      */
+    @RequiresRoles({"admin"})
     @PutMapping(value = "/edit")
     public Result<?> edit(@RequestBody OpenApi openApi) {
+        if (openApi == null) {
+            return Result.error("请求参数不能为空");
+        }
+        validOriginUrl(openApi.getOriginUrl());
         service.updateById(openApi);
         return Result.ok("修改成功!");
 
@@ -103,6 +116,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
      * @param id
      * @return
      */
+    @RequiresRoles({"admin"})
     @DeleteMapping(value = "/delete")
     public Result<?> delete(@RequestParam(name = "id", required = true) String id) {
         service.removeById(id);
@@ -115,6 +129,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
      * @param ids
      * @return
      */
+    @RequiresRoles({"admin"})
     @DeleteMapping(value = "/deleteBatch")
     public Result<?> deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
 
@@ -159,6 +174,8 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
         }
 
         String url = openApi.getOriginUrl();
+        // 校验原始接口路径是否合法
+        validOriginUrl(url);
         String method = openApi.getRequestMethod();
         String appkey = request.getHeader("appkey");
         OpenApiAuth openApiAuth = openApiAuthService.getByAppkey(appkey);
@@ -167,7 +184,17 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
         httpHeaders.put("X-Access-Token", Lists.newArrayList(token));
         httpHeaders.put("Content-Type",Lists.newArrayList("application/json"));
         HttpEntity<String> httpEntity = new HttpEntity<>(json, httpHeaders);
-        url = RestUtil.getBaseUrl() +  url;
+        //update-begin---author:scott ---date:20260429  for：【issues/9590】微服务nginx部署openApi接口访问不到-----------
+        // originUrl 支持两种形式：
+        //  1) 相对路径（如 /house/houseTest/list）：拼接当前请求的 baseUrl；
+        //     使用 CommonUtils.getBaseUrl(request)（而非 RestUtil.getBaseUrl()），
+        //     可读取 X-Gateway-Base-Path 请求头，兼容微服务网关下的真实 base path
+        //  2) 完整URL（http(s)://host:port/path）：直接使用，适用于微服务模式下接口部署在其他微服务模块（如 erp 7003）的场景
+        String lowerUrl = url.toLowerCase();
+        if (!lowerUrl.startsWith("http://") && !lowerUrl.startsWith("https://")) {
+            url = CommonUtils.getBaseUrl(request) + url;
+        }
+        //update-end---author:scott ---date:20260429  for：【issues/9590】微服务nginx部署openApi接口访问不到-----------
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
         if (HttpMethod.GET.matches(method)
                 || HttpMethod.DELETE.matches(method)
@@ -213,6 +240,51 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
         return token;
     }
 
+    /**
+     * 校验原始接口路径是否合法：
+     *  - 相对路径：必须以 / 开头，不允许 // 和 .. 防止路径穿越
+     *  - 完整URL：仅允许 http/https 协议，禁止 file/ftp/gopher/jar/netdoc 等其它协议（用于微服务模式跨模块调用）
+     */
+    private void validOriginUrl(String originUrl) {
+        if (oConvertUtils.isEmpty(originUrl)) {
+            throw new JeecgBootBizTipException("原始接口路径不能为空");
+        }
+        String decoded;
+        try {
+            decoded = java.net.URLDecoder.decode(originUrl, "UTF-8");
+            // 二次解码，防止 %252f 这类双重编码绕过
+            decoded = java.net.URLDecoder.decode(decoded, "UTF-8");
+        } catch (Exception e) {
+            throw new JeecgBootBizTipException("原始接口路径包含非法字符");
+        }
+        //update-begin---author:scott ---date:20260429  for：【issues/9590】微服务nginx部署openApi接口访问不到-----------
+        // 微服务部署时，OpenAPI 配置的接口可能位于其他微服务模块（如 erp 7003），允许 originUrl 直接配置完整 http(s) URL
+        String lower = decoded.toLowerCase();
+        boolean isFullHttpUrl = lower.startsWith("http://") || lower.startsWith("https://");
+        if (!isFullHttpUrl) {
+            if (!decoded.startsWith("/")) {
+                throw new JeecgBootBizTipException("原始接口路径必须以 / 开头，或填写完整的 http(s) URL");
+            }
+            if (decoded.startsWith("//") || decoded.startsWith("/\\")) {
+                throw new JeecgBootBizTipException("原始接口路径不能以 // 或 /\\ 开头");
+            }
+            if (lower.contains("://") || lower.startsWith("file:") || lower.startsWith("ftp:") || lower.startsWith("gopher:")
+                    || lower.startsWith("jar:") || lower.startsWith("netdoc:")) {
+                throw new JeecgBootBizTipException("原始接口路径仅支持相对路径或 http(s) 完整URL");
+            }
+        } else {
+            // 即便是完整URL，也禁止其它危险协议（防止 http://x@file:/... 之类的绕过场景）
+            String afterScheme = lower.substring(lower.indexOf("://") + 3);
+            if (afterScheme.contains("file:") || afterScheme.contains("ftp:") || afterScheme.contains("gopher:")
+                    || afterScheme.contains("jar:") || afterScheme.contains("netdoc:")) {
+                throw new JeecgBootBizTipException("原始接口路径不允许嵌套 file/ftp/gopher/jar/netdoc 等协议");
+            }
+        }
+        if (decoded.contains("..")) {
+            throw new JeecgBootBizTipException("原始接口路径不能包含 ..");
+        }
+        //update-end---author:scott ---date:20260429  for：【issues/9590】微服务nginx部署openApi接口访问不到-----------
+    }
 
     @GetMapping("/json")
     public SwaggerModel swaggerModel() {
@@ -382,7 +454,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
         SwaggerInfo info = new SwaggerInfo();
 
         info.setDescription("OpenAPI 接口列表");
-        info.setVersion("3.9.1");
+        info.setVersion("3.9.2");
         info.setTitle("OpenAPI 接口列表");
         info.setTermsOfService("https://jeecg.com");
 

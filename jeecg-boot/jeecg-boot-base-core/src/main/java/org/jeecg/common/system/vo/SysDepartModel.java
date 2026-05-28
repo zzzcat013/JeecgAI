@@ -15,6 +15,8 @@ public class SysDepartModel {
     private String departNameEn;
     /**缩写*/
     private String departNameAbbr;
+    /**机构/部门路径名称*/
+    private String departPathName;
     /**排序*/
     private Integer departOrder;
     /**描述*/
@@ -72,6 +74,14 @@ public class SysDepartModel {
 
     public void setDepartNameAbbr(String departNameAbbr) {
         this.departNameAbbr = departNameAbbr;
+    }
+
+    public String getDepartPathName() {
+        return departPathName;
+    }
+
+    public void setDepartPathName(String departPathName) {
+        this.departPathName = departPathName;
     }
 
     public Integer getDepartOrder() {

@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.aspect.annotation.AutoLog;
 import org.jeecg.common.system.base.controller.JeecgController;
@@ -65,6 +66,7 @@ public class SysFillRuleController extends JeecgController<SysFillRule, ISysFill
      * @param ruleCode
      * @return
      */
+    @RequiresRoles({"admin"})
     @GetMapping(value = "/testFillRule")
     public Result testFillRule(@RequestParam("ruleCode") String ruleCode) {
         Object result = FillRuleUtil.executeRule(ruleCode, new JSONObject());
@@ -79,6 +81,7 @@ public class SysFillRuleController extends JeecgController<SysFillRule, ISysFill
      */
     @AutoLog(value = "填值规则-添加")
     @Operation(summary = "填值规则-添加")
+    @RequiresRoles({"admin"})
     @PostMapping(value = "/add")
     public Result<?> add(@RequestBody SysFillRule sysFillRule) {
         sysFillRuleService.save(sysFillRule);
@@ -93,6 +96,7 @@ public class SysFillRuleController extends JeecgController<SysFillRule, ISysFill
      */
     @AutoLog(value = "填值规则-编辑")
     @Operation(summary = "填值规则-编辑")
+    @RequiresRoles({"admin"})
     @RequestMapping(value = "/edit", method = {RequestMethod.PUT,RequestMethod.POST})
     public Result<?> edit(@RequestBody SysFillRule sysFillRule) {
         sysFillRuleService.updateById(sysFillRule);
@@ -107,6 +111,7 @@ public class SysFillRuleController extends JeecgController<SysFillRule, ISysFill
      */
     @AutoLog(value = "填值规则-通过id删除")
     @Operation(summary = "填值规则-通过id删除")
+    @RequiresRoles({"admin"})
     @DeleteMapping(value = "/delete")
     public Result<?> delete(@RequestParam(name = "id", required = true) String id) {
         sysFillRuleService.removeById(id);
@@ -121,6 +126,7 @@ public class SysFillRuleController extends JeecgController<SysFillRule, ISysFill
      */
     @AutoLog(value = "填值规则-批量删除")
     @Operation(summary = "填值规则-批量删除")
+    @RequiresRoles({"admin"})
     @DeleteMapping(value = "/deleteBatch")
     public Result<?> deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
         this.sysFillRuleService.removeByIds(Arrays.asList(ids.split(",")));

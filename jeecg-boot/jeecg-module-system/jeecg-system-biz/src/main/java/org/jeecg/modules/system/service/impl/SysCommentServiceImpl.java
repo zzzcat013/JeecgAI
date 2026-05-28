@@ -353,7 +353,14 @@ public class SysCommentServiceImpl extends ServiceImpl<SysCommentMapper, SysComm
         try {
             String ctxPath = uploadpath;
             String fileName = null;
-            File file = new File(ctxPath + File.separator + bizPath + File.separator);
+            //update-begin---author:liusq ---date:2026-03-30  for：【issues/9427】修复uploadLocal bizPath路径遍历漏洞(CWE-22)-----------
+            // 路径遍历校验：规范化后确保目标目录在uploadpath内
+            File uploadDir = new File(ctxPath).getCanonicalFile();
+            File file = new File(ctxPath + File.separator + bizPath + File.separator).getCanonicalFile();
+            if (!file.toPath().startsWith(uploadDir.toPath())) {
+                throw new JeecgBootException("非法业务路径，禁止访问上传目录之外的路径: " + bizPath);
+            }
+            //update-end---author:liusq ---date:2026-03-30  for：【issues/9427】修复uploadLocal bizPath路径遍历漏洞(CWE-22)-----------
             if (!file.exists()) {
                 file.mkdirs();// 创建文件根目录
             }

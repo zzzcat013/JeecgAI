@@ -23,7 +23,11 @@ public enum UniPushTypeEnum {
     /**
      * 系统消息
      */
-    SYS_MSG("system", "系统消息", "收到一条系统通告");
+    SYS_MSG("system", "系统消息", "收到一条系统通告"),
+    /**
+     * 协同工作
+     */
+    COLLABORATION_MSG("collaboration", "系统消息", "收到一条协同工作消息");
 
     /**
      * 业务类型(chat:聊天 bpm_task:流程 bpm_cc:流程抄送)

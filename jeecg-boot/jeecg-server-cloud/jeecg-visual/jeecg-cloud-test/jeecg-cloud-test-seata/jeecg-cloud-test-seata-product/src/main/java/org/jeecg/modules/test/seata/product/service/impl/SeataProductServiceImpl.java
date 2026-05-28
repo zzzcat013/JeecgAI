@@ -5,6 +5,7 @@ import io.seata.core.context.RootContext;
 import lombok.extern.slf4j.Slf4j;
 
 
+import org.jeecg.common.api.vo.Result;
 import org.jeecg.modules.test.seata.product.entity.SeataProduct;
 import org.jeecg.modules.test.seata.product.mapper.SeataProductMapper;
 import org.jeecg.modules.test.seata.product.service.SeataProductService;
@@ -35,7 +36,7 @@ public class SeataProductServiceImpl implements SeataProductService {
     @DS("product")
     @Transactional(propagation = Propagation.REQUIRES_NEW,rollbackFor = Exception.class)
     @Override
-    public BigDecimal reduceStock(Long productId, Integer count) {
+    public Result<BigDecimal> reduceStock(Long productId, Integer count) {
         log.info("xid:"+ RootContext.getXID());
         log.info("=============PRODUCT START=================");
         // 检查库存
@@ -46,7 +47,7 @@ public class SeataProductServiceImpl implements SeataProductService {
 
         if (stock < count) {
             log.warn("商品编号为{} 库存不足，当前库存:{}", productId, stock);
-            throw new RuntimeException("库存不足");
+            return Result.error("库存不足");
         }
         log.info("开始扣减商品编号为 {} 库存,单价商品价格为{}", productId, product.getPrice());
         // 扣减库存
@@ -56,6 +57,6 @@ public class SeataProductServiceImpl implements SeataProductService {
         BigDecimal totalPrice = product.getPrice().multiply(new BigDecimal(count));
         log.info("扣减商品编号为 {} 库存成功,扣减后库存为{}, {} 件商品总价为 {} ", productId, currentStock, count, totalPrice);
         log.info("=============PRODUCT END=================");
-        return totalPrice;
+        return Result.OK(totalPrice);
     }
 }
