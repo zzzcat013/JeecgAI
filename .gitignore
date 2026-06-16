@@ -11,6 +11,7 @@ jeecg-boot/jeecg-module-system/jeecg-system-start/uploads
 ## backend
 **/target
 **/logs
+uploads/**
 
 ## front
 **/*.lock
