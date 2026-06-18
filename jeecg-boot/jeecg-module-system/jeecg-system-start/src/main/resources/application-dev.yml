@@ -201,7 +201,7 @@ jeecg:
     enabled: true
     model: glm-4.7
     apiKey: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
-    apiHost: https://open.bigmodel.cn
+    apiHost: https://open.bigmodel.cn/api/paas/v4
     timeout: 60
     skills-dir:
     skills-shell-dir:
@@ -219,14 +219,14 @@ jeecg:
       provider: QWEN
       # 目前只支持 wan2.5-i2i-preview和wanx2.1-imageedit模型
       model: wan2.5-i2i-preview
-      apiKey: sk-??
-      apiHost: https://dashscope.aliyuncs.com/api/v1/
+      apiKey: sk-63478a4ca8cf4bd890573e41fc8fceb0
+      apiHost: https://dashscope.aliyuncs.com/compatible-mode/v1
       timeout: 60
     # AI语音
     ai-model-voice:
       provider: ZHIPU
       model: glm-tts
-      apiKey: ??
+      apiKey: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
       apiHost: https://open.bigmodel.cn/api/paas/v4
       timeout: 60
       # tongtong、chuichui、xiaochen、jam、kazi、douji、luodo
@@ -246,8 +246,8 @@ jeecg:
     ai-model-embed:
       provider: QWEN
       model: text-embedding-v1
-      apiKey: sk-??
-      apiHost: https://dashscope.aliyuncs.com/api/v1/services/
+      apiKey: sk-63478a4ca8cf4bd890573e41fc8fceb0
+      apiHost: https://dashscope.aliyuncs.com/compatible-mode/v1
       timeout: 60
   # AIRag向量库
   ai-rag:
