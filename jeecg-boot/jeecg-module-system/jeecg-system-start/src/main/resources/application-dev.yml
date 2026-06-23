@@ -210,7 +210,7 @@ jeecg:
       # 提供商 OPENAI/ZHIPU/QWEN
       provider: QWEN
       model: wan2.2-t2i-flash
-      apiKey: sk-??
+      apiKey: sk-63478a4ca8cf4bd890573e41fc8fceb0
       apiHost: https://dashscope.aliyuncs.com/api/v1/
       timeout: 60
     # AI图生图绘画
@@ -374,9 +374,9 @@ jeecg:
     enabled: true
   # 百度开放API配置
   baidu-api:
-    app-id: ??
-    api-key: ??
-    secret-key: ??
+    app-id: 118818616
+    api-key: qxjYu7R0bbCaf5BnxxSHcGYCSrdann3t
+    secret-key:
 #cas单点登录
 cas:
   prefixUrl: http://cas.example.org:8443/cas
