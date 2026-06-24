@@ -236,9 +236,9 @@ jeecg:
     # AI视频
     ai-model-video:
       provider: ZHIPU
-      model: ??
-      apiKey: sk-??
-      apiHost: https://api.deepseek.com/v1
+      model: cogvideox-flash
+      apiKey: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
+      apiHost: https://open.bigmodel.cn/api/paas/v4
       timeout: 60
       ffmpeg-path:
       edge-tts-path:
