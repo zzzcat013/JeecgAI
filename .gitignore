@@ -7,6 +7,10 @@ rebel.xml
 **/.vercel
 jeecg-boot/uploads
 jeecg-boot/jeecg-module-system/jeecg-system-start/uploads
+AGENTS.md
+.agents/**
+.codebase-memory/**
+skills-lock.json
 
 ## backend
 **/target
