@@ -3,7 +3,6 @@ package org.jeecg.modules.airag.llm.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,26 +69,6 @@ public class AiragKnowledgeController {
         Page<AiragKnowledge> page = new Page<AiragKnowledge>(pageNo, pageSize);
         IPage<AiragKnowledge> pageList = airagKnowledgeService.page(page, queryWrapper);
         return Result.OK(pageList);
-    }
-
-    /**
-     * 确认并继续单文档导入（忽略图片资源提示）
-     */
-    @PostMapping(value = "/doc/confirm/single")
-    public Result<?> confirmSingleImport(@RequestBody JSONObject jsonObject) {
-        String docId = jsonObject.getString("docId");
-        return airagKnowledgeDocService.confirmSingleImport(docId);
-    }
-
-    /**
-     * 从本地目录打包并导入文档库
-     */
-    @PostMapping(value = "/doc/import/local")
-    public Result<?> packageAndImportFromLocal(@RequestBody JSONObject jsonObject) {
-        String knowId = jsonObject.getString("knowId");
-        String localPath = jsonObject.getString("localPath");
-        String originDocId = jsonObject.getString("originDocId");
-        return airagKnowledgeDocService.packageAndImportFromLocal(knowId, localPath, originDocId);
     }
 
     /**

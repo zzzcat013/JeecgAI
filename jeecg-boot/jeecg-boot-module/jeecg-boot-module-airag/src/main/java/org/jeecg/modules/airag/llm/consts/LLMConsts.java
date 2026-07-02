@@ -64,10 +64,6 @@ public class LLMConsts {
      * 知识库:文档状态:构建失败
      */
     public static final String KNOWLEDGE_DOC_STATUS_FAILED = "failed";
-    /**
-     * 知识库:文档状态:等待确认(发现图片资源)
-     */
-    public static final String KNOWLEDGE_DOC_STATUS_WAIT_CONFIRM = "wait_confirm";
 
     /**
      * 知识库:文档类型:文本

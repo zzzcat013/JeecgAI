@@ -6,11 +6,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.jeecg.modules.airag.llm.handler.CommandExecUtil;
 import org.jeecg.common.util.oConvertUtils;
-import org.jeecg.modules.airag.llm.config.KnowConfigBean;
-import org.jeecg.modules.airag.llm.handler.IDocumentParser;
 import org.jeecg.modules.biz.ai5g.util.MineruClientUtil;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,30 +15,19 @@ import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
-@Component
-public class MineruDocumentParser implements IDocumentParser {
-
-    @Value(value = "${jeecg.path.upload:}")
-    private String uploadpath;
+public class MineruDocumentParser {
 
     private static final List<String> SUPPORTED_TYPES = Arrays.asList(
         "pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt"
     );
 
-    @Override
     public boolean support(String fileType) {
         return oConvertUtils.isNotEmpty(fileType) && SUPPORTED_TYPES.contains(fileType.toLowerCase());
     }
 
-    @Override
-    public String parse(File docFile, Object config) {
-        if (!(config instanceof KnowConfigBean)) {
-            return null;
-        }
-        KnowConfigBean knowConfigBean = (KnowConfigBean) config;
-        
+    public String parse(File docFile, boolean enableMinerU, String mineruUrl, String uploadpath) {
         // 只有开启了 MinerU 才进行处理
-        if (!knowConfigBean.isEnableMinerU()) {
+        if (!enableMinerU) {
             return null;
         }
 
@@ -119,7 +104,7 @@ public class MineruDocumentParser implements IDocumentParser {
             }
         }
 
-        String outputPath = new File(uploadpath, "temp").getAbsolutePath();
+        String outputPath = new File(oConvertUtils.getString(uploadpath, ""), "temp").getAbsolutePath();
         String fileBaseName = FilenameUtils.getBaseName(docFile.getName());
         String newFileDir = outputPath + File.separator + fileBaseName + File.separator + "auto" + File.separator ;
         File convertedFile = new File(newFileDir + fileBaseName + ".md");
@@ -130,10 +115,10 @@ public class MineruDocumentParser implements IDocumentParser {
             log.warn("Office 预转 PDF 失败，跳过 MinerU 解析");
         } else {
             // 优先使用远程 Web 接口
-            if (oConvertUtils.isNotEmpty(knowConfigBean.getMineruUrl())) {
+            if (oConvertUtils.isNotEmpty(mineruUrl)) {
                 long start = System.currentTimeMillis();
-                log.info("使用 MinerU 远程服务解析: {}", knowConfigBean.getMineruUrl());
-                JSONObject mineruRes = MineruClientUtil.parsePdf(knowConfigBean.getMineruUrl(), mineruInputFile);
+                log.info("使用 MinerU 远程服务解析: {}", mineruUrl);
+                JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile);
                 if (mineruRes != null && oConvertUtils.isNotEmpty(mineruRes.getString("content"))) {
                     try {
                         FileUtils.forceMkdir(new File(newFileDir));

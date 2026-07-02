@@ -23,7 +23,6 @@ import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.FileUtils;
 import org.apache.tika.parser.AutoDetectParser;
 import org.jeecg.ai.factory.AiModelFactory;
 import org.jeecg.ai.factory.AiModelOptions;
@@ -56,7 +55,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -159,28 +157,6 @@ public class EmbeddingHandler implements IEmbeddingHandler {
     //update-end---author:wangshuai ---date:2026-04-20  for：【issues/9551】HTML表格向量化分段时被截断修复-----------
 
     /**
-     * 正则匹配: html图片src属性
-     * src="xxx"
-     */
-    private static final Pattern PATTERN_HTML_SRC = Pattern.compile("src\\s*=\\s*['\"]([^'\"]*?)['\"]");
-
-    @Autowired
-    @Lazy
-    private org.jeecg.modules.airag.llm.service.IAiragKnowledgeDocService airagKnowledgeDocService;
-
-    /**
-     * 更新文档处理步骤描述
-     */
-    private void updateDocStep(AiragKnowledgeDoc doc, String step) {
-        log.info("文档处理进度: [{}] {}", doc.getId(), step);
-        String metadataStr = doc.getMetadata();
-        JSONObject metadata = oConvertUtils.isEmpty(metadataStr) ? new JSONObject() : JSONObject.parseObject(metadataStr);
-        metadata.put("buildStep", step);
-        doc.setMetadata(metadata.toJSONString());
-        airagKnowledgeDocService.updateById(doc);
-    }
-
-    /**
      * 向量化文档
      *
      * @param knowId
@@ -201,10 +177,10 @@ public class EmbeddingHandler implements IEmbeddingHandler {
             switch (doc.getType()) {
                 case KNOWLEDGE_DOC_TYPE_FILE:
                     //解析文件
-                    updateDocStep(doc, "正在提取文档内容...");
+                    if (knowConfigBean.isEnableMinerU()) {
+                        parseFileByMinerU(doc);
+                    }
                     content = parseFile(doc);
-                    // 保存解析后的内容到数据库，方便核查
-                    doc.setContent(content);
                     break;
                 case KNOWLEDGE_DOC_TYPE_WEB:
                     content = parseWebPage(doc);
@@ -220,7 +196,6 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         //update-end---author:chenrui ---date:20250307  for：[QQYUN-11443]【AI】是不是应该把标题也生成到向量库里，标题一般是有意义的------------
 
         // 向量化 date:2025/2/18
-        updateDocStep(doc, "正在进行向量化构建...");
         AiragModel model = getEmbedModelData(airagKnowledge.getEmbedId());
         AiModelOptions modelOp = buildModelOptions(model);
         EmbeddingModel embeddingModel = AiModelFactory.createEmbeddingModel(modelOp);
@@ -835,57 +810,26 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         // 提取文档内容
         File docFile = new File(filePath);
         if (docFile.exists()) {
-            String content = null;
-            String fileType = FilenameUtils.getExtension(docFile.getName()).toLowerCase();
-            
-            // 尝试使用扩展解析器解析
-            Map<String, IDocumentParser> parsers = SpringContextUtils.getApplicationContext().getBeansOfType(IDocumentParser.class);
-            for (IDocumentParser parser : parsers.values()) {
-                if (parser.support(fileType)) {
-                    log.info("使用扩展解析器解析文件: {}", parser.getClass().getSimpleName());
-                    // 传递 knowConfigBean 作为配置
-                    content = parser.parse(docFile, knowConfigBean);
-                    if (oConvertUtils.isNotEmpty(content)) {
-                        break;
-                    }
-                }
-            }
-
-            // 如果扩展解析器未返回内容，走默认逻辑
-            if (oConvertUtils.isEmpty(content)) {
-                // 如果是 md 文件，直接读取内容，避免 Tika 解析可能出现的问题
-                if ("md".equals(fileType)) {
-                    try {
-                        content = org.apache.commons.io.FileUtils.readFileToString(docFile, StandardCharsets.UTF_8);
-                    } catch (IOException e) {
-                        log.error("读取 md 文件失败: {}", filePath, e);
-                    }
-                } else {
-                    Document document = new TikaDocumentParser(AutoDetectParser::new, null, null, null).parse(docFile);
-                    if (null != document) {
-                        content = document.text();
-                    }
-                }
-            }
-
-            if (oConvertUtils.isNotEmpty(content)) {
-                // 判断是否md文档进行图片替换
-                if ("md".equals(fileType)) {
+            Document document = new TikaDocumentParser(AutoDetectParser::new, null, null, null).parse(docFile);
+            if (null != document) {
+                String content = document.text();
+                // 判断是否md文档
+                String fileType = FilenameUtils.getExtension(docFile.getName());
+                if ("md".contains(fileType)) {
                     // 如果是md文件，查找所有图片语法，如果是本地图片，替换成网络图片
                     String baseUrl = "#{domainURL}/sys/common/static/";
                     String sourcePath = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_SOURCES_PATH);
                     if(oConvertUtils.isNotEmpty(sourcePath)) {
                         String escapedPath = uploadpath;
-                        sourcePath = sourcePath.replaceFirst("^" + Pattern.quote(escapedPath), "").replace("\\", "/");
-                        // 确保 sourcePath 不以 / 开头，因为后面会拼接 baseUrl
-                        if (sourcePath.startsWith("/")) {
-                            sourcePath = sourcePath.substring(1);
-                        }
-                        
+                        //update-begin---author:wangshuai---date:2025-06-03---for:【QQYUN-12636】【AI知识库】文档库上传 本地local 文档中的图片不展示---
+                        /*if (File.separator.equals("\\")){
+                            escapedPath = uploadpath.replace("//", "\\\\");
+                        }*/
+                        //update-end---author:wangshuai---date:2025-06-03---for:【QQYUN-12636】【AI知识库】文档库上传 本地local 文档中的图片不展示---
+                        sourcePath = sourcePath.replaceFirst("^" + escapedPath, "").replace("\\", "/");
                         String docFilePath = metadataJson.getString(LLMConsts.KNOWLEDGE_DOC_METADATA_FILEPATH);
                         docFilePath = FilenameUtils.getPath(docFilePath);
                         docFilePath = docFilePath.replace("\\", "/");
-                        
                         StringBuffer sb = replaceImageUrl(content, baseUrl + sourcePath + "/", baseUrl + docFilePath);
                         content = sb.toString();
                     }
@@ -994,20 +938,6 @@ public class EmbeddingHandler implements IEmbeddingHandler {
             log.error("文件转换md失败,使用传统提取方案{}", e.getMessage(), e);
         }
     }
-
-    /**
-     * 判断是否为图片资源
-     */
-    private static boolean isImageResource(String url) {
-        if (oConvertUtils.isEmpty(url)) return false;
-        String lowerUrl = url.toLowerCase();
-        return lowerUrl.endsWith(".png") || lowerUrl.endsWith(".jpg") || 
-               lowerUrl.endsWith(".jpeg") || lowerUrl.endsWith(".gif") || 
-               lowerUrl.endsWith(".svg") || lowerUrl.endsWith(".bmp") || 
-               lowerUrl.endsWith(".webp") || lowerUrl.contains("/aigc/");
-    }
-
-    // parseFileByMinerU 方法已迁移至业务模块，此处删除
 
     /**
      * 确保文件存在
