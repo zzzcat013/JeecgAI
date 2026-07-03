@@ -11,6 +11,8 @@ AGENTS.md
 .agents/**
 .codebase-memory/**
 skills-lock.json
+tmp/**
+scripts/**
 
 ## backend
 **/target
