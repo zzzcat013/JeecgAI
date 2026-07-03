@@ -5,3 +5,8 @@ spring:
     import: optional:classpath:config/application-liteflow.yml
   profiles:
     active: '@profile.name@'
+knowledge-portal:
+  base-url: http://10.184.252.77:39081/llm
+  api-key: prod_63036b6d-2877-4f35-b2c5-28078b2268fb
+  username: zhangxj200
+  timeout: 30000

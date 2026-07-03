@@ -1,7 +1,9 @@
 package org.jeecg.modules.biz.ai5g.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.modules.biz.ai5g.util.KnowledgePortalTokenUtil;
 import org.jeecg.modules.biz.ai5g.util.MineruClientUtil;
+import org.jeecg.config.shiro.IgnoreAuth;
 import org.jeecg.common.util.oConvertUtils;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
@@ -49,6 +51,18 @@ public class Ai5gDocumentController {
   private org.springframework.core.env.Environment environment;
 
   private static final Set<String> ALLOW_EXT = new HashSet<>(Arrays.asList("pdf","doc","docx","xlsx","xls","csv"));
+
+  @GetMapping("/debug/knowledge-portal-token")
+  @IgnoreAuth
+  public Result<?> debugKnowledgePortalToken() {
+    return Result.OK(KnowledgePortalTokenUtil.debugAuthToken());
+  }
+
+  @GetMapping("/debug/knowledge-portal-token-curl")
+  @IgnoreAuth
+  public Result<?> buildKnowledgePortalTokenCurl() {
+    return Result.OK(KnowledgePortalTokenUtil.buildCurlCommand());
+  }
 
   @PostMapping("/upload")
   public Result<?> upload(@RequestParam("file") MultipartFile file,

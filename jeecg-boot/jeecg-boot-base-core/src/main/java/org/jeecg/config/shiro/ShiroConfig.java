@@ -194,6 +194,8 @@ public class ShiroConfig {
 
         filterChainDefinitionMap.put("/hello/**", "anon"); //测试接口排除
         filterChainDefinitionMap.put("/sys/hello/**", "anon"); //测试接口排除
+        filterChainDefinitionMap.put("/ai5g/doc/debug/knowledge-portal-token", "anon"); //知识门户Token调试接口
+        filterChainDefinitionMap.put("/ai5g/doc/debug/knowledge-portal-token-curl", "anon"); //知识门户Token curl生成接口
 
         filterChainDefinitionMap.put("/openapi/call/**", "anon");
 
