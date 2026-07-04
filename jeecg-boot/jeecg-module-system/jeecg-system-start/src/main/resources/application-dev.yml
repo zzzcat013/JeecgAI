@@ -289,7 +289,7 @@ jeecg:
   #签名拦截接口
   signUrls: /sys/dict/getDictItems/*,/sys/dict/loadDict/*,/sys/dict/loadDictOrderByValue/*,/sys/dict/loadDictItem/*,/sys/dict/loadTreeData,/sys/api/queryTableDictItemsByCode,/sys/api/queryFilterTableDictInfo,/sys/api/queryTableDictByKeys,/sys/api/translateDictFromTable,/sys/api/translateDictFromTableByKeys,/sys/sendChangePwdSms,/sys/user/sendChangePhoneSms,/sys/sms,/desform/api/sendVerifyCode
   # 本地：local、Minio：minio、阿里云：alioss
-  uploadType: local
+  uploadType: minio
   # 前端访问地址
   domainUrl:
     pc: http://localhost:3100
@@ -308,7 +308,7 @@ jeecg:
     accessKey: ??
     secretKey: ??
     endpoint: oss-cn-beijing.aliyuncs.com
-    bucketName: jeecgdev
+    bucketName: jeecg-ai-docs
     # 短信模板
     sms-template:
       # 签名
@@ -335,10 +335,10 @@ jeecg:
   file-view-domain: http://fileview.jeecg.com
   # minio文件上传
   minio:
-    minio_url: http://minio.jeecg.com
-    minio_name: ??
-    minio_pass: ??
-    bucketName: otatest
+    minio_url: http://218.26.173.130:9000
+    minio_name: admin
+    minio_pass: Qaz_1234
+    bucketName: jeecg-ai-docs
   #大屏报表参数设置
   jmreport:
     #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离) (v1.6.2+ 新增)

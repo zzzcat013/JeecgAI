@@ -43,6 +43,18 @@ public class Ai5gDocumentController {
   @Value(value = "${jeecg.ai5g.baseDir:doc}")
   private String baseDir;
 
+  @Value(value = "${jeecg.minio.minio_url:}")
+  private String minioUrl;
+
+  @Value(value = "${jeecg.minio.minio_name:}")
+  private String minioName;
+
+  @Value(value = "${jeecg.minio.minio_pass:}")
+  private String minioPass;
+
+  @Value(value = "${jeecg.minio.bucketName:}")
+  private String minioBucketName;
+
   @Autowired
   private IBizDocFileService bizDocFileService;
   @Autowired
@@ -51,6 +63,7 @@ public class Ai5gDocumentController {
   private org.springframework.core.env.Environment environment;
 
   private static final Set<String> ALLOW_EXT = new HashSet<>(Arrays.asList("pdf","doc","docx","xlsx","xls","csv"));
+  private static final long MINIO_PART_SIZE = 10L * 1024 * 1024;
 
   @GetMapping("/debug/knowledge-portal-token")
   @IgnoreAuth
@@ -108,6 +121,8 @@ public class Ai5gDocumentController {
       String savePath;
       if (CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
         savePath = CommonUtils.uploadLocal(file, bizPath, uploadpath);
+      } else if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+        savePath = uploadMinioFile(file, bizPath);
       } else {
         savePath = CommonUtils.upload(file, bizPath, uploadType);
       }
@@ -142,7 +157,7 @@ public class Ai5gDocumentController {
       doc.setContentType(file.getContentType());
       doc.setSize(file.getSize());
       doc.setStoragePath(savePath);
-      doc.setStorageFilename(doc.getActualFileName());
+      doc.setStorageFilename(CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType) ? getMinioObjectName(savePath) : doc.getActualFileName());
       doc.setMdConverted(false);
       doc.setCreateTime(new Date());
       boolean ok = bizDocFileService.save(doc);
@@ -195,12 +210,13 @@ public class Ai5gDocumentController {
     BizDocFile doc = bizDocFileService.getById(id);
     if (doc == null) return Result.error("未找到文档");
 
-    if (!CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
-      return Result.error("当前上传模式非本地，暂不支持后台Markdown转换");
+    if (!CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType) && !CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+      return Result.error("当前上传模式暂不支持后台Markdown转换: " + uploadType);
     }
     
     // 异步执行转换任务
     new Thread(() -> {
+        java.io.File workDir = null;
         try {
             // 更新状态为处理中
             doc.setProcessStatus("processing");
@@ -208,7 +224,33 @@ public class Ai5gDocumentController {
             
             String ft = doc.getFileType() == null ? "" : doc.getFileType().toLowerCase();
             
-            java.io.File src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
+            workDir = java.nio.file.Files.createTempDirectory("ai5g-doc-convert-").toFile();
+            String objectName = getMinioObjectName(doc.getStoragePath());
+            java.io.File src;
+            String mdRel;
+            java.io.File mdFile;
+            if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+                String sourceName = objectName;
+                if (oConvertUtils.isEmpty(sourceName)) {
+                    sourceName = doc.getActualFileName();
+                }
+                sourceName = sourceName == null ? "source" : sourceName.substring(sourceName.lastIndexOf('/') + 1);
+                src = new java.io.File(workDir, sourceName);
+                if (!downloadMinioObject(objectName, src)) {
+                    log.error("MinIO源文件下载失败: {}", doc.getStoragePath());
+                    doc.setProcessStatus("failed");
+                    doc.setRemark("MinIO源文件下载失败");
+                    bizDocFileService.updateById(doc);
+                    return;
+                }
+                mdRel = objectName.replaceAll("\\.[^./\\\\]+$", "") + ".md";
+                mdFile = new java.io.File(workDir, src.getName().replaceAll("\\.[^./\\\\]+$", "") + ".md");
+            } else {
+                src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
+                mdRel = doc.getStoragePath().replaceAll("\\.[^./\\\\]+$", "") + ".md";
+                mdFile = new java.io.File(uploadpath + java.io.File.separator + mdRel);
+                mdFile.getParentFile().mkdirs();
+            }
             if (!src.exists()) {
                 log.error("源文件不存在: {}", src.getAbsolutePath());
                 doc.setProcessStatus("failed");
@@ -216,10 +258,6 @@ public class Ai5gDocumentController {
                 bizDocFileService.updateById(doc);
                 return;
             }
-            
-            String mdRel = doc.getStoragePath().replaceAll("\\.[^./\\\\]+$", "") + ".md";
-            java.io.File mdFile = new java.io.File(uploadpath + java.io.File.separator + mdRel);
-            mdFile.getParentFile().mkdirs();
 
             boolean converted = false;
             
@@ -342,8 +380,14 @@ public class Ai5gDocumentController {
             }
 
             if (converted && mdFile.exists()) {
+                if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+                    try (java.io.InputStream in = new java.io.FileInputStream(mdFile)) {
+                        doc.setMdPath(uploadMinioObject(in, mdFile.length(), "text/markdown;charset=UTF-8", mdRel));
+                    }
+                } else {
+                    doc.setMdPath(mdRel);
+                }
                 doc.setMdConverted(true);
-                doc.setMdPath(mdRel);
                 doc.setProcessStatus("success");
                 bizDocFileService.updateById(doc);
             } else {
@@ -356,6 +400,14 @@ public class Ai5gDocumentController {
             doc.setProcessStatus("failed");
             doc.setRemark("转换异常: " + e.getMessage());
             bizDocFileService.updateById(doc);
+        } finally {
+            if (workDir != null && workDir.exists()) {
+                try {
+                    org.apache.commons.io.FileUtils.deleteDirectory(workDir);
+                } catch (Exception e) {
+                    log.warn("清理转换临时目录失败: {}", workDir.getAbsolutePath(), e);
+                }
+            }
         }
     }).start();
 
@@ -515,11 +567,223 @@ public class Ai5gDocumentController {
       }
   }
 
+  private boolean downloadMinioObject(String objectName, java.io.File targetFile) {
+      if (oConvertUtils.isEmpty(objectName)) {
+          return false;
+      }
+      java.io.File parent = targetFile.getParentFile();
+      if (parent != null && !parent.exists()) {
+          parent.mkdirs();
+      }
+      try (java.io.InputStream in = getMinioObjectStream(objectName);
+           java.io.OutputStream out = new java.io.FileOutputStream(targetFile)) {
+          if (in == null) {
+              return false;
+          }
+          byte[] buffer = new byte[8192];
+          int len;
+          while ((len = in.read(buffer)) != -1) {
+              out.write(buffer, 0, len);
+          }
+          return true;
+      } catch (Exception e) {
+          log.error("MinIO文件下载失败: {}", objectName, e);
+          return false;
+      }
+  }
+
+  private String uploadMinioFile(MultipartFile file, String bizPath) throws Exception {
+      SsrfFileTypeFilter.checkUploadFileType(file, bizPath);
+      String orgName = file.getOriginalFilename();
+      if (oConvertUtils.isEmpty(orgName)) {
+          orgName = file.getName();
+      }
+      orgName = CommonUtils.getFileName(orgName);
+      int dot = orgName.lastIndexOf(".");
+      String ext = dot >= 0 ? orgName.substring(dot).toLowerCase() : "";
+      String fileName = System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().replace("-", "") + ext;
+      String objectName = (bizPath + "/" + fileName).replace("\\", "/");
+      while (objectName.startsWith("/")) {
+          objectName = objectName.substring(1);
+      }
+      io.minio.MinioClient client = buildMinioClient();
+      log.info("AI5G MinIO upload start, endpoint={}, bucket={}, object={}, size={}, contentType={}",
+          minioUrl, minioBucketName, objectName, file.getSize(), file.getContentType());
+      String contentType = oConvertUtils.isEmpty(file.getContentType()) ? "application/octet-stream" : file.getContentType();
+      try (java.io.InputStream in = file.getInputStream()) {
+          client.putObject(io.minio.PutObjectArgs.builder()
+              .bucket(minioBucketName)
+              .object(objectName)
+              .contentType(contentType)
+              .stream(in, -1, MINIO_PART_SIZE)
+              .build());
+      }
+      log.info("AI5G MinIO upload success, bucket={}, object={}", minioBucketName, objectName);
+      String baseUrl = minioUrl.endsWith("/") ? minioUrl : minioUrl + "/";
+      return baseUrl + minioBucketName + "/" + objectName;
+  }
+
+  private String uploadMinioObject(java.io.InputStream in, long size, String contentType, String objectName) throws Exception {
+      io.minio.MinioClient client = buildMinioClient();
+      if (!client.bucketExists(io.minio.BucketExistsArgs.builder().bucket(minioBucketName).build())) {
+          client.makeBucket(io.minio.MakeBucketArgs.builder().bucket(minioBucketName).build());
+      }
+      client.putObject(io.minio.PutObjectArgs.builder()
+          .bucket(minioBucketName)
+          .object(objectName)
+          .contentType(contentType)
+          .stream(in, size, -1)
+          .build());
+      String baseUrl = minioUrl.endsWith("/") ? minioUrl : minioUrl + "/";
+      return baseUrl + minioBucketName + "/" + objectName;
+  }
+
+  private java.io.InputStream getMinioObjectStream(String objectName) {
+      try {
+          return buildMinioClient().getObject(io.minio.GetObjectArgs.builder()
+              .bucket(minioBucketName)
+              .object(objectName)
+              .build());
+      } catch (Exception e) {
+          log.error("MinIO文件读取失败: {}", objectName, e);
+          return null;
+      }
+  }
+
+  private io.minio.MinioClient buildMinioClient() {
+      okhttp3.OkHttpClient httpClient = new okhttp3.OkHttpClient.Builder()
+          .proxy(java.net.Proxy.NO_PROXY)
+          .build();
+      return io.minio.MinioClient.builder()
+          .endpoint(minioUrl)
+          .credentials(minioName, minioPass)
+          .httpClient(httpClient)
+          .build();
+  }
+
+  private String getMinioObjectName(String path) {
+      if (oConvertUtils.isEmpty(path)) {
+          return path;
+      }
+      String value = path.trim();
+      String bucketName = minioBucketName;
+      if (oConvertUtils.isNotEmpty(minioUrl) && oConvertUtils.isNotEmpty(bucketName)) {
+          String prefix = minioUrl.endsWith("/") ? minioUrl + bucketName + "/" : minioUrl + "/" + bucketName + "/";
+          if (value.startsWith(prefix)) {
+              return value.substring(prefix.length());
+          }
+      }
+      try {
+          java.net.URI uri = java.net.URI.create(value);
+          if (uri.getScheme() != null && uri.getPath() != null) {
+              String p = uri.getPath();
+              String bucketPrefix = "/" + bucketName + "/";
+              int idx = p.indexOf(bucketPrefix);
+              if (idx >= 0) {
+                  return p.substring(idx + bucketPrefix.length());
+              }
+          }
+      } catch (Exception ignore) {
+      }
+      while (value.startsWith("/")) {
+          value = value.substring(1);
+      }
+      if (oConvertUtils.isNotEmpty(bucketName) && value.startsWith(bucketName + "/")) {
+          value = value.substring(bucketName.length() + 1);
+      }
+      return value;
+  }
+
+  private org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> minioResourceResponse(BizDocFile doc, boolean attachment) {
+      String objectName = getMinioObjectName(oConvertUtils.isNotEmpty(doc.getStorageFilename()) ? doc.getStorageFilename() : doc.getStoragePath());
+      java.io.InputStream in = getMinioObjectStream(objectName);
+      if (in == null) {
+          return org.springframework.http.ResponseEntity.notFound().build();
+      }
+      org.springframework.core.io.Resource res = new org.springframework.core.io.InputStreamResource(in);
+      String fn = (doc.getDisplayName()!=null && !doc.getDisplayName().isEmpty()) ? doc.getDisplayName() : (doc.getActualFileName()==null?"file":doc.getActualFileName());
+      if (!fn.contains(".") && doc.getFileType()!=null && !doc.getFileType().isEmpty()) {
+          fn = fn + "." + doc.getFileType();
+      }
+      org.springframework.http.ContentDisposition cd = (attachment
+          ? org.springframework.http.ContentDisposition.attachment()
+          : org.springframework.http.ContentDisposition.inline())
+          .filename(fn, java.nio.charset.StandardCharsets.UTF_8)
+          .build();
+      org.springframework.http.MediaType mt;
+      try { mt = org.springframework.http.MediaType.parseMediaType(doc.getContentType()==null?"application/octet-stream":doc.getContentType()); }
+      catch (Exception ignore) { mt = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM; }
+      return org.springframework.http.ResponseEntity.ok()
+          .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, cd.toString())
+          .contentType(mt)
+          .body(res);
+  }
+
+  private org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> minioPreviewResponse(BizDocFile doc) {
+      String ft = doc.getFileType()==null?"":doc.getFileType().toLowerCase();
+      boolean office = java.util.Arrays.asList("doc","docx","ppt","pptx","xls","xlsx").contains(ft);
+      if (!office) {
+          return minioResourceResponse(doc, false);
+      }
+      java.io.File workDir = null;
+      try {
+          workDir = java.nio.file.Files.createTempDirectory("ai5g-doc-preview-").toFile();
+          String objectName = getMinioObjectName(oConvertUtils.isNotEmpty(doc.getStorageFilename()) ? doc.getStorageFilename() : doc.getStoragePath());
+          String srcName = objectName == null ? "source." + ft : objectName.substring(objectName.lastIndexOf('/') + 1);
+          java.io.File src = new java.io.File(workDir, srcName);
+          if (!downloadMinioObject(objectName, src)) {
+              log.error("MinIO预览源文件下载失败: {}", objectName);
+              return org.springframework.http.ResponseEntity.notFound().build();
+          }
+          java.io.File pdfFile = new java.io.File(workDir, src.getName().replaceAll("\\.[^./\\\\]+$", "") + ".pdf");
+          boolean converted = trySofficeCliConvert(src, pdfFile, "pdf");
+          log.info("MinIO preview Office to PDF result: {}, source={}, pdf={}", converted, src.getAbsolutePath(), pdfFile.getAbsolutePath());
+          if (!converted || !pdfFile.exists()) {
+              return minioResourceResponse(doc, false);
+          }
+          byte[] data = java.nio.file.Files.readAllBytes(pdfFile.toPath());
+          org.springframework.core.io.Resource res = new org.springframework.core.io.ByteArrayResource(data);
+          String fn = (doc.getDisplayName()!=null && !doc.getDisplayName().isEmpty()) ? doc.getDisplayName() : (doc.getActualFileName()==null?"file":doc.getActualFileName());
+          if (!fn.toLowerCase().endsWith(".pdf")) {
+              fn = fn.replaceAll("\\.[^./\\\\]+$", "") + ".pdf";
+          }
+          org.springframework.http.ContentDisposition cd = org.springframework.http.ContentDisposition.inline().filename(fn, java.nio.charset.StandardCharsets.UTF_8).build();
+          return org.springframework.http.ResponseEntity.ok()
+              .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, cd.toString())
+              .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+              .contentLength(data.length)
+              .body(res);
+      } catch (Exception e) {
+          log.error("MinIO Office preview error", e);
+          return org.springframework.http.ResponseEntity.internalServerError().build();
+      } finally {
+          if (workDir != null && workDir.exists()) {
+              try {
+                  org.apache.commons.io.FileUtils.deleteDirectory(workDir);
+              } catch (Exception e) {
+                  log.warn("清理预览临时目录失败: {}", workDir.getAbsolutePath(), e);
+              }
+          }
+      }
+  }
+
   @PostMapping("/save-md")
   public Result<?> saveMd(@RequestParam("id") String id, @RequestParam("content") String content) {
       BizDocFile doc = bizDocFileService.getById(id);
       if (doc == null || !Boolean.TRUE.equals(doc.getMdConverted()) || doc.getMdPath() == null) {
           return Result.error("文档未找到或未转换MD");
+      }
+      if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+          String mdObjectName = getMinioObjectName(doc.getMdPath());
+          byte[] data = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+          try (java.io.InputStream in = new java.io.ByteArrayInputStream(data)) {
+              doc.setMdPath(uploadMinioObject(in, data.length, "text/markdown;charset=UTF-8", mdObjectName));
+              bizDocFileService.updateById(doc);
+              return Result.OK("保存成功");
+          } catch (Exception e) {
+              log.error("Save MinIO MD error", e);
+              return Result.error("保存失败: " + e.getMessage());
+          }
       }
       if (!CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
           return Result.error("当前上传模式非本地，暂不支持修改");
@@ -539,6 +803,27 @@ public class Ai5gDocumentController {
       BizDocFile doc = bizDocFileService.getById(id);
       if (doc == null || !Boolean.TRUE.equals(doc.getMdConverted()) || doc.getMdPath() == null) {
           response.setStatus(404);
+          return;
+      }
+      if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+          String mdObjectName = getMinioObjectName(doc.getMdPath());
+          try (java.io.InputStream in = getMinioObjectStream(mdObjectName);
+               java.io.OutputStream out = response.getOutputStream()) {
+              if (in == null) {
+                  response.setStatus(404);
+                  return;
+              }
+              response.setContentType("text/markdown;charset=UTF-8");
+              byte[] buffer = new byte[8192];
+              int len;
+              while ((len = in.read(buffer)) != -1) {
+                  out.write(buffer, 0, len);
+              }
+              out.flush();
+          } catch (Exception e) {
+              log.error("Preview MinIO MD error", e);
+              response.setStatus(500);
+          }
           return;
       }
       java.io.File file = new java.io.File(uploadpath + java.io.File.separator + doc.getMdPath());
@@ -583,8 +868,11 @@ public class Ai5gDocumentController {
       java.io.File src;
       if (CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
         src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
+      } else if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+        return minioResourceResponse(doc, true);
       } else {
-        return org.springframework.http.ResponseEntity.status(302).header("Location", doc.getStorageFilename()).build();
+        String location = oConvertUtils.isNotEmpty(doc.getStoragePath()) ? doc.getStoragePath() : doc.getStorageFilename();
+        return org.springframework.http.ResponseEntity.status(302).header("Location", java.net.URI.create(location).toASCIIString()).build();
       }
       if (!src.exists()) return org.springframework.http.ResponseEntity.notFound().build();
       org.springframework.core.io.Resource res = new org.springframework.core.io.FileSystemResource(src);
@@ -649,8 +937,11 @@ public class Ai5gDocumentController {
                 .body(res);
           }
         }
+      } else if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+        return minioPreviewResponse(doc);
       } else {
-        return org.springframework.http.ResponseEntity.status(302).header("Location", doc.getStorageFilename()).build();
+        String location = oConvertUtils.isNotEmpty(doc.getStoragePath()) ? doc.getStoragePath() : doc.getStorageFilename();
+        return org.springframework.http.ResponseEntity.status(302).header("Location", java.net.URI.create(location).toASCIIString()).build();
       }
       if (!src.exists()) {
          log.error("Source file not found after fallback logic");

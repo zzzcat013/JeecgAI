@@ -315,10 +315,10 @@ jeecg:
   file-view-domain: http://fileview.jeecg.com
   # minio文件上传
   minio:
-    minio_url: http://minio.jeecg.com
-    minio_name: ??
-    minio_pass: ??
-    bucketName: otatest
+    minio_url: http://218.26.173.130:9000
+    minio_name: admin
+    minio_pass: Qaz_1234
+    bucketName: jeecg-ai-docs
   #大屏报表参数设置
   jmreport:
     #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离) (v1.6.2+ 新增)
