@@ -52,6 +52,13 @@ public class BizDocFile {
   @TableField("md_path")
   private String mdPath;
 
+  @TableField("asset_root")
+  private String assetRoot;
+  @TableField("asset_manifest")
+  private String assetManifest;
+  @TableField("source_package_path")
+  private String sourcePackagePath;
+
   @TableField("create_by")
   private String createBy;
   @TableField("create_time")

@@ -220,11 +220,14 @@ public class MineruClientUtil {
 
     private static JSONObject downloadAndExtractMd(String zipUrl, String outputDir) {
         File tempZip = null;
+        File extractDir = null;
         String mdContent = null;
+        String markdownPath = null;
         boolean hasImages = false;
         long start = System.currentTimeMillis();
         try {
             tempZip = new File(outputDir + File.separator + "mineru_res_" + System.currentTimeMillis() + ".zip");
+            extractDir = new File(outputDir + File.separator + "mineru_res_" + System.currentTimeMillis());
             log.info("开始下载 MinerU 结果 ZIP: {}", zipUrl);
             
             RestTemplate restTemplate = getTimeoutRestTemplate();
@@ -237,18 +240,19 @@ public class MineruClientUtil {
             log.info("ZIP 下载完成，大小: {} bytes，耗时: {}ms", zipBytes.length, (System.currentTimeMillis() - start));
             
             FileUtils.writeByteArrayToFile(tempZip, zipBytes);
+            FileUtils.forceMkdir(extractDir);
             
             try (ZipInputStream zis = new ZipInputStream(new FileInputStream(tempZip))) {
                 ZipEntry entry;
                 while ((entry = zis.getNextEntry()) != null) {
                     if (entry.isDirectory()) {
-                        File dir = new File(outputDir + File.separator + entry.getName());
+                        File dir = safeResolveZipEntry(extractDir, entry.getName());
                         dir.mkdirs();
                         if (entry.getName().contains("images")) {
                             hasImages = true;
                         }
                     } else {
-                        File file = new File(outputDir + File.separator + entry.getName());
+                        File file = safeResolveZipEntry(extractDir, entry.getName());
                         file.getParentFile().mkdirs();
                         
                         if (entry.getName().contains("images")) {
@@ -266,6 +270,7 @@ public class MineruClientUtil {
                         
                         if (entry.getName().endsWith(".md") && mdContent == null) {
                             mdContent = new String(bytes, StandardCharsets.UTF_8);
+                            markdownPath = file.getAbsolutePath();
                         }
                     }
                     zis.closeEntry();
@@ -276,6 +281,8 @@ public class MineruClientUtil {
                 JSONObject res = new JSONObject();
                 res.put("content", mdContent);
                 res.put("hasImages", hasImages);
+                res.put("extractDir", extractDir.getAbsolutePath());
+                res.put("markdownPath", markdownPath);
                 return res;
             }
         } catch (Exception e) {
@@ -286,5 +293,14 @@ public class MineruClientUtil {
             }
         }
         return null;
+    }
+
+    private static File safeResolveZipEntry(File targetDir, String entryName) throws IOException {
+        File target = targetDir.getCanonicalFile();
+        File resolved = new File(targetDir, entryName).getCanonicalFile();
+        if (!resolved.toPath().startsWith(target.toPath())) {
+            throw new IOException("ZIP 路径穿越攻击被阻止: " + entryName);
+        }
+        return resolved;
     }
 }

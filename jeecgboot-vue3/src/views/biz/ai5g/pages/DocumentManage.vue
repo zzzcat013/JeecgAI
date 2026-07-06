@@ -369,11 +369,17 @@ async function del(rec: any) {
 }
 
 async function toMd(rec: any) {
+  if (rec.processStatus === 'processing') {
+    message.warning('当前文档正在处理中，请稍后查看结果');
+    return;
+  }
   try {
-    message.loading({ content: '正在转换Markdown...', key: 'md' });
+    message.loading({ content: '正在提交AI转MD任务...', key: 'md' });
     const r = await defHttp.post({ url: `/ai5g/doc/convert/${rec.id}` }, { isTransformResponse: false });
     if (r?.success) {
-      message.success({ content: '转换成功', key: 'md' });
+      rec.processStatus = 'processing';
+      message.info({ content: r?.message || '转换任务已提交，后台处理中', key: 'md' });
+      startPolling();
       load();
     } else {
       message.error({ content: r?.message || '转换失败', key: 'md' });
