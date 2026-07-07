@@ -5,7 +5,7 @@
     <parent>
         <artifactId>jeecg-module-system</artifactId>
         <groupId>org.jeecgframework.boot3</groupId>
-        <version>3.9.2</version>
+        <version>3.9.3</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -50,6 +50,11 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
         </dependency>
@@ -58,7 +63,7 @@
      <!--  <dependency>
            <groupId>org.jeecgframework.boot3</groupId>
            <artifactId>jeecg-cloud-test-shardingsphere</artifactId>
-           <version>3.9.2</version>
+           <version>3.9.3</version>
        </dependency>-->
     </dependencies>
 
@@ -70,6 +75,7 @@
                 <configuration>
                     <!-- 指定工作目录为项目根目录 (即 jeecg-boot) -->
                     <workingDirectory>${project.basedir}/../../</workingDirectory>
+                    <mainClass>org.jeecg.JeecgSystemApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

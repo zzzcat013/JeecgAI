@@ -195,7 +195,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
             url = CommonUtils.getBaseUrl(request) + url;
         }
         //update-end---author:scott ---date:20260429  for：【issues/9590】微服务nginx部署openApi接口访问不到-----------
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
         if (HttpMethod.GET.matches(method)
                 || HttpMethod.DELETE.matches(method)
                 || HttpMethod.OPTIONS.matches(method)
@@ -454,7 +454,7 @@ public class OpenApiController extends JeecgController<OpenApi, OpenApiService> 
         SwaggerInfo info = new SwaggerInfo();
 
         info.setDescription("OpenAPI 接口列表");
-        info.setVersion("3.9.2");
+        info.setVersion("3.9.3");
         info.setTitle("OpenAPI 接口列表");
         info.setTermsOfService("https://jeecg.com");
 

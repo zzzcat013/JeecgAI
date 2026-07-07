@@ -3,24 +3,18 @@
 JeecgBoot AI低代码平台
 ===============
 
-🚀 **低代码迈入 v2.0 时代，一句自然语言即可生成整个系统**
+🚀 **低代码迈入 v2.0 时代，AI Skills 自然语言编程全新发布** — 一句自然语言即可生成整个系统，一句话生成完整代码、一句话画流程、一句话设计表单、一句话出报表与大屏，覆盖 JeecgBoot 低代码全场景。
 
-当前最新版本： 3.9.2（2026-04-30） 
+当前最新版本： 3.9.3（2026-07-07） 
 
 
 [![AUR](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg)](https://github.com/jeecgboot/JeecgBoot/blob/master/LICENSE)
 [![](https://img.shields.io/badge/Author-北京国炬软件-orange.svg)](https://jeecg.com)
 [![](https://img.shields.io/badge/blog-技术博客-orange.svg)](https://www.toutiao.com/c/user/token/CiZtC9Gn_yl2qDcTF9Kqhh9LV7tW1cJsdRn2rfFUU5lZy4RJaD4hdBpJCjwAAAAAAAAAAAAAUFvsvy4j57fg5tqwVmxukKxGEhbMl7pE14lY9_YSDq-A26V7xrG3hYuq_Z9y6F3W01oQkIKQDhjDxYPqBCIBA2iiHh0=)
-[![](https://img.shields.io/badge/version-3.9.2-brightgreen.svg)](https://github.com/jeecgboot/JeecgBoot)
+[![](https://img.shields.io/badge/version-3.9.3-brightgreen.svg)](https://github.com/jeecgboot/JeecgBoot)
 [![GitHub stars](https://img.shields.io/github/stars/zhangdaiscott/jeecg-boot.svg?style=social&label=Stars)](https://github.com/jeecgboot/JeecgBoot)
 [![GitHub forks](https://img.shields.io/github/forks/zhangdaiscott/jeecg-boot.svg?style=social&label=Fork)](https://github.com/jeecgboot/JeecgBoot)
 [![Skills](https://img.shields.io/badge/AI%20Skills-自然语言编程-ff4d4f.svg)](https://jeecg.com/skills)
-
-
-> 🔥 **AI Skills 自然语言编程全新发布** — 一句话生成完整代码、一句话画流程、一句话设计表单、一句话出报表与大屏，覆盖 JeecgBoot 低代码全场景。
->
-> ⚡ [一键安装](https://help.jeecg.com/java/ai/skills/skill-install) ｜ 📦 [Skills 开源仓库](https://github.com/jeecgboot/skills) ｜ 🌐 [Skills 官网](https://jeecg.com/skills) ｜ 📺 [实战视频](https://www.bilibili.com/video/BV1KKwTzJEbX/)
-
 
 项目介绍
 -----------------------------------
@@ -35,7 +29,7 @@ JeecgBoot 是一款 AI 低代码开发平台，支持 "低代码 + 零代码" �
 
 ---
 
-采用最新的前后端分离技术栈（Ant Design&Vue3，SpringBoot3，SpringCloud Alibaba，Mybatis-plus，具备强大且颗粒化的权限控制，支持按钮权限和数据权限设置，满足大型业务系统需求。功能涵盖在线表单、表单设计、流程设计、门户设计、报表与大屏设计、OA办公、AI应用、AI知识库、大模型管理、AI流程编排、AI聊天，支持ChatGPT、DeepSeek、Ollama等多种AI大模型。
+采用最新的前后端分离技术栈（Ant Design&Vue3，SpringBoot4，SpringCloud Alibaba，Mybatis-plus，具备强大且颗粒化的权限控制，支持按钮权限和数据权限设置，满足大型业务系统需求。功能涵盖在线表单、表单设计、流程设计、门户设计、报表与大屏设计、OA办公、AI应用、AI知识库、大模型管理、AI流程编排、AI聊天，支持ChatGPT、DeepSeek、Ollama等多种AI大模型。
 
 
 - `零代码能力:` 国内首个“低代码+零代码”双模驱动的AI低代码平台！同时支持低代码和零代码; 让开发者用低代码，让业务人员在同一个平台上用零代码！
@@ -84,13 +78,13 @@ JeecgBoot低代码平台兼容所有J2EE项目开发，支持信创国产化，�
 版本说明
 -----------------------------------
 
-|下载 | SpringBoot3.5 + Shiro                                   |SpringBoot3.5+ SpringAuthorizationServer | SpringBoot3.5 + Sa-Token | SpringBoot2.7(JDK17/JDK8) |
-|------|---------------------------------------------------------|----------------------------|-------------------|--------------------------------------------|
-| Github | [`main`](https://github.com/jeecgboot/JeecgBoot)        | [`springboot3_sas`](https://github.com/jeecgboot/JeecgBoot/tree/springboot3_sas) 分支  |  [`springboot3-satoken`](https://github.com/jeecgboot/JeecgBoot/tree/springboot3-satoken) 分支|[`springboot2`](https://github.com/jeecgboot/JeecgBoot/tree/springboot2) 分支|
-| Gitee | [`main`](https://github.com/jeecgboot/JeecgBoot) | [`springboot3_sas`](https://gitee.com/jeecg/JeecgBoot/tree/springboot3_sas) 分支|  [`springboot3-satoken`](https://gitee.com/jeecg/JeecgBoot/tree/springboot3-satoken) 分支|[`springboot2`](https://github.com/jeecgboot/JeecgBoot/tree/springboot2)     分支 |
+|下载 | SpringBoot4 + Shiro                                   |SpringBoot3+ SpringAuthorizationServer | SpringBoot3 + Sa-Token |
+|------|---------------------------------------------------------|----------------------------|-------------------|
+| Github | [`main`](https://github.com/jeecgboot/JeecgBoot)        | [`springboot3_sas`](https://github.com/jeecgboot/JeecgBoot/tree/springboot3_sas) 分支  |  [`springboot3-satoken`](https://github.com/jeecgboot/JeecgBoot/tree/springboot3-satoken) 分支|
+| Gitee | [`main`](https://github.com/jeecgboot/JeecgBoot) | [`springboot3_sas`](https://gitee.com/jeecg/JeecgBoot/tree/springboot3_sas) 分支|  [`springboot3-satoken`](https://gitee.com/jeecg/JeecgBoot/tree/springboot3-satoken) 分支|
 
 
-- `jeecg-boot` 是后端JAVA源码项目Springboot3+Shiro+Mybatis+SpringCloudAlibaba（支持单体和微服务切换）.
+- `jeecg-boot` 是后端JAVA源码项目Springboot4+Shiro+Mybatis+SpringCloudAlibaba（支持单体和微服务切换）.
 - `jeecgboot-vue3` 是前端VUE3源码项目（vue3+vite6+ts最新技术栈）.
 - `JeecgUniapp`  是[配套APP框架](https://github.com/jeecgboot/JeecgUniapp) 适配多个终端，支持APP、小程序、H5、鸿蒙、鸿蒙Next.
 - `jeecg-boot-starter`  是[jeecg-boot对应的底层封装starter](https://github.com/jeecgboot/jeecg-boot-starter) ：微服务启动、xxljob、分布式锁starter、rabbitmq、分布式事务、分库分表shardingsphere等.
@@ -141,7 +135,7 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 > 开源界"小普元"超越传统商业平台。引领低代码开发模式(OnlineCoding-> 代码生成器 -> 手工MERGE)，低代码开发同时又支持灵活编码， 可以帮助解决Java项目70%的重复工作，让开发更多关注业务。既能快速提高开发效率，节省成本，同时又不失灵活性。
 
 - 1.提供了一套完善的AI应用管理系统模块，是一套类似`Dify`的`AIGC应用开发平台`+`知识库问答`，是一款基于LLM大语言模型AI应用平台和 RAG 的知识库问答系统。 其直观的界面结合了 AI 流程编排、RAG 管道、知识库管理、模型管理、对接向量库、实时运行可观察等，让您可以快速从原型到生产，拥有AI服务能力
-- 2.采用最新主流前后分离框架（Spring Boot3 + MyBatisPlus + Vue3.0 + TypeScript + Vite6 + Ant Design Vue4 ）等新技术方案。便于学习容易上手，代码生成器依赖性低，灵活的扩展能力，可快速实现二次开发。
+- 2.采用最新主流前后分离框架（Spring Boot4 + MyBatisPlus + Vue3.0 + TypeScript + Vite6 + Ant Design Vue4 ）等新技术方案。便于学习容易上手，代码生成器依赖性低，灵活的扩展能力，可快速实现二次开发。
 - 3.支持微服务Spring Cloud Alibaba（Nacos、Gateway、Sentinel、Skywalking），提供简易机制，支持单体和微服务自由切换（这样可以满足各类项目需求）。
 - 4.开发效率高，支持在线建表和AI建表，提供强大代码生成器，单表、树列表、一对多、一对一等数据模型，增删改查功能一键生成，菜单配置直接使用。
 - 5.代码生成器提供强大模板机制，支持自定义模板，目前提供四套风格模板（单表两套、树模型一套、一对多三套）。
@@ -207,13 +201,13 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 - IDE建议： IDEA (必须安装lombok插件 )
 - 语言：Java 默认jdk17(jdk21、jdk24)
 - 依赖管理：Maven
-- 基础框架：Spring Boot 3.5.5
-- 微服务框架： Spring Cloud Alibaba 2023.0.3.3
-- 持久层框架：MybatisPlus 3.5.12
-- 报表工具： JimuReport 2.1.3
-- 安全框架：Apache Shiro 2.0.4，Jwt 4.5.0
+- 基础框架：Spring Boot 4.1.0
+- 微服务框架： Spring Cloud Alibaba 2025.1.0.0
+- 持久层框架：MybatisPlus 3.5.16
+- 报表工具： JimuReport 2.1.5
+- 安全框架：Apache Shiro 3.0.0，Jwt 4.5.0
 - 微服务技术栈：Spring Cloud Alibaba、Nacos、Gateway、Sentinel、Skywalking
-- 数据库连接池：阿里巴巴Druid 1.2.24
+- 数据库连接池：阿里巴巴Druid 1.2.28
 - AI大模型：支持 `ChatGPT` `DeepSeek` `千问`等各种常规模式
 - 日志打印：logback
 - 缓存：Redis

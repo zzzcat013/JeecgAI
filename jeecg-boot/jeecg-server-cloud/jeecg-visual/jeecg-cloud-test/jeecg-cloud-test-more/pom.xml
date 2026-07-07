@@ -5,7 +5,7 @@
     <parent>
         <artifactId>jeecg-cloud-test</artifactId>
         <groupId>org.jeecgframework.boot3</groupId>
-        <version>3.9.2</version>
+        <version>3.9.3</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <description>公共测试模块</description>
@@ -34,10 +34,21 @@
             <groupId>org.jeecgframework.boot3</groupId>
             <artifactId>jeecg-boot-starter-rabbitmq</artifactId>
         </dependency>
+        <!--rabbitmq消息队列-->
+        <dependency>
+            <groupId>org.jeecgframework.boot3</groupId>
+            <artifactId>jeecg-boot-starter-sentinel</artifactId>
+        </dependency>
         <!-- 分布式锁依赖 -->
         <dependency>
             <groupId>org.jeecgframework.boot3</groupId>
             <artifactId>jeecg-boot-starter-lock</artifactId>
+        </dependency>
+        <!-- spring-cloud-function 5.0 需要 joda-time 但声明为 optional，显式引入 -->
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.12.7</version>
         </dependency>
     </dependencies>
 

@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.jeecgframework.boot3</groupId>
 		<artifactId>jeecg-boot-parent</artifactId>
-		<version>3.9.2</version>
+		<version>3.9.3</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>jeecg-boot-base-core</artifactId>
@@ -65,10 +65,10 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
-		<dependency>
+	<!--	<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-aop</artifactId>
-		</dependency>
+		</dependency>-->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
@@ -104,12 +104,12 @@
 		<!-- mybatis-plus -->
 		<dependency>
 			<groupId>com.baomidou</groupId>
-			<artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+			<artifactId>mybatis-plus-spring-boot4-starter</artifactId>
 			<version>${mybatis-plus.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.baomidou</groupId>
-			<artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+			<artifactId>mybatis-plus-jsqlparser-5.0</artifactId>
 			<version>${mybatis-plus.version}</version>
 		</dependency>
 		<!-- minidao -->
@@ -121,15 +121,19 @@
 		<!-- druid -->
 		<dependency>
 			<groupId>com.alibaba</groupId>
-			<artifactId>druid-spring-boot-3-starter</artifactId>
-			<version>${druid.version}</version>
+			<artifactId>druid-spring-boot-4-starter</artifactId>
+			<version>1.2.28</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jdbc</artifactId>
 		</dependency>
 
 		<!-- 动态数据源 -->
 		<dependency>
 			<groupId>com.baomidou</groupId>
-			<artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
-			<version>${dynamic-datasource-spring-boot-starter.version}</version>
+			<artifactId>dynamic-datasource-spring-boot4-starter</artifactId>
+			<version>4.5.0</version>
 		</dependency>
 
 		<!-- 数据库驱动 -->
@@ -192,64 +196,37 @@
 			<version>${java-jwt.version}</version>
 		</dependency>
 
-		<!--shiro-->
+		<!--shiro 3.0 原生 Jakarta EE，无需 jakarta classifier -->
 		<dependency>
 			<groupId>org.apache.shiro</groupId>
 			<artifactId>shiro-spring-boot-starter</artifactId>
-			<classifier>jakarta</classifier>
 			<version>${shiro.version}</version>
 			<exclusions>
+				<!-- Shiro 3.0 默认依赖 log4j2，项目使用 Logback，排除以免冲突 -->
 				<exclusion>
-					<groupId>org.apache.shiro</groupId>
-					<artifactId>shiro-spring</artifactId>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-log4j2</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.shiro</groupId>
 			<artifactId>shiro-spring</artifactId>
-			<classifier>jakarta</classifier>
 			<version>${shiro.version}</version>
-			<!-- 排除仍使用了javax.servlet的依赖 -->
-			<exclusions>
-				<exclusion>
-					<groupId>org.apache.shiro</groupId>
-					<artifactId>shiro-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.shiro</groupId>
-					<artifactId>shiro-web</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
-		<!-- 引入适配jakarta的依赖包 -->
 		<dependency>
 			<groupId>org.apache.shiro</groupId>
 			<artifactId>shiro-core</artifactId>
-			<classifier>jakarta</classifier>
 			<version>${shiro.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>commons-beanutils</groupId>
-					<artifactId>commons-beanutils</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.shiro</groupId>
 			<artifactId>shiro-web</artifactId>
-			<classifier>jakarta</classifier>
 			<version>${shiro.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.apache.shiro</groupId>
-					<artifactId>shiro-core</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
-		<!-- shiro-redis -->
+		<!-- shiro-redis（io.github.weir2010 是 org.crazycake 的延续版本，原生支持 Lettuce） -->
 		<dependency>
-			<groupId>org.crazycake</groupId>
+			<groupId>io.github.weir2010</groupId>
 			<artifactId>shiro-redis</artifactId>
 			<version>${shiro-redis.version}</version>
 			<exclusions>
@@ -257,11 +234,13 @@
 					<groupId>org.apache.shiro</groupId>
 					<artifactId>shiro-core</artifactId>
 				</exclusion>
-				<exclusion>
-					<artifactId>checkstyle</artifactId>
-					<groupId>com.puppycrawl.tools</groupId>
-				</exclusion>
 			</exclusions>
+		</dependency>
+		<!-- shiro-redis 4.x 将 Jedis 设为 optional，需显式声明 -->
+		<dependency>
+			<groupId>redis.clients</groupId>
+			<artifactId>jedis</artifactId>
+			<version>${jedis.version}</version>
 		</dependency>
 
 		<dependency>
@@ -356,11 +335,14 @@
 			<groupId>com.squareup.okhttp3</groupId>
 			<artifactId>okhttp</artifactId>
 		</dependency>
+		<!-- 2026-07-06  for：【SpringBoot4】jackson-module-kotlin Jackson2不兼容Jackson3，spring-cloud-function 5.0 JsonMapper初始化时 ClassCastException: KotlinModule cannot be cast to tools.jackson.databind.JacksonModule，暂时注释 -->
 		<!-- 解决okhttp引用了kotlin,应用启动有警告日志问题 -->
+		<!--
 		<dependency>
 			<groupId>com.fasterxml.jackson.module</groupId>
 			<artifactId>jackson-module-kotlin</artifactId>
 		</dependency>
+		-->
 		<dependency>
 			<groupId>commons-fileupload</groupId>
 			<artifactId>commons-fileupload</artifactId>

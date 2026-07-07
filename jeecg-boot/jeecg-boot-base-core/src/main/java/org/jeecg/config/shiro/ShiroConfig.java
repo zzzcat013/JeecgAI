@@ -11,7 +11,6 @@ import org.apache.shiro.mgt.SecurityManager;
 import org.apache.shiro.spring.LifecycleBeanPostProcessor;
 import org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor;
 import org.apache.shiro.spring.web.ShiroFilterFactoryBean;
-import org.apache.shiro.spring.web.ShiroUrlPathHelper;
 import org.apache.shiro.web.mgt.DefaultWebSecurityManager;
 import org.crazycake.shiro.*;
 import org.jeecg.common.constant.CommonConstant;
@@ -24,14 +23,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.*;
-import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.env.Environment;
-import org.springframework.core.type.filter.AnnotationTypeFilter;
+import org.springframework.boot.data.redis.autoconfigure.DataRedisProperties;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import redis.clients.jedis.HostAndPort;
@@ -56,8 +52,10 @@ public class ShiroConfig {
     private Environment env;
     @Resource
     private JeecgBaseConfig jeecgBaseConfig;
+    //update-begin---author:scott ---date:2026-07-07  for：【Spring Boot 4.0 升级】RedisProperties 改名为 DataRedisProperties，包路径变更-----------
     @Autowired(required = false)
-    private RedisProperties redisProperties;
+    private DataRedisProperties redisProperties;
+    //update-end---author:scott ---date:2026-07-07  for：【Spring Boot 4.0 升级】RedisProperties 改名为 DataRedisProperties，包路径变更-----------
     
     /**
      * Filter Chain定义说明
@@ -335,6 +333,7 @@ public class ShiroConfig {
     public IRedisManager redisManager() {
         log.info("===============(2)创建RedisManager,连接Redis..");
         IRedisManager manager;
+        //update-begin---author:scott ---date:2026-07-07  for：【Spring Boot 4.0 升级】恢复 Sentinel 哨兵模式支持，API 兼容-----------
         // sentinel cluster redis（【issues/5569】shiro集成 redis 不支持 sentinel 方式部署的redis集群 #5569）
         if (Objects.nonNull(redisProperties)
                 && Objects.nonNull(redisProperties.getSentinel())
@@ -347,6 +346,7 @@ public class ShiroConfig {
 
             return sentinelManager;
         }
+        //update-end---author:scott ---date:2026-07-07  for：【Spring Boot 4.0 升级】恢复 Sentinel 哨兵模式支持，API 兼容-----------
         
         // redis 单机支持，在集群为空，或者集群无机器时候使用 add by jzyadmin@163.com
         if (lettuceConnectionFactory.getClusterConfiguration() == null || lettuceConnectionFactory.getClusterConfiguration().getClusterNodes().isEmpty()) {
@@ -387,7 +387,7 @@ public class ShiroConfig {
     @Bean
     public RequestMappingHandlerMapping overridedRequestMappingHandlerMapping() {
         RequestMappingHandlerMapping mapping = new RequestMappingHandlerMapping();
-        mapping.setUrlPathHelper(new ShiroUrlPathHelper());
+        mapping.setUrlPathHelper(new org.springframework.web.util.UrlPathHelper());
         return mapping;
     }
     
