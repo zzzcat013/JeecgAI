@@ -345,10 +345,10 @@ jeecg:
     #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离) (v1.6.2+ 新增)
     saasMode:
     ai:
-      # OpenAI 兼容 base 地址（必填）
+      # OpenAI 兼容 base zheyi地址（必填）
       base-url: https://open.bigmodel.cn/api/paas/v4
-      # API Key（必填，留空则 AI 不可用）
-      api-key: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
+      # API Key（留空则禁用 JimuReport 内置 AI；Spring Boot 4 下暂不启用）
+      api-key:
       # 模型名
       model: glm-4.7
       #确定性输出，默认temperature=0
