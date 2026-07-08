@@ -343,7 +343,7 @@ jeecg:
       # OpenAI 兼容 base zheyi地址（必填）
       base-url: https://open.bigmodel.cn/api/paas/v4
       # API Key（留空则禁用 JimuReport 内置 AI；Spring Boot 4 下暂不启用）
-      api-key:
+      api-key: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
       # 模型名
       model: glm-4.7
       #确定性输出，默认temperature=0
