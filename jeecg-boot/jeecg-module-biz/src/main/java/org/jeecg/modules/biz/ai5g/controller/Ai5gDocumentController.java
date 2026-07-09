@@ -834,7 +834,7 @@ public class Ai5gDocumentController {
               .bucket(minioBucketName)
               .object(objectName)
               .contentType(contentType)
-              .stream(in, -1, MINIO_PART_SIZE)
+              .stream(in, -1L, MINIO_PART_SIZE)
               .build());
       }
       log.info("AI5G MinIO upload success, bucket={}, object={}", minioBucketName, objectName);
@@ -852,7 +852,7 @@ public class Ai5gDocumentController {
           .bucket(minioBucketName)
           .object(objectName)
           .contentType(contentType)
-          .stream(in, size, -1)
+          .stream(in, size, -1L)
           .build());
       String baseUrl = minioUrl.endsWith("/") ? minioUrl : minioUrl + "/";
       return baseUrl + minioBucketName + "/" + objectName;

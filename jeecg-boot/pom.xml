@@ -29,6 +29,7 @@
 
 	<properties>
 		<jeecgboot.version>3.9.3</jeecgboot.version>
+		<jeecg-starter.version>3.9.4</jeecg-starter.version>
 		<!-- JDK版本支持17、21、24、25 -->
 		<java.version>17</java.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -42,7 +43,7 @@
         <fastjson.version>2.0.58</fastjson.version>
         <aviator.version>5.2.6</aviator.version>
 		<pegdown.version>1.6.0</pegdown.version>
-		<commonmark.version>0.17.0</commonmark.version>
+		<commonmark.version>0.28.0</commonmark.version>
 		<knife4j-spring-boot-starter.version>4.5.0</knife4j-spring-boot-starter.version>
 		<!-- 数据库驱动 -->
 		<postgresql.version>42.2.25</postgresql.version>
@@ -58,14 +59,14 @@
 		<jimureport-spring-boot-starter.version>2.5.0</jimureport-spring-boot-starter.version>
 		<jimubi-spring-boot-starter.version>2.5.0</jimubi-spring-boot-starter.version>
 		<minidao.version>1.10.22</minidao.version>
-		<autopoi-web.version>2.0.4</autopoi-web.version>
+		<autopoi-web.version>2.0.5</autopoi-web.version>
 		
 		<!-- 持久层 -->
 		<mybatis-plus.version>3.5.16</mybatis-plus.version>
 		<dynamic-datasource-spring-boot-starter.version>4.3.1</dynamic-datasource-spring-boot-starter.version>
 		<druid.version>1.2.28</druid.version>
 
-		<commons-io.version>2.20.0</commons-io.version>
+		<commons-io.version>2.21.0</commons-io.version>
 		<commons-fileupload.version>1.5</commons-fileupload.version>
 		<commons.version>2.6</commons.version>
 		<aliyun-java-sdk-dysmsapi.version>2.1.0</aliyun-java-sdk-dysmsapi.version>
@@ -76,7 +77,7 @@
 		<shiro-redis.version>4.1.0</shiro-redis.version>
 		<java-jwt.version>4.5.0</java-jwt.version>
 		<codegenerate.version>1.5.6</codegenerate.version>
-		<minio.version>8.5.7</minio.version>
+		<minio.version>9.0.3</minio.version>
 		<justauth-spring-boot-starter.version>1.4.0</justauth-spring-boot-starter.version>
 		<dom4j.version>1.6.1</dom4j.version>
 		<qiniu-java-sdk.version>7.4.0</qiniu-java-sdk.version>
@@ -203,7 +204,7 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-common</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<!-- jeecg core -->
 			<dependency>
@@ -228,26 +229,26 @@
             <dependency>
                 <groupId>org.jeecgframework.boot3</groupId>
                 <artifactId>jeecg-boot-starter-cloud</artifactId>
-                <version>${jeecgboot.version}</version>
+                <version>${jeecg-starter.version}</version>
             </dependency>
 			<!--xxl-job定时任务-->
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-job</artifactId>
-				<version>3.9.3</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 	
 			<!--redis分布式锁-->
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-lock</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<!--rabbitmq消息队列-->
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-rabbitmq</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>${jeecg-starter.version}</version>
 				<exclusions>
 					<exclusion>
 						<groupId>joda-time</groupId>
@@ -259,24 +260,30 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-sentinel</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<!--rocketmq-->
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-rocketmq</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>${jeecg-starter.version}</version>
+			</dependency>
+			<!-- seata分布式事务 -->
+			<dependency>
+				<groupId>org.jeecgframework.boot3</groupId>
+				<artifactId>jeecg-boot-starter-seata</artifactId>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<!--分库分表shardingsphere-->
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-shardingsphere</artifactId>
-				<version>3.9.3</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-shardingsphere-nacos</artifactId>
-				<version>3.9.3</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.hibernate</groupId>
@@ -299,7 +306,7 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-mongon</artifactId>
-				<version>${jeecgboot.version}</version>
+				<version>${jeecg-starter.version}</version>
 			</dependency>
 			<!--人大金仓驱动 版本号V008R006C005B0013 -->
 			<dependency>
@@ -564,7 +571,7 @@
 			<dependency>
 				<groupId>org.jeecgframework.boot3</groupId>
 				<artifactId>jeecg-boot-starter-ai</artifactId>
-                <version>3.9.3</version>
+                <version>${jeecg-starter.version}</version>
 			</dependency>
 			<!--flyway 支持 mysql5.7+、MariaDB10.3.16-->
 			<!--mysql5.6，需要把版本号改成5.2.1-->

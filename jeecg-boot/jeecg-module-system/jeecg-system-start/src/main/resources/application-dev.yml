@@ -198,6 +198,9 @@ jeecg:
     model: glm-4.7
     apiKey: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
     apiHost: https://open.bigmodel.cn/api/paas/v4
+  #  model: deepseek-v4-pro
+  #  apiKey: ??
+  #  apiHost: https://api.deepseek.com/v1
     timeout: 60
     skills-dir:
     skills-shell-dir:
@@ -247,8 +250,8 @@ jeecg:
       timeout: 60
   # AIRag向量库
   ai-rag:
-    # AI流程敏感节点(stdio=命令行节点, sql=SQL节点)
-    allow-sensitive-nodes: sql,stdio
+    # AI流程敏感节点(stdio=命令行节点, sql=SQL节点, code=代码节点/脚本执行,高危存在RCE风险默认禁用)
+    allow-sensitive-nodes: sql,stdio,code
     embed-store:
       host: 218.26.173.130
       port: 15432
