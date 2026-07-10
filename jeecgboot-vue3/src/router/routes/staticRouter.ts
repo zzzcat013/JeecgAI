@@ -17,6 +17,14 @@ export const AI_ROUTE: AppRouteRecordRaw = {
         title: 'AI助手',
       },
     },
+    {
+      path: '/ai5g/document-viewer',
+      name: 'ai5g-document-viewer',
+      component: () => import('/@/views/ai5g/document-viewer/index.vue'),
+      meta: {
+        title: '文档查看',
+      },
+    },
   ],
 };
 

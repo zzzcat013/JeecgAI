@@ -46,7 +46,7 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="editOpen" title="编辑类型" @ok="submitEdit" @cancel="editOpen=false">
+    <a-modal v-model:open="editOpen" title="编辑类型" @ok="submitEdit" @cancel="editOpen=false" :bodyStyle="{ padding: '20px 24px 8px' }">
       <a-form :model="editForm" layout="vertical">
         <a-form-item label="层级">
           <a-select v-model:value="editForm.level" disabled>
