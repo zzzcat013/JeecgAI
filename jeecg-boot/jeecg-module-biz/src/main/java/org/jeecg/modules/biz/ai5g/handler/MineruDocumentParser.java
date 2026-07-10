@@ -26,6 +26,10 @@ public class MineruDocumentParser {
     }
 
     public String parse(File docFile, boolean enableMinerU, String mineruUrl, String uploadpath) {
+        return parse(docFile, enableMinerU, mineruUrl, uploadpath, "gradio");
+    }
+
+    public String parse(File docFile, boolean enableMinerU, String mineruUrl, String uploadpath, String mineruMode) {
         // 只有开启了 MinerU 才进行处理
         if (!enableMinerU) {
             return null;
@@ -117,8 +121,8 @@ public class MineruDocumentParser {
             // 优先使用远程 Web 接口
             if (oConvertUtils.isNotEmpty(mineruUrl)) {
                 long start = System.currentTimeMillis();
-                log.info("使用 MinerU 远程服务解析: {}", mineruUrl);
-                JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile);
+                log.info("使用 MinerU 远程服务解析: {}, mode: {}", mineruUrl, mineruMode);
+                JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile, mineruMode);
                 if (mineruRes != null && oConvertUtils.isNotEmpty(mineruRes.getString("content"))) {
                     try {
                         FileUtils.forceMkdir(new File(newFileDir));

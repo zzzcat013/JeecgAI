@@ -1,5 +1,6 @@
 package org.jeecg.modules.biz.ai5g.util;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +15,12 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * MinerU Gradio Web 接口调用客户端 (Gradio 4.x 适配版)
+ * MinerU 远程接口调用客户端，兼容 Gradio 4.x 和 FastAPI /file_parse。
  *
  * @Author: Trae
  * @Date: 2026-02-03
@@ -37,21 +39,41 @@ public class MineruClientUtil {
     }
 
     /**
-     * 调用 Gradio 接口解析 PDF
+     * 默认按 Gradio 接口解析 PDF，兼容旧配置。
      *
      * @param mineruUrl Gradio 服务地址 (例如 http://10.52.7.21:7810/)
      * @param pdfFile   PDF 文件
      * @return 包含 "content" (Markdown内容) 和 "hasImages" (布尔值) 的 JSONObject
      */
     public static JSONObject parsePdf(String mineruUrl, File pdfFile) {
+        return parsePdf(mineruUrl, pdfFile, "gradio");
+    }
+
+    /**
+     * 调用 MinerU 远程接口解析 PDF
+     *
+     * @param mineruUrl MinerU 服务地址
+     * @param pdfFile   PDF 文件
+     * @param mode      gradio 或 api
+     * @return 包含 "content" (Markdown内容) 和 "hasImages" (布尔值) 的 JSONObject
+     */
+    public static JSONObject parsePdf(String mineruUrl, File pdfFile, String mode) {
+        if ("api".equalsIgnoreCase(mode)) {
+            return parsePdfByApi(mineruUrl, pdfFile);
+        }
+        return parsePdfByGradio(mineruUrl, pdfFile);
+    }
+
+    /**
+     * 调用 Gradio 接口解析 PDF
+     */
+    private static JSONObject parsePdfByGradio(String mineruUrl, File pdfFile) {
         try {
             if (mineruUrl == null || !mineruUrl.startsWith("http")) {
                 log.error("MinerU URL 配置错误: {}", mineruUrl);
                 return null;
             }
-            if (!mineruUrl.endsWith("/")) {
-                mineruUrl += "/";
-            }
+            mineruUrl = normalizeMineruUrl(mineruUrl);
 
             // 1. 上传文件到 Gradio
             String uploadUrl = mineruUrl + "gradio_api/upload";
@@ -131,6 +153,80 @@ public class MineruClientUtil {
             log.error("MinerU Gradio 调用异常", e);
             return null;
         }
+    }
+
+    /**
+     * 调用 MinerU FastAPI /file_parse 接口解析 PDF。
+     */
+    private static JSONObject parsePdfByApi(String mineruUrl, File pdfFile) {
+        try {
+            if (mineruUrl == null || !mineruUrl.startsWith("http")) {
+                log.error("MinerU URL 配置错误: {}", mineruUrl);
+                return null;
+            }
+            mineruUrl = normalizeMineruUrl(mineruUrl);
+            String fileParseUrl = mineruUrl + "file_parse";
+
+            RestTemplate restTemplate = getTimeoutRestTemplate();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.setAccept(java.util.Collections.singletonList(MediaType.ALL));
+            headers.set("User-Agent", "JeecgAI-MinerU-Client/1.0");
+
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("files", new FileSystemResource(pdfFile));
+            body.add("lang_list", "ch");
+            body.add("backend", "hybrid-engine");
+            body.add("effort", "medium");
+            body.add("parse_method", "auto");
+            body.add("formula_enable", "true");
+            body.add("table_enable", "true");
+            body.add("image_analysis", "true");
+            body.add("return_md", "true");
+            body.add("return_middle_json", "false");
+            body.add("return_model_output", "false");
+            body.add("return_content_list", "false");
+            body.add("return_images", "true");
+            body.add("response_format_zip", "true");
+            body.add("return_original_file", "false");
+            body.add("client_side_output_generation", "false");
+            body.add("start_page_id", "0");
+            body.add("end_page_id", "99999");
+
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            log.info("MinerU API 开始解析文件: {}, 目标: {}", pdfFile.getName(), fileParseUrl);
+
+            ResponseEntity<byte[]> response = restTemplate.exchange(fileParseUrl, HttpMethod.POST, requestEntity, byte[].class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().length == 0) {
+                log.error("MinerU API 解析失败: {}, 响应为空", response.getStatusCode());
+                return null;
+            }
+
+            byte[] responseBytes = response.getBody();
+            MediaType contentType = response.getHeaders().getContentType();
+            if ((contentType != null && MediaType.APPLICATION_JSON.includes(contentType)) || looksLikeJson(responseBytes)) {
+                String responseText = new String(responseBytes, StandardCharsets.UTF_8);
+                return parseApiJsonResult(responseText, pdfFile.getParentFile().getAbsolutePath());
+            }
+
+            log.info("MinerU API 返回 ZIP 结果，大小: {} bytes", responseBytes.length);
+            return extractZipBytes(responseBytes, pdfFile.getParentFile().getAbsolutePath());
+        } catch (Exception e) {
+            log.error("MinerU API 调用异常", e);
+            return null;
+        }
+    }
+
+    private static String normalizeMineruUrl(String mineruUrl) {
+        String normalized = mineruUrl.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.endsWith("/docs")) {
+            normalized = normalized.substring(0, normalized.length() - "/docs".length());
+        }
+        return normalized + "/";
     }
 
     /**
@@ -218,6 +314,205 @@ public class MineruClientUtil {
         return null;
     }
 
+    private static JSONObject parseApiJsonResult(String jsonData, String outputDir) {
+        try {
+            Object parsed = JSON.parse(jsonData);
+            String mdText = findMarkdownText(parsed);
+            if (mdText != null && !mdText.isEmpty()) {
+                File extractDir = new File(outputDir + File.separator + "mineru_res_" + System.currentTimeMillis());
+                FileUtils.forceMkdir(extractDir);
+                File markdownFile = new File(extractDir, "mineru.md");
+                FileUtils.writeStringToFile(markdownFile, mdText, StandardCharsets.UTF_8);
+                int imageCount = writeJsonImages(parsed, extractDir);
+
+                JSONObject res = new JSONObject();
+                res.put("content", mdText);
+                res.put("hasImages", imageCount > 0);
+                res.put("extractDir", extractDir.getCanonicalPath());
+                res.put("markdownPath", markdownFile.getCanonicalPath());
+                return res;
+            }
+            log.error("MinerU API JSON 响应中未找到 Markdown 内容: {}", jsonData.length() > 500 ? jsonData.substring(0, 500) + "..." : jsonData);
+        } catch (Exception e) {
+            log.error("解析 MinerU API JSON 失败: {}", jsonData, e);
+        }
+        return null;
+    }
+
+    private static int writeJsonImages(Object value, File extractDir) throws IOException {
+        int count = 0;
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            for (String key : object.keySet()) {
+                Object child = object.get(key);
+                if ("images".equalsIgnoreCase(key) && child instanceof JSONObject) {
+                    JSONObject images = (JSONObject) child;
+                    for (String imageName : images.keySet()) {
+                        if (writeJsonImage(imageName, images.get(imageName), extractDir)) {
+                            count++;
+                        }
+                    }
+                } else {
+                    count += writeJsonImages(child, extractDir);
+                }
+            }
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.size(); i++) {
+                count += writeJsonImages(array.get(i), extractDir);
+            }
+        }
+        return count;
+    }
+
+    private static boolean writeJsonImage(String imageName, Object imageValue, File extractDir) throws IOException {
+        try {
+            String imageData = extractImageData(imageValue);
+            if (imageData == null || imageData.trim().isEmpty()) {
+                return false;
+            }
+            String normalizedName = imageName == null ? "" : imageName.trim().replace("\\", "/");
+            if (normalizedName.isEmpty()) {
+                normalizedName = "images/image_" + System.nanoTime() + ".png";
+            }
+            while (normalizedName.startsWith("/")) {
+                normalizedName = normalizedName.substring(1);
+            }
+            if (!normalizedName.contains(".")) {
+                normalizedName += ".png";
+            }
+            File imageFile = safeResolveZipEntry(extractDir, normalizedName);
+            imageFile.getParentFile().mkdirs();
+            FileUtils.writeByteArrayToFile(imageFile, decodeImageBytes(imageData));
+            return true;
+        } catch (Exception e) {
+            log.warn("写入 MinerU JSON 图片失败: {}", imageName, e);
+            return false;
+        }
+    }
+
+    private static String extractImageData(Object imageValue) {
+        if (imageValue instanceof String) {
+            return (String) imageValue;
+        }
+        if (imageValue instanceof JSONObject) {
+            JSONObject object = (JSONObject) imageValue;
+            String[] keys = {"data", "base64", "content", "image"};
+            for (String key : keys) {
+                Object value = object.get(key);
+                if (value instanceof String && !((String) value).trim().isEmpty()) {
+                    return (String) value;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static byte[] decodeImageBytes(String imageData) {
+        String data = imageData.trim();
+        int commaIndex = data.indexOf(',');
+        if (data.startsWith("data:") && commaIndex >= 0) {
+            data = data.substring(commaIndex + 1);
+        }
+        return Base64.getDecoder().decode(data);
+    }
+
+    private static String findMarkdownText(Object value) {
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            String[] preferredKeys = {"md_content", "markdown", "markdown_content", "md", "content"};
+            for (String key : preferredKeys) {
+                Object candidate = object.get(key);
+                if (candidate instanceof String && !((String) candidate).trim().isEmpty()) {
+                    return (String) candidate;
+                }
+            }
+            for (String key : object.keySet()) {
+                String result = findMarkdownText(object.get(key));
+                if (result != null && !result.trim().isEmpty()) {
+                    return result;
+                }
+            }
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.size(); i++) {
+                String result = findMarkdownText(array.get(i));
+                if (result != null && !result.trim().isEmpty()) {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean looksLikeJson(byte[] bytes) {
+        for (byte b : bytes) {
+            if (!Character.isWhitespace((char) b)) {
+                return b == '{' || b == '[';
+            }
+        }
+        return false;
+    }
+
+    private static JSONObject extractZipBytes(byte[] zipBytes, String outputDir) {
+        File extractDir = null;
+        String mdContent = null;
+        String markdownPath = null;
+        boolean hasImages = false;
+        try {
+            extractDir = new File(outputDir + File.separator + "mineru_res_" + System.currentTimeMillis());
+            FileUtils.forceMkdir(extractDir);
+
+            try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    if (entry.isDirectory()) {
+                        File dir = safeResolveZipEntry(extractDir, entry.getName());
+                        dir.mkdirs();
+                        if (entry.getName().contains("images")) {
+                            hasImages = true;
+                        }
+                    } else {
+                        File file = safeResolveZipEntry(extractDir, entry.getName());
+                        file.getParentFile().mkdirs();
+
+                        if (entry.getName().contains("images")) {
+                            hasImages = true;
+                        }
+
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        byte[] buffer = new byte[4096];
+                        int len;
+                        while ((len = zis.read(buffer)) > 0) {
+                            baos.write(buffer, 0, len);
+                        }
+                        byte[] bytes = baos.toByteArray();
+                        FileUtils.writeByteArrayToFile(file, bytes);
+
+                        if (entry.getName().endsWith(".md") && mdContent == null) {
+                            mdContent = new String(bytes, StandardCharsets.UTF_8);
+                            markdownPath = file.getAbsolutePath();
+                        }
+                    }
+                    zis.closeEntry();
+                }
+            }
+
+            if (mdContent != null) {
+                JSONObject res = new JSONObject();
+                res.put("content", mdContent);
+                res.put("hasImages", hasImages);
+                res.put("extractDir", extractDir.getCanonicalPath());
+                res.put("markdownPath", markdownPath);
+                return res;
+            }
+            log.error("MinerU API ZIP 结果中未找到 Markdown 文件");
+        } catch (Exception e) {
+            log.error("处理 MinerU API ZIP 结果失败", e);
+        }
+        return null;
+    }
+
     private static JSONObject downloadAndExtractMd(String zipUrl, String outputDir) {
         File tempZip = null;
         File extractDir = null;
@@ -281,7 +576,7 @@ public class MineruClientUtil {
                 JSONObject res = new JSONObject();
                 res.put("content", mdContent);
                 res.put("hasImages", hasImages);
-                res.put("extractDir", extractDir.getAbsolutePath());
+                res.put("extractDir", extractDir.getCanonicalPath());
                 res.put("markdownPath", markdownPath);
                 return res;
             }

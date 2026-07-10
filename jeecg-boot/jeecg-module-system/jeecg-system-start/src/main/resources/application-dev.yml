@@ -262,8 +262,10 @@ jeecg:
     know:
       # 是否开启mineru
       enable-miner-u: true
-      # mineru 远程服务地址 (例如 http://10.52.7.21:7810/)
-      mineru-url: http://10.52.7.21:7810/
+      # mineru 远程服务模式: gradio 或 api
+      mineru-mode: api
+      # mineru 远程服务地址 (Gradio 例如 http://10.52.7.21:7810/，API 例如 http://10.52.7.21:8000/)
+      mineru-url: http://218.26.173.130:7860/
       # conda的环境，在3.1中创建的
       conda-env: "mineru"
     # Brave Search 联网检索（AI Agent 工具）

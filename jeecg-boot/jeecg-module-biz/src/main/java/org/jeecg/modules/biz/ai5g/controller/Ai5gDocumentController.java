@@ -292,7 +292,7 @@ public class Ai5gDocumentController {
         return Result.error("保存失败");
       }
 
-      rewriteAndUploadMarkdown(mainMd, doc, mainObjectName[0]);
+      rewriteAndUploadMarkdown(mainMd, doc, mainObjectName[0], getParentRelativePath(mainRel));
       return Result.OK(doc);
     } catch (Exception e) {
       log.error("ai5g markdown package import error", e);
@@ -445,10 +445,11 @@ public class Ai5gDocumentController {
                 
                 // 2. 尝试 MinerU 远程解析
                 String mineruUrl = environment.getProperty("jeecg.airag.know.mineru-url");
+                String mineruMode = environment.getProperty("jeecg.airag.know.mineru-mode", "gradio");
                 if (isOffice || "pdf".equals(ft)) {
                    if (org.jeecg.common.util.oConvertUtils.isNotEmpty(mineruUrl)) {
-                        log.info("使用 MinerU 远程服务解析: {}", mineruUrl);
-                  com.alibaba.fastjson.JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile);
+                        log.info("使用 MinerU 远程服务解析: {}, mode: {}", mineruUrl, mineruMode);
+                  com.alibaba.fastjson.JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile, mineruMode);
                   if (mineruRes != null && org.jeecg.common.util.oConvertUtils.isNotEmpty(mineruRes.getString("content"))) {
                       try {
                                 String markdownPath = mineruRes.getString("markdownPath");
@@ -552,7 +553,7 @@ public class Ai5gDocumentController {
                         if (oConvertUtils.isEmpty(doc.getSourcePackagePath())) {
                             doc.setSourcePackagePath(doc.getStoragePath());
                         }
-                        rewriteAndUploadMarkdown(mdFile, doc, mdObjectName);
+                        rewriteAndUploadMarkdown(mdFile, doc, mdObjectName, packageResult.getString("mainRelativeDir"));
                     } else {
                         try (java.io.InputStream in = new java.io.FileInputStream(mdFile)) {
                             doc.setMdPath(uploadMinioObject(in, mdFile.length(), "text/markdown;charset=UTF-8", mdRel));
@@ -561,9 +562,16 @@ public class Ai5gDocumentController {
                 } else {
                     doc.setMdPath(mdRel);
                 }
+                boolean clearRemark = isConversionFailureRemark(doc.getRemark());
                 doc.setMdConverted(true);
+                if (clearRemark) {
+                    doc.setRemark(null);
+                }
                 doc.setProcessStatus("success");
                 bizDocFileService.updateById(doc);
+                if (clearRemark) {
+                    forceClearRemark(doc.getId());
+                }
             } else {
                 doc.setProcessStatus("failed");
                 doc.setRemark("转换失败");
@@ -954,8 +962,12 @@ public class Ai5gDocumentController {
   }
 
   private void rewriteAndUploadMarkdown(java.io.File mainMd, BizDocFile doc, String objectName) throws Exception {
+      rewriteAndUploadMarkdown(mainMd, doc, objectName, "");
+  }
+
+  private void rewriteAndUploadMarkdown(java.io.File mainMd, BizDocFile doc, String objectName, String mainRelativeDir) throws Exception {
       String content = org.apache.commons.io.FileUtils.readFileToString(mainMd, java.nio.charset.StandardCharsets.UTF_8);
-      content = rewriteMarkdownAssetUrls(content, doc);
+      content = rewriteMarkdownAssetUrls(content, doc, DOMAIN_URL_PLACEHOLDER, mainRelativeDir);
       byte[] data = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
       try (java.io.InputStream in = new java.io.ByteArrayInputStream(data)) {
           uploadMinioObject(in, data.length, "text/markdown;charset=UTF-8", objectName);
@@ -965,10 +977,10 @@ public class Ai5gDocumentController {
   }
 
   private com.alibaba.fastjson.JSONObject uploadConvertedMarkdownPackage(java.nio.file.Path packageRoot, java.io.File mainMd, BizDocFile doc) throws Exception {
-      java.nio.file.Path rootPath = packageRoot.toAbsolutePath().normalize();
-      java.nio.file.Path mainPath = mainMd.toPath().toAbsolutePath().normalize();
+      java.nio.file.Path rootPath = packageRoot.toRealPath();
+      java.nio.file.Path mainPath = mainMd.toPath().toRealPath();
       if (!mainPath.startsWith(rootPath)) {
-          throw new IllegalArgumentException("转换结果主Markdown不在资源目录内");
+          throw new IllegalArgumentException("转换结果主Markdown不在资源目录内: root=" + rootPath + ", markdown=" + mainPath);
       }
       String categoryPath = oConvertUtils.isNotEmpty(doc.getCategoryPath()) ? doc.getCategoryPath() : "uncategorized";
       String packageId = java.util.UUID.randomUUID().toString().replace("-", "");
@@ -1007,19 +1019,25 @@ public class Ai5gDocumentController {
       if (oConvertUtils.isEmpty(mainObjectName[0])) {
           throw new IllegalStateException("转换结果主Markdown上传失败");
       }
+      String mainRel = rootPath.relativize(mainPath).toString().replace("\\", "/");
 
       com.alibaba.fastjson.JSONObject result = new com.alibaba.fastjson.JSONObject();
       result.put("assetRoot", assetRoot);
       result.put("assetManifest", com.alibaba.fastjson.JSON.toJSONString(manifestItems));
       result.put("mainObjectName", mainObjectName[0]);
+      result.put("mainRelativeDir", getParentRelativePath(mainRel));
       return result;
   }
 
   private String rewriteMarkdownAssetUrls(String content, BizDocFile doc) {
-      return rewriteMarkdownAssetUrls(content, doc, DOMAIN_URL_PLACEHOLDER);
+      return rewriteMarkdownAssetUrls(content, doc, DOMAIN_URL_PLACEHOLDER, "");
   }
 
   private String rewriteMarkdownAssetUrls(String content, BizDocFile doc, String assetUrlBase) {
+      return rewriteMarkdownAssetUrls(content, doc, assetUrlBase, "");
+  }
+
+  private String rewriteMarkdownAssetUrls(String content, BizDocFile doc, String assetUrlBase, String mainRelativeDir) {
       if (oConvertUtils.isEmpty(content) || doc == null || oConvertUtils.isEmpty(doc.getAssetRoot()) || oConvertUtils.isEmpty(doc.getId())) {
           return content;
       }
@@ -1042,7 +1060,7 @@ public class Ai5gDocumentController {
               if (imageUrl.startsWith(assetPrefix)) {
                   replacementUrl = urlBase + imageUrl;
               } else {
-                  replacementUrl = urlBase + assetPrefix + normalizePackageRelativePath(imageUrl);
+                  replacementUrl = urlBase + assetPrefix + resolvePackageRelativePath(imageUrl, mainRelativeDir);
               }
           } else if (imageUrl.startsWith(DOMAIN_URL_PLACEHOLDER + "/ai5g/doc/assets/")) {
               replacementUrl = urlBase + imageUrl.substring(DOMAIN_URL_PLACEHOLDER.length());
@@ -1102,6 +1120,56 @@ public class Ai5gDocumentController {
           throw new IllegalArgumentException("非法资源路径: " + relativePath);
       }
       return result;
+  }
+
+  private String resolvePackageRelativePath(String assetPath, String mainRelativeDir) {
+      String value = assetPath == null ? "" : assetPath.trim().replace("\\", "/");
+      int queryIndex = value.indexOf('?');
+      String suffix = "";
+      if (queryIndex >= 0) {
+          suffix = value.substring(queryIndex);
+          value = value.substring(0, queryIndex);
+      }
+      int hashIndex = value.indexOf('#');
+      if (hashIndex >= 0) {
+          suffix = value.substring(hashIndex) + suffix;
+          value = value.substring(0, hashIndex);
+      }
+      while (value.startsWith("/")) {
+          value = value.substring(1);
+      }
+      String base = oConvertUtils.isEmpty(mainRelativeDir) ? "" : normalizePackageRelativePath(mainRelativeDir);
+      String combined = oConvertUtils.isEmpty(base) || value.startsWith(base + "/") ? value : base + "/" + value;
+      return normalizePackageRelativePath(combined) + suffix;
+  }
+
+  private String getParentRelativePath(String relativePath) {
+      if (oConvertUtils.isEmpty(relativePath)) {
+          return "";
+      }
+      String normalized = normalizePackageRelativePath(relativePath);
+      int slashIndex = normalized.lastIndexOf('/');
+      return slashIndex >= 0 ? normalized.substring(0, slashIndex) : "";
+  }
+
+  private boolean isConversionFailureRemark(String remark) {
+      if (oConvertUtils.isEmpty(remark)) {
+          return false;
+      }
+      return remark.startsWith("转换失败")
+          || remark.startsWith("转换异常")
+          || remark.startsWith("MinIO源文件下载失败")
+          || remark.startsWith("源文件不存在")
+          || remark.startsWith("暂不支持该文件类型转换为 Markdown");
+  }
+
+  private void forceClearRemark(String docId) {
+      if (oConvertUtils.isEmpty(docId)) {
+          return;
+      }
+      com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<BizDocFile> uw = new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+      uw.eq("id", docId).set("remark", null);
+      bizDocFileService.update(uw);
   }
 
   private String detectContentType(java.io.File file, String name) {
