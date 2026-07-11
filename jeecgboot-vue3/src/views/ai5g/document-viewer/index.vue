@@ -686,7 +686,20 @@
   }
 
   .markdown-box {
-    padding: 18px 4px;
+    padding: 18px 16px 24px;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #edf1f7;
+    border-radius: 8px;
+  }
+
+  .markdown-box :deep(img) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .markdown-box :deep(p) {
+    margin-bottom: 0.75em;
   }
 
   @media (max-width: 1280px) {

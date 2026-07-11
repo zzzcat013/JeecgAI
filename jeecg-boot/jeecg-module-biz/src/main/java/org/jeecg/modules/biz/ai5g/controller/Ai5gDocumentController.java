@@ -1,6 +1,8 @@
 package org.jeecg.modules.biz.ai5g.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import io.minio.ListObjectsArgs;
+import io.minio.MinioClient;
 import org.jeecg.modules.biz.ai5g.util.KnowledgePortalTokenUtil;
 import org.jeecg.modules.biz.ai5g.util.MineruClientUtil;
 import org.jeecg.config.shiro.IgnoreAuth;
@@ -122,8 +124,8 @@ public class Ai5gDocumentController {
       org.jeecg.modules.biz.ai5g.entity.BizDocType t3 = bizDocTypeService.getOne(w3, false);
       if (t3 == null) return Result.error("三级类型不存在或父级不匹配: " + typeCode3);
 
-      String seg = typeCode3 != null && typeCode3.length() == 6 ? (typeCode3.substring(0,2) + "/" + typeCode3.substring(2,4) + "/" + typeCode3.substring(4,6)) : typeCode3;
-      String bizPath = baseDir + "/" + seg;
+      String seg = validateCategory(typeCode1, typeCode2, typeCode3);
+      String bizPath = buildStorageBizPath();
       String savePath;
       if (CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
         savePath = CommonUtils.uploadLocal(file, bizPath, uploadpath);
@@ -207,7 +209,7 @@ public class Ai5gDocumentController {
       SsrfFileTypeFilter.checkUploadFileType(file, bizPathCheck);
 
       String packageId = java.util.UUID.randomUUID().toString().replace("-", "");
-      String assetRoot = normalizeObjectName(baseDir + "/" + seg + "/packages/" + packageId + "/");
+      String assetRoot = normalizeObjectName(buildPackageAssetRoot(packageId));
       workDir = java.nio.file.Files.createTempDirectory("ai5g-md-package-").toFile();
       java.io.File zipLocal = new java.io.File(workDir, orgName);
       file.transferTo(zipLocal);
@@ -922,9 +924,29 @@ public class Ai5gDocumentController {
       return value;
   }
 
+  private String resolveMinioObjectName(BizDocFile doc) {
+      if (doc == null) {
+          return null;
+      }
+      String objectName = getMinioObjectName(doc.getStoragePath());
+      if (oConvertUtils.isEmpty(objectName)) {
+          objectName = getMinioObjectName(doc.getStorageFilename());
+      }
+      return objectName;
+  }
+
   private String buildMinioUrl(String objectName) {
       String baseUrl = minioUrl.endsWith("/") ? minioUrl : minioUrl + "/";
       return baseUrl + minioBucketName + "/" + normalizeObjectName(objectName);
+  }
+
+  private String buildStorageBizPath() {
+      String month = new java.text.SimpleDateFormat("yyyyMM").format(new Date());
+      return baseDir + "/files/" + month;
+  }
+
+  private String buildPackageAssetRoot(String packageId) {
+      return baseDir + "/packages/" + packageId + "/";
   }
 
   private String validateCategory(String typeCode1, String typeCode2, String typeCode3) {
@@ -982,9 +1004,9 @@ public class Ai5gDocumentController {
       if (!mainPath.startsWith(rootPath)) {
           throw new IllegalArgumentException("转换结果主Markdown不在资源目录内: root=" + rootPath + ", markdown=" + mainPath);
       }
-      String categoryPath = oConvertUtils.isNotEmpty(doc.getCategoryPath()) ? doc.getCategoryPath() : "uncategorized";
-      String packageId = java.util.UUID.randomUUID().toString().replace("-", "");
-      String assetRoot = normalizeObjectName(baseDir + "/" + categoryPath + "/packages/" + packageId + "/");
+      String assetRoot = oConvertUtils.isNotEmpty(doc.getAssetRoot())
+          ? normalizeObjectName(doc.getAssetRoot())
+          : normalizeObjectName(buildPackageAssetRoot(java.util.UUID.randomUUID().toString().replace("-", "")));
       java.util.List<com.alibaba.fastjson.JSONObject> manifestItems = new java.util.ArrayList<>();
       final String[] mainObjectName = new String[1];
 
@@ -1045,6 +1067,8 @@ public class Ai5gDocumentController {
       if (urlBase.endsWith("/")) {
           urlBase = urlBase.substring(0, urlBase.length() - 1);
       }
+      String assetRootObject = normalizeObjectName(getMinioObjectName(doc.getAssetRoot()));
+      String assetPrefix = "/ai5g/doc/assets/" + doc.getId() + "/";
       java.util.regex.Matcher matcher = MD_IMAGE_PATTERN.matcher(content);
       StringBuffer sb = new StringBuffer();
       while (matcher.find()) {
@@ -1052,15 +1076,20 @@ public class Ai5gDocumentController {
           String imageUrl = matcher.group(2);
           String replacementUrl = imageUrl;
           if (oConvertUtils.isNotEmpty(imageUrl)
-              && !imageUrl.startsWith("http://")
-              && !imageUrl.startsWith("https://")
               && !imageUrl.startsWith("data:")
               && !imageUrl.startsWith(DOMAIN_URL_PLACEHOLDER + "/ai5g/doc/assets/")) {
-              String assetPrefix = "/ai5g/doc/assets/" + doc.getId() + "/";
-              if (imageUrl.startsWith(assetPrefix)) {
-                  replacementUrl = urlBase + imageUrl;
-              } else {
-                  replacementUrl = urlBase + assetPrefix + resolvePackageRelativePath(imageUrl, mainRelativeDir);
+              String normalizedImageUrl = imageUrl.trim().replace("\\", "/");
+              String objectPath = getMinioObjectName(normalizedImageUrl);
+              if (oConvertUtils.isNotEmpty(assetRootObject) && oConvertUtils.isNotEmpty(objectPath) && objectPath.startsWith(assetRootObject)) {
+                  replacementUrl = urlBase + assetPrefix + objectPath.substring(assetRootObject.length());
+              } else if (!normalizedImageUrl.startsWith("http://") && !normalizedImageUrl.startsWith("https://")) {
+                  if (normalizedImageUrl.startsWith(assetPrefix)) {
+                      replacementUrl = urlBase + normalizedImageUrl;
+                  } else {
+                      replacementUrl = urlBase + assetPrefix + resolvePackageRelativePath(normalizedImageUrl, mainRelativeDir);
+                  }
+              } else if (objectPath.startsWith(assetRootObject) && oConvertUtils.isNotEmpty(assetRootObject)) {
+                  replacementUrl = urlBase + assetPrefix + objectPath.substring(assetRootObject.length());
               }
           } else if (imageUrl.startsWith(DOMAIN_URL_PLACEHOLDER + "/ai5g/doc/assets/")) {
               replacementUrl = urlBase + imageUrl.substring(DOMAIN_URL_PLACEHOLDER.length());
@@ -1286,7 +1315,7 @@ public class Ai5gDocumentController {
   }
 
   private org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> minioResourceResponse(BizDocFile doc, boolean attachment) {
-      String objectName = getMinioObjectName(oConvertUtils.isNotEmpty(doc.getStorageFilename()) ? doc.getStorageFilename() : doc.getStoragePath());
+      String objectName = resolveMinioObjectName(doc);
       java.io.InputStream in = getMinioObjectStream(objectName);
       if (in == null) {
           return org.springframework.http.ResponseEntity.notFound().build();
@@ -1319,7 +1348,7 @@ public class Ai5gDocumentController {
       java.io.File workDir = null;
       try {
           workDir = java.nio.file.Files.createTempDirectory("ai5g-doc-preview-").toFile();
-          String objectName = getMinioObjectName(oConvertUtils.isNotEmpty(doc.getStorageFilename()) ? doc.getStorageFilename() : doc.getStoragePath());
+          String objectName = resolveMinioObjectName(doc);
           String srcName = objectName == null ? "source." + ft : objectName.substring(objectName.lastIndexOf('/') + 1);
           java.io.File src = new java.io.File(workDir, srcName);
           if (!downloadMinioObject(objectName, src)) {
@@ -1395,19 +1424,19 @@ public class Ai5gDocumentController {
                               jakarta.servlet.http.HttpServletResponse response) {
       BizDocFile doc = bizDocFileService.getById(id);
       if (doc == null || !Boolean.TRUE.equals(doc.getMdConverted()) || doc.getMdPath() == null) {
-          response.setStatus(404);
-          return;
+        response.setStatus(404);
+        return;
       }
 	      if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
 	          String mdObjectName = getMinioObjectName(doc.getMdPath());
-	          try (java.io.InputStream in = getMinioObjectStream(mdObjectName);
+	          try (java.io.InputStream autoCloseIn = getMinioObjectStream(mdObjectName);
 	               java.io.OutputStream out = response.getOutputStream()) {
-	              if (in == null) {
+	              if (autoCloseIn == null) {
 	                  response.setStatus(404);
 	                  return;
               }
               response.setContentType("text/markdown;charset=UTF-8");
-              String content = org.apache.commons.io.IOUtils.toString(in, java.nio.charset.StandardCharsets.UTF_8);
+              String content = org.apache.commons.io.IOUtils.toString(autoCloseIn, java.nio.charset.StandardCharsets.UTF_8);
               content = rewriteMarkdownAssetUrls(content, doc, buildRequestBaseUrl(request));
               out.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
               out.flush();

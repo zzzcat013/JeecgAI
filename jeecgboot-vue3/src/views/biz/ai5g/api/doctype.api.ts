@@ -24,3 +24,7 @@ export function updateType(data: Partial<DocTypeItem> & { id: string }) {
 export function removeType(id: string) {
   return defHttp.delete<boolean>({ url: `/ai5g/type/remove/${id}` });
 }
+
+export function moveType(data: { id: string; targetParentCode: string }) {
+  return defHttp.post<boolean>({ url: '/ai5g/type/move', params: {}, data });
+}
