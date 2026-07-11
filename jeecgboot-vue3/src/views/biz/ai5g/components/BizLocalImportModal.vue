@@ -1,5 +1,12 @@
 <template>
-  <BasicModal v-bind="$attrs" @register="registerModal" title="本地目录打包上传" @ok="handleSubmit" width="600px">
+  <BasicModal
+    v-bind="$attrs"
+    @register="registerModal"
+    title="本地目录打包上传"
+    @ok="handleSubmit"
+    width="600px"
+    :bodyStyle="{ padding: '20px 24px' }"
+  >
     <a-form :model="formState" :rules="rules" layout="vertical">
       <a-form-item label="本地目录路径" name="localPath">
         <a-input v-model:value="formState.localPath" placeholder="请输入服务器可访问的本地目录路径（包含 .md 和 images 目录）" />

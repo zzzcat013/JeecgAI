@@ -123,7 +123,14 @@
     />
 
     <!-- 导入到知识库 -->
-    <a-modal v-model:open="importKbOpen" title="导入到知识库" :footer="null" :width="560" @cancel="importKbOpen=false">
+    <a-modal
+      v-model:open="importKbOpen"
+      title="导入到知识库"
+      :footer="null"
+      :width="560"
+      :bodyStyle="{ padding: '20px 24px' }"
+      @cancel="importKbOpen=false"
+    >
       <a-form layout="vertical">
         <a-form-item label="选择知识库">
           <a-select v-model:value="selectedKbId" placeholder="请选择知识库" :options="kbOptions" />
@@ -429,7 +436,11 @@ async function openImportToKb(rec: any) {
     message.loading({ content: '加载MD内容...', key: 'imp' });
     const resp: any = await defHttp.get({ url: `/ai5g/doc/preview-md/${rec.id}`, responseType: 'blob', timeout: 30000 }, { isReturnNativeResponse: true, isTransformResponse: false });
     const txt = await (resp.data as Blob).text();
-    pendingImportDoc = { id: rec.id, title: rec.displayName || rec.originalName || '文档', content: txt };
+    pendingImportDoc = {
+      id: rec.id,
+      title: rec.displayName || rec.originalName || '文档',
+      content: normalizeMarkdownForAirag(txt),
+    };
 
     // 加载知识库列表
     const list: any = await defHttp.get({ url: '/airag/knowledge/list', params: { pageNo: 1, pageSize: 1000 } }, { isTransformResponse: false });
@@ -474,6 +485,35 @@ async function confirmImportToKb() {
     importLoading.value = false;
     message.error(e?.message || '导入失败');
   }
+}
+
+function normalizeMarkdownForAirag(markdown: string) {
+  if (!markdown) {
+    return markdown;
+  }
+  const imageReg = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
+  return markdown.replace(imageReg, (match, alt, rawUrl) => {
+    const url = String(rawUrl || '').trim();
+    if (!url) {
+      return match;
+    }
+    const collapsedUrl = url.replace(/^(?:#\{domainURL\}){2,}/, '#{domainURL}');
+    if (collapsedUrl.startsWith('#{domainURL}')) {
+      return `![${alt}](${collapsedUrl})`;
+    }
+    if (collapsedUrl.startsWith('http://') || collapsedUrl.startsWith('https://')) {
+      const assetIndex = collapsedUrl.indexOf('/ai5g/doc/assets/');
+      if (assetIndex >= 0) {
+        return `![${alt}](#{domainURL}${collapsedUrl.substring(assetIndex)})`;
+      }
+      return match;
+    }
+    if (collapsedUrl.startsWith('/ai5g/doc/assets/')) {
+      return `![${alt}](#{domainURL}${collapsedUrl})`;
+    }
+    return match;
+  });
 }
 
 load();
