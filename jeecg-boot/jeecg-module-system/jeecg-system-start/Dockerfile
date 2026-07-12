@@ -8,7 +8,10 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 RUN yum install -y --setopt=tsflags=nodocs \
         glibc-langpack-en \
         glibc-common \
-    && yum clean all
+        google-noto-cjk-fonts \
+        libreoffice \
+    && yum clean all \
+    && fc-cache -fv >/dev/null 2>&1 || true
 
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8

@@ -19,11 +19,13 @@
 
 ## 文档处理
 1. 文档上传后，源文件进入 MinIO 的 `doc/files/yyyyMM/`。
-2. 普通 Office 文档先通过 LibreOffice 转 PDF，再由 MinerU 解析为 Markdown。
-3. 资源包类文档会把主 Markdown、图片和其他资源放入 `doc/packages/{packageId}/`。
-4. Markdown 预览时，图片统一通过 `/ai5g/doc/assets/{docId}/...` 代理读取。
-5. 文档管理页“导入知识库”直接读取当前 Markdown 内容，不再依赖原始源文件。
-6. 导入前会把 Markdown 中的图片地址统一规范为 `#{domainURL}/ai5g/doc/assets/{docId}/...`，避免重复拼接域名前缀。
+2. `docx` / `doc` / `pptx` / `ppt` 先通过 LibreOffice 转 PDF，再由 MinerU 解析为 Markdown。
+3. `docx` 转 PDF 时，实际执行的是 `soffice --headless --convert-to pdf <source> --outdir <tmpOutDir>`，并配合临时 `UserInstallation` 目录避免并发和权限问题。
+4. 这里使用的 MinerU / `magic-pdf` 不是 PDF-only，当前链路会把 `docx`、`pdf` 等正式文档都交给同一套解析流程，输出统一的 Markdown 与资源包。
+5. 资源包类文档会把主 Markdown、图片和其他资源放入 `doc/packages/{packageId}/`。
+6. Markdown 预览时，图片统一通过 `/ai5g/doc/assets/{docId}/...` 代理读取。
+7. 文档管理页“导入知识库”直接读取当前 Markdown 内容，不再依赖原始源文件。
+8. 导入前会把 Markdown 中的图片地址统一规范为 `#{domainURL}/ai5g/doc/assets/{docId}/...`，避免重复拼接域名前缀。
 
 ## 文档表
 
@@ -61,6 +63,7 @@
 
 ## AIRag 知识库
 - AIRag 导入优先使用已转换好的 Markdown 内容，而不是原始源文件。
+- AIRag 的文档导入只负责“可检索文本 + 可访问图片路径”，不再承担文档格式转换。
 - 只有当 Markdown 中的图片仍指向当前正式资源地址时，图片才会在检索命中后正常显示。
 - AIRag 的 zip 导入会将 md 和图片解压到本地工作目录，随后重建向量。
 - AIRag 的向量存储在 PostgreSQL pgvector 表中，不落文件系统。
@@ -75,7 +78,44 @@
 - Word/PDF 转 Markdown 时，Office 先通过 LibreOffice 预转 PDF，再走 MinerU 解析，失败后再走文本兜底。
 - Pandoc/Tika 兜底仅保证文本可读，不保证图片可用。
 - 文档查看页和文档管理页都直接消费后端返回的 Markdown 内容，不再做历史路径兼容。
+- 文档管理页的“预览”优先展示 PDF 结果，标题栏的“下载原件”则返回原始上传文件。
 - Markdown 重新导入 AIRag 时，如果图片路径已经是当前正式资源地址，就不再打 zip；只有需要完全自包含资源包时，才考虑目录打包导入。
+
+## 流程图
+
+### 文档管理预览与解析
+```mermaid
+flowchart TD
+    A[上传文档] --> B[MinIO: doc/files/yyyyMM/]
+    B --> C[文档管理预览]
+    C --> D{是否 Office 文档}
+    D -- 是 --> E[先查同名 PDF]
+    E -- 不存在 --> F[LibreOffice soffice 转 PDF]
+    F --> G[返回 PDF 给前端预览]
+    D -- 否 --> H[直接返回原文件或文本]
+    B --> I[解析链路]
+    I --> J[LibreOffice 预转 PDF]
+    J --> K[MinerU / magic-pdf 解析]
+    K --> L[生成 Markdown + 资源包]
+    L --> M[Markdown 预览]
+    M --> N[/ai5g/doc/assets/{docId}/... 代理图片]
+```
+
+### AIRag 导入与检索
+```mermaid
+flowchart TD
+    A[选择文档导入知识库] --> B[读取当前 Markdown]
+    B --> C[规范化图片地址]
+    C --> D[可选 zip 导入]
+    D --> E[解压 md + images 到本地工作目录]
+    E --> F[EmbeddingHandler 重建文档]
+    F --> G[分段]
+    G --> H[向量化]
+    H --> I[写入 PostgreSQL pgvector]
+    I --> J[检索命中]
+    J --> K[MarkdownViewer 渲染]
+    K --> L[图片继续走正式资源地址]
+```
 
 ## 变更规则
 - 原则上不得修改本目录以外的源代码；如确需修改平台通用类，请复制到本目录下并以不影响原有模块的方式改造（包路径 `org.jeecg.modules.biz.ai5g.*`）。

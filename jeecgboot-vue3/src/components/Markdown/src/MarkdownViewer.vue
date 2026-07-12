@@ -19,7 +19,12 @@
     value: { type: String },
     class: { type: String },
   });
-  const getHtmlData = computed(() => converter.makeHtml(props.value || ''));
+  function resolveDomainUrl(markdown: string) {
+    const domainUrl = (window as any)._CONFIG?.domianURL || window.location.origin;
+    return (markdown || '').replace(/#\s*{\s*domainURL\s*}/g, domainUrl);
+  }
+
+  const getHtmlData = computed(() => converter.makeHtml(resolveDomainUrl(props.value || '')));
 
   // 代码逻辑说明: 【issues/918】MarkdownViewer加上暗黑主题
   const isDarkTheme = ref(false);
@@ -36,6 +41,11 @@
 <style lang="less" scoped>
   .markdown-viewer {
     width: 100%;
+  }
+
+  .markdown-viewer :deep(img) {
+    max-width: 100%;
+    height: auto;
   }
   
   .preview {

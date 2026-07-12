@@ -248,6 +248,7 @@ const modalBodyStyle = computed(() => ({ padding: 0, height: isFull.value ? 'cal
 const pdfViewerLink = computed(() => (previewLink.value ? `${previewLink.value}#page=1&zoom=page-width` : ''));
 const md = new MarkdownIt({ linkify: true, breaks: true });
 let objectUrl: string | null = null;
+const domainUrl = (window as any)._CONFIG?.domianURL || window.location.origin;
 
 const isImage = computed(() => ['png','jpg','jpeg','gif','bmp','webp'].includes(currentType.value.toLowerCase()));
 const isPdf = computed(() => currentType.value.toLowerCase() === 'pdf');
@@ -257,6 +258,10 @@ const isText = computed(() => ['txt','log','csv'].includes(currentType.value.toL
 const isOffice = computed(() => ['doc','ppt','pptx','xls','xlsx'].includes(currentType.value.toLowerCase()));
 
 const previewMdUrl = (id: string) => `${(window as any)._CONFIG['domianURL'] || '/jeecg-boot'}/ai5g/doc/preview-md/${id}`;
+
+function normalizeMarkdownContent(markdown: string) {
+  return (markdown || '').replace(/#\s*{\s*domainURL\s*}/g, domainUrl);
+}
 
 async function openMdPreview(rec: any) {
   mdEditorId.value = rec.id;
@@ -270,11 +275,12 @@ async function openPreview(rec: any) {
     currentTitle.value = rec.displayName || rec.originalName || '';
     currentId.value = rec.id;
     if (isMarkdown.value || isText.value) {
-      console.log('Preview URL (Text/MD):', previewUrl(rec.id));
-      const resp: any = await defHttp.get({ url: previewUrl(rec.id), responseType: 'blob', timeout: 120000 }, { isReturnNativeResponse: true, isTransformResponse: false });
+      const targetUrl = isMarkdown.value ? previewMdUrl(rec.id) : previewUrl(rec.id);
+      console.log('Preview URL (Text/MD):', targetUrl);
+      const resp: any = await defHttp.get({ url: targetUrl, responseType: 'blob', timeout: 120000 }, { isReturnNativeResponse: true, isTransformResponse: false });
       const blob: Blob = resp?.data as Blob;
       const txt = await blob.text();
-      if (isMarkdown.value) mdHtml.value = md.render(txt);
+      if (isMarkdown.value) mdHtml.value = md.render(normalizeMarkdownContent(txt));
       else textContent.value = txt;
       previewLink.value = '';
     } else if (isDocx.value || isOffice.value) {
@@ -439,7 +445,7 @@ async function openImportToKb(rec: any) {
     pendingImportDoc = {
       id: rec.id,
       title: rec.displayName || rec.originalName || '文档',
-      content: normalizeMarkdownForAirag(txt),
+      content: normalizeMarkdownForAirag(normalizeMarkdownContent(txt)),
     };
 
     // 加载知识库列表

@@ -1101,25 +1101,65 @@ public class Ai5gDocumentController {
   }
 
   private String buildRequestBaseUrl(jakarta.servlet.http.HttpServletRequest request) {
-      String uri = request.getRequestURI();
-      String contextPath = request.getContextPath();
-      String path = oConvertUtils.isEmpty(contextPath) ? "" : contextPath;
-      String prefix = uri;
-      int apiIndex = uri.indexOf("/ai5g/");
-      if (apiIndex >= 0) {
-          prefix = uri.substring(0, apiIndex);
+      String forwardedHost = request.getHeader("X-Forwarded-Host");
+      String forwardedProto = request.getHeader("X-Forwarded-Proto");
+      if (oConvertUtils.isNotEmpty(forwardedHost)) {
+          String protocol = oConvertUtils.isNotEmpty(forwardedProto) ? forwardedProto : request.getScheme();
+          String host = forwardedHost.split(",")[0].trim();
+          StringBuilder base = new StringBuilder();
+          base.append(protocol).append("://").append(host);
+          if (host.indexOf(':') < 0) {
+              int port = request.getServerPort();
+              if (port > 0 && port != 80 && port != 443 && oConvertUtils.isEmpty(forwardedProto)) {
+                  base.append(":").append(port);
+              }
+          }
+          return buildPublicPath(request, base.toString());
       }
-      if (oConvertUtils.isNotEmpty(prefix)) {
-          path = prefix;
+
+      String origin = request.getHeader("Origin");
+      if (oConvertUtils.isEmpty(origin)) {
+          String referer = request.getHeader("Referer");
+          if (oConvertUtils.isNotEmpty(referer)) {
+              try {
+                  java.net.URI refererUri = java.net.URI.create(referer);
+                  if (refererUri.getScheme() != null && refererUri.getHost() != null) {
+                      origin = refererUri.getScheme() + "://" + refererUri.getHost();
+                      if (refererUri.getPort() > 0) {
+                          origin += ":" + refererUri.getPort();
+                      }
+                  }
+              } catch (Exception ignore) {
+              }
+          }
       }
-      StringBuilder base = new StringBuilder();
-      base.append(request.getScheme()).append("://").append(request.getServerName());
-      int port = request.getServerPort();
-      if (port > 0 && port != 80 && port != 443) {
-          base.append(":").append(port);
+      if (oConvertUtils.isEmpty(origin)) {
+          StringBuilder base = new StringBuilder();
+          base.append(request.getScheme()).append("://").append(request.getServerName());
+          int port = request.getServerPort();
+          if (port > 0 && port != 80 && port != 443) {
+              base.append(":").append(port);
+          }
+          origin = base.toString();
       }
-      base.append(path);
-      return base.toString();
+
+      return buildPublicPath(request, origin);
+  }
+
+  private String buildPublicPath(jakarta.servlet.http.HttpServletRequest request, String origin) {
+      String publicPath = request.getContextPath();
+      if (oConvertUtils.isEmpty(publicPath)) {
+          publicPath = "/jeecgboot";
+      } else if (publicPath.contains("jeecg-boot")) {
+          publicPath = publicPath.replace("jeecg-boot", "jeecgboot");
+      }
+      if (!publicPath.startsWith("/")) {
+          publicPath = "/" + publicPath;
+      }
+      if (publicPath.endsWith("/")) {
+          publicPath = publicPath.substring(0, publicPath.length() - 1);
+      }
+      return origin + publicPath;
   }
 
   private String normalizeObjectName(String objectName) {

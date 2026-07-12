@@ -34,7 +34,7 @@ public class MineruClientUtil {
     private static RestTemplate getTimeoutRestTemplate() {
         org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(30000); // 30s
-        factory.setReadTimeout(300000);   // 5min
+        factory.setReadTimeout(1200000);   // 20min
         return new RestTemplate(factory);
     }
 

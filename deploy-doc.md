@@ -64,12 +64,18 @@ mvn clean package -DskipTests
 ### 3.2 同步到远程服务器
 
 ```bash
-# 同步前端
-rsync -avz --delete jeecgboot-vue3/ root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/
+# 只同步前端构建产物和 Dockerfile
+rsync -avz --delete jeecgboot-vue3/dist/ root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/dist/
+rsync -avz jeecgboot-vue3/Dockerfile root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/Dockerfile
 
-# 同步后端
-rsync -avz --delete jeecg-boot/ root@218.26.173.130:/opt/jeecg/jeecg-boot/
+# 只同步后端目标 JAR 和 Dockerfile
+rsync -avz jeecg-boot/jeecg-module-system/jeecg-system-start/target/jeecg-system-start-3.9.3.jar root@218.26.173.130:/opt/jeecg/jeecg-boot/jeecg-module-system/jeecg-system-start/target/jeecg-system-start-3.9.3.jar
+rsync -avz jeecg-boot/jeecg-module-system/jeecg-system-start/Dockerfile root@218.26.173.130:/opt/jeecg/jeecg-boot/jeecg-module-system/jeecg-system-start/Dockerfile
 ```
+
+说明：
+- 不要直接同步整个 `jeecgboot-vue3/` 目录，里面的 `node_modules/` 会导致同步体积巨大且容易失败。
+- 这次部署只需要前端 `dist/`、前端 `Dockerfile`、后端 `jeecg-system-start-3.9.3.jar` 和后端 `Dockerfile`。
 
 ### 3.3 启动服务
 
@@ -185,6 +191,8 @@ server {
         proxy_pass http://jeecg-boot-system:8080/jeecg-boot/;
         proxy_redirect off;
         proxy_set_header Host jeecg-boot-system;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
@@ -258,6 +266,16 @@ mysql -h 218.26.173.130 -P 3366 -u root -p jeecgai
 docker exec -it jeecgboot-vue3-nginx cat /etc/nginx/conf.d/default.conf
 ```
 
+### 7.4 文档预览或 Markdown 图片地址异常
+
+先确认前端代理是否把端口透传给后端：
+```nginx
+proxy_set_header X-Forwarded-Host $http_host;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+如果这里用的是 `$host`，会丢掉 `8866` 端口，导致后端生成的文档图片地址不正确。
+
 ## 八、更新部署
 
 当有代码更新需要重新部署时：
@@ -271,8 +289,10 @@ cd jeecgboot-vue3 && pnpm build && cd ..
 cd jeecg-boot && mvn clean package -DskipTests && cd ..
 
 # 2. 同步到服务器
-rsync -avz --delete jeecgboot-vue3/ root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/
-rsync -avz --delete jeecg-boot/ root@218.26.173.130:/opt/jeecg/jeecg-boot/
+rsync -avz --delete jeecgboot-vue3/dist/ root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/dist/
+rsync -avz jeecgboot-vue3/Dockerfile root@218.26.173.130:/opt/jeecg/jeecgboot-vue3/Dockerfile
+rsync -avz jeecg-boot/jeecg-module-system/jeecg-system-start/target/jeecg-system-start-3.9.3.jar root@218.26.173.130:/opt/jeecg/jeecg-boot/jeecg-module-system/jeecg-system-start/target/jeecg-system-start-3.9.3.jar
+rsync -avz jeecg-boot/jeecg-module-system/jeecg-system-start/Dockerfile root@218.26.173.130:/opt/jeecg/jeecg-boot/jeecg-module-system/jeecg-system-start/Dockerfile
 
 # 3. 同步 uploads 目录（如有新增文件）
 rsync -avz jeecg-boot/uploads/ root@218.26.173.130:/opt/jeecg/uploads/
@@ -287,9 +307,47 @@ cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
 ./deploy.sh
 ```
 
+注意：
+- 这份脚本当前会按仓库目录同步，前端目录里如果带着 `node_modules/`，同步体积会非常大。
+- 真正部署时，优先使用上面的“产物级同步”命令。
+
 ## 九、备注
 
 1. 本次部署为**单机部署模式**，不使用 Nacos 配置中心
 2. 数据库、Redis、pgvector 使用外部已部署的服务
 3. 前端端口使用 8866 而非默认的 80 端口，提高安全性
 4. 后端使用 `dev` profile，配置文件为 `application-dev.yml`
+5. 文档相关的图片地址由后端根据前端请求头生成，部署时必须保留 `X-Forwarded-Host` 和 `X-Forwarded-Proto`
+
+## 十、AI5G 文档能力的 Docker 部署建议
+
+### 10.1 容器职责划分
+
+- `jeecg-boot-system`：后端业务容器，负责文档上传、预览、AI 转 MD、知识库导入等业务逻辑。
+- `mineru`：独立的 MinerU 服务容器或外部服务，负责文档结构化解析。
+- `jeecg-vue`：前端静态资源与反向代理。
+
+### 10.2 必要依赖
+
+- `jeecg-boot-system` 容器内需要安装 `LibreOffice`，因为文档管理页的 Office 预览会在后端本地执行 `soffice` 转 PDF。
+- `magic-pdf` 不建议安装在主业务容器里，应该放在独立 MinerU 服务侧。
+- 如果继续使用当前配置里的 `mineru-mode: api`, 主业务容器只需要能访问 `mineru-url`，不需要本地安装 `magic-pdf`。
+
+### 10.3 推荐部署方式
+
+1. 保持 MySQL、Redis、pgvector 与现有编排一致。
+2. 修改后端镜像，在 `jeecg-boot-system` 中安装 `LibreOffice` 和字体包。
+3. 维持 `jeecg.airag.know.mineru-url` 指向独立 MinerU 服务。
+4. 前端继续走 Nginx 静态部署，不引入文档转换依赖。
+
+### 10.4 结果边界
+
+- 文档管理“预览”可在后端容器内直接转 PDF。
+- 文档管理“导入知识库”继续使用当前已生成的 Markdown。
+- AIRag 的文档解析继续由远程 MinerU API 处理，不受主业务容器是否安装 `magic-pdf` 影响。
+
+### 10.5 不建议的做法
+
+- 不建议把 `magic-pdf` 混装进主业务容器。
+- 不建议依赖宿主机安装的软件去给 Docker 容器提供 `soffice`。
+- 不建议把 Office 预览和 AIRag 解析都塞到同一个容器镜像里，后续维护成本会比较高。
