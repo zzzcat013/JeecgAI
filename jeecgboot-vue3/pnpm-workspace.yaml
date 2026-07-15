@@ -1,5 +1,8 @@
 allowBuilds:
+  '@logicflow/core': true
   '@scarf/scarf': set this to true or false
   core-js: set this to true or false
   esbuild: set this to true or false
-  vue-demi: set this to true or false
+  vue-demi: true
+minimumReleaseAgeExclude:
+  - '@jeecg/aiflow@3.9.3'
