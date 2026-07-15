@@ -12,3 +12,8 @@
   - `jeecg-boot/jeecg-module-biz/src/main/java/org/jeecg/modules/biz/HelloController.java:26` GET `/hello/test` 返回 `Result<String>`
   - `jeecg-boot/jeecg-module-biz/src/main/java/org/jeecg/modules/biz/HelloController.java:34` GET `/hello/ok` 返回字符串
 
+## 业务模块文档
+
+- [ToC 随行专网数据查询模块说明](5g-toc-private-network-guide.md)
+- [ToC 随行专网数据库插件 / MCP 查询说明](5g-toc-mcp-tables.md)
+- [ToB 5G 专网数据库插件查询说明](5g-tob-mcp-tables.md)

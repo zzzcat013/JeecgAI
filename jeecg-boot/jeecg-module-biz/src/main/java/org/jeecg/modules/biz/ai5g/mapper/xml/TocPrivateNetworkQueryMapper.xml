@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.jeecg.modules.biz.ai5g.mapper.TocPrivateNetworkQueryMapper">
+  <select id="selectSummary" resultType="java.util.LinkedHashMap">
+    SELECT COUNT(*) AS projectCount,
+           SUM(CASE WHEN project_status = '已开通' THEN 1 ELSE 0 END) AS openedCount,
+           COALESCE(SUM(expected_user_count), 0) AS expectedUserCount,
+           COALESCE(SUM(resource_count), 0) AS resourceCount
+    FROM biz_5g_toc_project_overview_view
+  </select>
+
+  <select id="selectProjects" resultType="java.util.LinkedHashMap">
+    SELECT project_code AS projectCode, project_name AS projectName, customer_name AS customerName,
+           customer_type AS customerType, region, branch_company AS branchCompany,
+           bandwidth, tariff, dnn, service_id AS serviceId, upf_name AS upfName,
+           expected_user_count AS expectedUserCount, roaming_enabled AS roamingEnabled,
+           project_status AS projectStatus, requested_open_date AS requestedOpenDate,
+           resource_count AS resourceCount, route_count AS routeCount, business_description AS businessDescription
+    FROM biz_5g_toc_project_overview_view
+    <where>
+      <if test="status != null and status != ''">AND project_status = #{status}</if>
+      <if test="keyword != null and keyword != ''">
+        AND (project_name LIKE CONCAT('%', #{keyword}, '%') OR customer_name LIKE CONCAT('%', #{keyword}, '%')
+          OR dnn LIKE CONCAT('%', #{keyword}, '%') OR service_id LIKE CONCAT('%', #{keyword}, '%'))
+      </if>
+    </where>
+    ORDER BY requested_open_date DESC, project_name
+  </select>
+
+  <sql id="resourceWhere"><where>
+    <if test="projectCode != null and projectCode != ''">AND r.project_code = #{projectCode}</if>
+    <if test="keyword != null and keyword != ''">AND (p.project_name LIKE CONCAT('%', #{keyword}, '%')
+      OR r.resource_type LIKE CONCAT('%', #{keyword}, '%') OR r.resource_name LIKE CONCAT('%', #{keyword}, '%')
+      OR r.resource_value LIKE CONCAT('%', #{keyword}, '%') OR r.network_side LIKE CONCAT('%', #{keyword}, '%'))</if>
+  </where></sql>
+  <select id="countResources" resultType="long">SELECT COUNT(*) FROM biz_5g_toc_network_resource r JOIN biz_5g_toc_project p ON p.id=r.project_id <include refid="resourceWhere"/></select>
+  <select id="selectResources" resultType="java.util.LinkedHashMap">
+    SELECT r.id, r.project_code AS projectCode, p.project_name AS projectName, r.circuit_no AS circuitNo,
+           r.resource_type AS resourceType, r.resource_name AS resourceName, r.network_side AS networkSide,
+           r.resource_value AS resourceValue, r.backup_value AS backupValue, r.resource_status AS resourceStatus, r.remark
+    FROM biz_5g_toc_network_resource r JOIN biz_5g_toc_project p ON p.id=r.project_id
+    <include refid="resourceWhere"/> ORDER BY p.project_name, r.circuit_no, r.sort_no LIMIT #{offset},#{pageSize}
+  </select>
+
+  <sql id="routeWhere"><where>
+    <if test="projectCode != null and projectCode != ''">AND r.project_code = #{projectCode}</if>
+    <if test="keyword != null and keyword != ''">AND (p.project_name LIKE CONCAT('%', #{keyword}, '%')
+      OR r.address_pool LIKE CONCAT('%', #{keyword}, '%') OR r.destination_cidr LIKE CONCAT('%', #{keyword}, '%')
+      OR r.next_hop LIKE CONCAT('%', #{keyword}, '%') OR r.route_type LIKE CONCAT('%', #{keyword}, '%'))</if>
+  </where></sql>
+  <select id="countRoutes" resultType="long">SELECT COUNT(*) FROM biz_5g_toc_route_config r JOIN biz_5g_toc_project p ON p.id=r.project_id <include refid="routeWhere"/></select>
+  <select id="selectRoutes" resultType="java.util.LinkedHashMap">
+    SELECT r.id, r.project_code AS projectCode, p.project_name AS projectName, r.upf_name AS upfName,
+           r.route_type AS routeType, r.address_pool AS addressPool, r.destination_cidr AS destinationCidr,
+           r.next_hop AS nextHop, r.vrf, r.route_status AS routeStatus, r.remark
+    FROM biz_5g_toc_route_config r JOIN biz_5g_toc_project p ON p.id=r.project_id
+    <include refid="routeWhere"/> ORDER BY p.project_name, r.upf_name, r.destination_cidr LIMIT #{offset},#{pageSize}
+  </select>
+
+  <sql id="documentWhere"><where>
+    <if test="projectCode != null and projectCode != ''">AND d.project_code = #{projectCode}</if>
+    <if test="keyword != null and keyword != ''">AND (p.project_name LIKE CONCAT('%', #{keyword}, '%')
+      OR d.doc_type LIKE CONCAT('%', #{keyword}, '%') OR d.title LIKE CONCAT('%', #{keyword}, '%')
+      OR d.content LIKE CONCAT('%', #{keyword}, '%') OR d.keywords LIKE CONCAT('%', #{keyword}, '%'))</if>
+  </where></sql>
+  <select id="countDocuments" resultType="long">SELECT COUNT(*) FROM biz_5g_toc_doc_fragment d JOIN biz_5g_toc_project p ON p.id=d.project_id <include refid="documentWhere"/></select>
+  <select id="selectDocuments" resultType="java.util.LinkedHashMap">
+    SELECT d.id, d.project_code AS projectCode, p.project_name AS projectName, d.doc_type AS docType,
+           d.title, d.content, d.keywords, d.source_file AS sourceFile, d.source_section AS sourceSection
+    FROM biz_5g_toc_doc_fragment d JOIN biz_5g_toc_project p ON p.id=d.project_id
+    <include refid="documentWhere"/> ORDER BY p.project_name,d.doc_type,d.sort_no LIMIT #{offset},#{pageSize}
+  </select>
+
+  <select id="selectGuides" resultType="java.util.LinkedHashMap">
+    SELECT table_name AS tableName, business_name AS businessName, data_grain AS dataGrain,
+           default_rule AS defaultRule, join_rule AS joinRule, example_question AS exampleQuestion,
+           example_sql AS exampleSql, priority
+    FROM biz_5g_toc_query_guide WHERE enabled=1 ORDER BY priority,table_name
+  </select>
+  <update id="updateProject">
+    UPDATE biz_5g_toc_project
+    <set>
+      <if test="projectStatus != null">project_status=#{projectStatus},</if>
+      <if test="bandwidth != null">bandwidth=#{bandwidth},</if>
+      <if test="dnn != null">dnn=#{dnn},</if>
+      <if test="upfName != null">upf_name=#{upfName},</if>
+      <if test="expectedUserCount != null">expected_user_count=#{expectedUserCount},</if>
+      <if test="requestedOpenDate != null and requestedOpenDate != ''">requested_open_date=#{requestedOpenDate},</if>
+      <if test="remark != null">remark=#{remark},</if>
+      update_time=NOW()
+    </set>
+    WHERE project_code=#{projectCode}
+  </update>
+</mapper>

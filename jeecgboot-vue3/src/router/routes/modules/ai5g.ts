@@ -20,8 +20,16 @@ const ai5g: AppRouteModule = {
         title: '文档查看',
       },
     },
+    {
+      path: 'toc-private-network',
+      name: 'TocPrivateNetworkQuery',
+      component: () => import('/@/views/biz/ai5g/pages/TocPrivateNetworkQuery.vue'),
+      meta: {
+        title: '随行专网查询',
+        icon: 'ant-design:global-outlined',
+      },
+    },
   ],
 };
 
 export default ai5g;
-
