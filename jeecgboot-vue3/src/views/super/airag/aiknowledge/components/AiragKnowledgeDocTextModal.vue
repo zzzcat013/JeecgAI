@@ -78,7 +78,7 @@
       const docType = ref<string>('');
       const showWebContent = computed(() => docType.value === 'web' && isUpdate.value && webContentText.value);
       //表单配置
-      const [registerForm, { resetFields, setFieldsValue, validate, clearValidate, updateSchema }] = useForm({
+      const [registerForm, { resetFields, setFieldsValue, validate, clearValidate, updateSchema, getFieldsValue }] = useForm({
         schemas: docTextSchema,
         showActionButtonGroup: false,
         layout: 'vertical',
@@ -102,6 +102,12 @@
         webContentText.value = '';
         docType.value = '';
         knowledgeType.value = data?.knowledgeType || 'knowledge';
+        await updateSchema({
+          field: 'filePath',
+          componentProps: {
+            onChange: handleFilePathChange,
+          },
+        });
         setModalProps({ confirmLoading: false, okText: knowledgeType.value === 'memory' ? '保存' : '下一步' });
         isUpdate.value = !!data?.isUpdate;
         title.value = isUpdate.value ? '编辑文档' : '创建文档';
@@ -251,6 +257,32 @@
        */
       function handleCancel() {
         closeModal();
+      }
+
+      function handleFilePathChange(filePath) {
+        if (docType.value !== 'file' || unref(isUpdate) || !filePath) {
+          return;
+        }
+        const values = getFieldsValue();
+        if (values.title) {
+          return;
+        }
+        const fileName = getTitleFromFilePath(filePath);
+        if (fileName) {
+          setFieldsValue({ title: fileName });
+        }
+      }
+
+      function getTitleFromFilePath(filePath) {
+        const firstPath = String(filePath).split(',')[0] || '';
+        const cleanPath = firstPath.split('?')[0].replace(/\\/g, '/');
+        const rawName = cleanPath.substring(cleanPath.lastIndexOf('/') + 1);
+        if (!rawName) {
+          return '';
+        }
+        const decodedName = decodeURIComponent(rawName);
+        const nameWithoutExt = decodedName.replace(/\.[^.]*$/, '');
+        return nameWithoutExt.replace(/_\d{10,}$/, '');
       }
 
       return {
