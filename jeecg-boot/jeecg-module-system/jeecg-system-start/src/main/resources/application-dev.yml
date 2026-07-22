@@ -195,9 +195,9 @@ jeecg:
   # AI集成
   ai-chat:
     enabled: true
-    model: glm-4.7
-    apiKey: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
-    apiHost: https://open.bigmodel.cn/api/paas/v4
+    model: MiniMax-M2.7
+    apiKey: prod_63036b6d-2877-4f35-b2c5-28078b2268fb
+    apiHost: http://202.97.143.210:10010/CUCCAI-llm-hub/
   #  model: deepseek-v4-pro
   #  apiKey: ??
   #  apiHost: https://api.deepseek.com/v1
@@ -243,10 +243,10 @@ jeecg:
       edge-tts-path:
     # 默认向量模型
     ai-model-embed:
-      provider: QWEN
-      model: text-embedding-v1
-      apiKey: sk-63478a4ca8cf4bd890573e41fc8fceb0
-      apiHost: https://dashscope.aliyuncs.com/compatible-mode/v1
+      provider: LT
+      model: bge-m3
+      apiKey: vibe_f5d6caff-7d15-4afb-abce-d754b9966d91
+      apiHost: http://202.97.143.210:10010/CUCCAI-llm-hub/
       timeout: 60
   # AIRag向量库
   ai-rag:
@@ -346,11 +346,14 @@ jeecg:
     saasMode:
     ai:
       # OpenAI 兼容 base zheyi地址（必填）
-      base-url: https://open.bigmodel.cn/api/paas/v4
+      #base-url: https://open.bigmodel.cn/api/paas/v4
       # API Key（留空则禁用 JimuReport 内置 AI；Spring Boot 4 下暂不启用）
-      api-key: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
+      #api-key: 8c9544cb61d9248e996ef93c1d8433e2.FBkPKQx19lAUsTHS
       # 模型名
-      model: glm-4.7
+      # model: glm-4.7
+      model: MiniMax-M2.7
+      api-key: vibe_f5d6caff-7d15-4afb-abce-d754b9966d91
+      base-url: http://202.97.143.210:10010/CUCCAI-llm-hub/
       #确定性输出，默认temperature=0
       temperature: 0
       #单次输出最大 token 数，DeepSeek 合法范围[1,393216]
