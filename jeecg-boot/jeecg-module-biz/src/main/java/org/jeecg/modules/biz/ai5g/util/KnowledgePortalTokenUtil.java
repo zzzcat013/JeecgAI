@@ -48,7 +48,7 @@ public class KnowledgePortalTokenUtil {
      */
     public static String getAuthToken() {
         KnowledgePortalConfig config = getConfig();
-        return getAuthToken(config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
+        return getAuthToken(config.getTokenUrl(), config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
     }
 
     /**
@@ -74,6 +74,25 @@ public class KnowledgePortalTokenUtil {
      */
     public static String getAuthToken(String portalBaseUrl, String apiKey, String username, int timeout) {
         JSONObject response = requestAuthToken(portalBaseUrl, apiKey, username, timeout);
+        return parseTokenResponse(response);
+    }
+
+    /**
+     * 获取知识门户访问 Token.
+     *
+     * @param tokenUrl      知识门户 Token 接口完整地址, 可为空
+     * @param portalBaseUrl 知识门户服务地址
+     * @param apiKey        网络AI平台大模型网关 API Key
+     * @param username      用户 OA 账号
+     * @param timeout       请求超时时间, 单位毫秒
+     * @return 知识门户访问令牌
+     */
+    public static String getAuthToken(String tokenUrl, String portalBaseUrl, String apiKey, String username, int timeout) {
+        JSONObject response = requestAuthToken(tokenUrl, portalBaseUrl, apiKey, username, timeout);
+        return parseTokenResponse(response);
+    }
+
+    private static String parseTokenResponse(JSONObject response) {
         if (response == null) {
             throw new IllegalStateException("知识门户 Token 接口无响应");
         }
@@ -95,7 +114,7 @@ public class KnowledgePortalTokenUtil {
      */
     public static JSONObject requestAuthToken() {
         KnowledgePortalConfig config = getConfig();
-        return requestAuthToken(config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
+        return requestAuthToken(config.getTokenUrl(), config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
     }
 
     /**
@@ -109,7 +128,14 @@ public class KnowledgePortalTokenUtil {
      * 请求知识门户 Token 接口, 返回完整响应体.
      */
     public static JSONObject requestAuthToken(String portalBaseUrl, String apiKey, String username, int timeout) {
-        String tokenUrl = buildTokenUrl(portalBaseUrl);
+        return requestAuthToken(null, portalBaseUrl, apiKey, username, timeout);
+    }
+
+    /**
+     * 请求知识门户 Token 接口, 返回完整响应体.
+     */
+    public static JSONObject requestAuthToken(String configuredTokenUrl, String portalBaseUrl, String apiKey, String username, int timeout) {
+        String tokenUrl = buildTokenUrl(configuredTokenUrl, portalBaseUrl);
         JSONObject requestBody = buildTokenRequest(apiKey, username);
 
         log.info("开始请求知识门户 Token, url={}, username={}", tokenUrl, username);
@@ -130,18 +156,26 @@ public class KnowledgePortalTokenUtil {
      */
     public static JSONObject debugAuthToken() {
         KnowledgePortalConfig config = getConfig();
-        return debugAuthToken(config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
+        return debugAuthToken(config.getTokenUrl(), config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
     }
 
     /**
      * 发起一次 Token 请求并返回脱敏调试信息.
      */
     public static JSONObject debugAuthToken(String portalBaseUrl, String apiKey, String username, int timeout) {
+        return debugAuthToken(null, portalBaseUrl, apiKey, username, timeout);
+    }
+
+    /**
+     * 发起一次 Token 请求并返回脱敏调试信息.
+     */
+    public static JSONObject debugAuthToken(String configuredTokenUrl, String portalBaseUrl, String apiKey, String username, int timeout) {
         JSONObject debug = new JSONObject();
-        String tokenUrl = buildTokenUrl(portalBaseUrl);
+        String tokenUrl = buildTokenUrl(configuredTokenUrl, portalBaseUrl);
         JSONObject requestBody = buildTokenRequest(apiKey, username);
 
         debug.put("url", tokenUrl);
+        debug.put("tokenUrlConfigured", configuredTokenUrl != null && !configuredTokenUrl.trim().isEmpty());
         debug.put("username", username);
         debug.put("timeout", timeout);
         debug.put("apiKeyConfigured", apiKey != null && !apiKey.trim().isEmpty());
@@ -193,14 +227,21 @@ public class KnowledgePortalTokenUtil {
      */
     public static JSONObject buildCurlCommand() {
         KnowledgePortalConfig config = getConfig();
-        return buildCurlCommand(config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
+        return buildCurlCommand(config.getTokenUrl(), config.getBaseUrl(), config.getApiKey(), config.getUsername(), config.getTimeout());
     }
 
     /**
      * 生成可直接执行的 curl 命令, 只生成命令不发请求.
      */
     public static JSONObject buildCurlCommand(String portalBaseUrl, String apiKey, String username, int timeout) {
-        String tokenUrl = buildTokenUrl(portalBaseUrl);
+        return buildCurlCommand(null, portalBaseUrl, apiKey, username, timeout);
+    }
+
+    /**
+     * 生成可直接执行的 curl 命令, 只生成命令不发请求.
+     */
+    public static JSONObject buildCurlCommand(String configuredTokenUrl, String portalBaseUrl, String apiKey, String username, int timeout) {
+        String tokenUrl = buildTokenUrl(configuredTokenUrl, portalBaseUrl);
         JSONObject requestBody = buildTokenRequest(apiKey, username);
         int timeoutSeconds = Math.max(1, (timeout + 999) / 1000);
 
@@ -211,6 +252,7 @@ public class KnowledgePortalTokenUtil {
 
         JSONObject result = new JSONObject();
         result.put("url", tokenUrl);
+        result.put("tokenUrlConfigured", configuredTokenUrl != null && !configuredTokenUrl.trim().isEmpty());
         result.put("username", username);
         result.put("timeout", timeout);
         result.put("timeoutSeconds", timeoutSeconds);
@@ -298,7 +340,10 @@ public class KnowledgePortalTokenUtil {
         return LocalDateTime.now(SHANGHAI_ZONE).format(DATE_TIME_FORMATTER);
     }
 
-    private static String buildTokenUrl(String portalBaseUrl) {
+    private static String buildTokenUrl(String configuredTokenUrl, String portalBaseUrl) {
+        if (configuredTokenUrl != null && !configuredTokenUrl.trim().isEmpty()) {
+            return configuredTokenUrl.trim();
+        }
         validateNotBlank(portalBaseUrl, "portalBaseUrl");
         String url = portalBaseUrl.trim();
         if (url.endsWith(TOKEN_PATH)) {
@@ -383,6 +428,7 @@ public class KnowledgePortalTokenUtil {
         }
         Environment environment = SpringContextUtils.getApplicationContext().getEnvironment();
         String baseUrl = environment.getProperty(CONFIG_PREFIX + "base-url");
+        String tokenUrl = environment.getProperty(CONFIG_PREFIX + "token-url");
         String apiKey = environment.getProperty(CONFIG_PREFIX + "api-key");
         String username = environment.getProperty(CONFIG_PREFIX + "username");
         Integer timeout = environment.getProperty(CONFIG_PREFIX + "timeout", Integer.class, DEFAULT_TIMEOUT);
@@ -390,17 +436,19 @@ public class KnowledgePortalTokenUtil {
         validateNotBlank(baseUrl, CONFIG_PREFIX + "base-url");
         validateNotBlank(apiKey, CONFIG_PREFIX + "api-key");
         validateNotBlank(username, CONFIG_PREFIX + "username");
-        return new KnowledgePortalConfig(baseUrl, apiKey, username, timeout == null ? DEFAULT_TIMEOUT : timeout);
+        return new KnowledgePortalConfig(baseUrl, tokenUrl, apiKey, username, timeout == null ? DEFAULT_TIMEOUT : timeout);
     }
 
     private static class KnowledgePortalConfig {
         private final String baseUrl;
+        private final String tokenUrl;
         private final String apiKey;
         private final String username;
         private final int timeout;
 
-        private KnowledgePortalConfig(String baseUrl, String apiKey, String username, int timeout) {
+        private KnowledgePortalConfig(String baseUrl, String tokenUrl, String apiKey, String username, int timeout) {
             this.baseUrl = baseUrl;
+            this.tokenUrl = tokenUrl;
             this.apiKey = apiKey;
             this.username = username;
             this.timeout = timeout;
@@ -408,6 +456,10 @@ public class KnowledgePortalTokenUtil {
 
         private String getBaseUrl() {
             return baseUrl;
+        }
+
+        private String getTokenUrl() {
+            return tokenUrl;
         }
 
         private String getApiKey() {

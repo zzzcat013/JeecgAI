@@ -32,6 +32,11 @@
   - 说明：返回 Markdown 预览内容；MinIO 模式下读取 `mdPath` 对象，并将资源包图片链接临时改写为当前请求可访问的完整 URL
 - GET `/ai5g/doc/assets/{id}/**`
   - 说明：根据 `BizDocFile.assetRoot` 读取 MinIO 中的包内资源，用于 Markdown 图片展示；该接口允许图片标签直接访问，但路径被限制在当前文档的资源包目录内
+- GET `/ai5g/doc/debug/knowledge-portal-token`
+  - 说明：匿名调试接口，调用企业知识门户 Token 接口并返回脱敏后的请求 URL、时间戳、业务状态码、响应体等信息
+  - 配置：读取 `knowledge-portal.base-url/token-url/api-key/username/timeout`
+- GET `/ai5g/doc/debug/knowledge-portal-token-curl`
+  - 说明：匿名调试接口，只生成可执行 curl 命令，不发起请求；用于排查服务端网关路径、加密参数和网络连通性
 
 ## 知识库图片 URL 归一化
 - 前端导入 AIRag 知识库时会读取 `/ai5g/doc/preview-md/{id}`，该接口返回的是预览友好的完整 URL。
@@ -48,3 +53,4 @@
 ## 代码参考
 - 控制器：[Ai5gDocumentController.java](/Users/zhangxj/source/java/jeecgAI/JeecgAI/jeecg-boot/jeecg-module-biz/src/main/java/org/jeecg/modules/biz/ai5g/controller/Ai5gDocumentController.java)
 - 知识库内容归一化：[Ai5gKnowledgeDocContentAspect.java](/Users/zhangxj/source/java/jeecgAI/JeecgAI/jeecg-boot/jeecg-module-biz/src/main/java/org/jeecg/modules/biz/ai5g/aspect/Ai5gKnowledgeDocContentAspect.java)
+- 企业知识门户 Token：[KnowledgePortalTokenUtil.md](/Users/zhangxj/source/java/jeecgAI/JeecgAI/assistant-docs/backend/ai5g/KnowledgePortalTokenUtil.md)

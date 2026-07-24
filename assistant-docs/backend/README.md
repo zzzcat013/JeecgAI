@@ -12,3 +12,6 @@
 - `base-core/<类名>.md`
 - `cloud-gateway/<类名>.md`
 
+## AI5G 文档
+- [Ai5gDocumentController](ai5g/Ai5gDocumentController.md)
+- [KnowledgePortalTokenUtil](ai5g/KnowledgePortalTokenUtil.md)

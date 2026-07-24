@@ -7,6 +7,8 @@ spring:
     active: '@profile.name@'
 knowledge-portal:
   base-url: http://10.186.2.176:10010/CUCCAI-new-graph/llm
+  # Token接口完整地址；为空时默认使用 base-url + /external-auth/ai-api-key-token
+  token-url:
   api-key: prod_63036b6d-2877-4f35-b2c5-28078b2268fb
   username: zhangxj200
   timeout: 30000
