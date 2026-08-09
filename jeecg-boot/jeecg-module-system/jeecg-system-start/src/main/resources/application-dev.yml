@@ -29,8 +29,8 @@ spring:
     clean-disabled: true
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 200MB
   mail:
     # 定时任务发送邮件
     timeJobSend: false
@@ -301,7 +301,7 @@ jeecg:
     #webapp文件路径
     webapp: /opt/webapp
   shiro:
-    excludeUrls: /test/jeecgDemo/demo3,/test/jeecgDemo/redisDemo/**,/bigscreen/category/**,/bigscreen/visual/**,/bigscreen/map/**,/jmreport/bigscreen2/**
+    excludeUrls: /test/jeecgDemo/demo3,/test/jeecgDemo/redisDemo/**,/bigscreen/category/**,/bigscreen/visual/**,/bigscreen/map/**,/jmreport/bigscreen2/**,/roomops/sync/notify
   # 短信发送方式 aliyun阿里云短信 tencent腾讯云短信
   smsSendType: aliyun
   #阿里云oss存储和大鱼短信秘钥配置
@@ -340,6 +340,13 @@ jeecg:
     minio_name: admin
     minio_pass: Qaz_1234
     bucketName: jeecg-ai-docs
+  roomops:
+    minio:
+      bucketName: room-check-docs
+    sync:
+      vpsBaseUrl: https://inspection-api.700906.xyz
+      pullToken: roomops-dev-pull-token
+      notifyToken: roomops-dev-notify-token
   #大屏报表参数设置
   jmreport:
     #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离) (v1.6.2+ 新增)

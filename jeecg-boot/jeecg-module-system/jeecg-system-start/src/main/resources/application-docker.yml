@@ -26,8 +26,8 @@ spring:
     locations: classpath:flyway/sql/mysql
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 200MB
   mail:
     # 定时任务发送邮件
     timeJobSend: false
@@ -328,6 +328,13 @@ jeecg:
     minio_name: admin
     minio_pass: Qaz_1234
     bucketName: jeecg-ai-docs
+  roomops:
+    minio:
+      bucketName: room-check-docs
+    sync:
+      vpsBaseUrl: https://inspection-api.700906.xyz
+      pullToken: roomops-dev-pull-token
+      notifyToken: roomops-dev-notify-token
   #大屏报表参数设置
   jmreport:
     #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离) (v1.6.2+ 新增)
