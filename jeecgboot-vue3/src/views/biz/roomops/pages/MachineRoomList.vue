@@ -13,6 +13,10 @@
     { title: '专业', dataIndex: 'domainName', key: 'domainName', width: 100 },
     { title: '地市编码', dataIndex: 'regionCode', key: 'regionCode', width: 80 },
     { title: '地市', dataIndex: 'regionName', key: 'regionName', width: 80 },
+    { title: '纬度', dataIndex: 'latitude', key: 'latitude', width: 110 },
+    { title: '经度', dataIndex: 'longitude', key: 'longitude', width: 110 },
+    { title: '允许距离(m)', dataIndex: 'allowedRadiusM', key: 'allowedRadiusM', width: 110 },
+    { title: '最大精度(m)', dataIndex: 'maxAccuracyM', key: 'maxAccuracyM', width: 110 },
     { title: '备注', dataIndex: 'remark', key: 'remark', width: 200, ellipsisLength: 14 },
     { title: '状态', dataIndex: 'status', key: 'status', width: 70 },
   ];
@@ -25,6 +29,11 @@
     { name: 'domainName', label: '专业名称', defaultValue: '核心网' },
     { name: 'regionCode', label: '地市编码', defaultValue: 'TY' },
     { name: 'regionName', label: '地市名称', defaultValue: '太原' },
+    { name: 'qrCode', label: '二维码内容' },
+    { name: 'latitude', label: '机房纬度' },
+    { name: 'longitude', label: '机房经度' },
+    { name: 'allowedRadiusM', label: '允许距离(米)', defaultValue: 300 },
+    { name: 'maxAccuracyM', label: '最大定位精度(米)', defaultValue: 200 },
     { name: 'status', label: '状态', defaultValue: '1' },
     { name: 'remark', label: '备注', type: 'textarea', span: 24 },
   ];

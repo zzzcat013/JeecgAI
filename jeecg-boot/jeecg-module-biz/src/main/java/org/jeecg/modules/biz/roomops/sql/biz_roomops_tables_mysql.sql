@@ -9,6 +9,11 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_machine_room` (
   `region_name` varchar(100) NOT NULL DEFAULT '太原' COMMENT '地市名称',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
   `status` varchar(20) DEFAULT '1' COMMENT '状态',
+  `qr_code` varchar(255) DEFAULT NULL COMMENT '绑定二维码内容',
+  `latitude` decimal(18,12) DEFAULT NULL COMMENT '机房纬度',
+  `longitude` decimal(18,12) DEFAULT NULL COMMENT '机房经度',
+  `allowed_radius_m` int DEFAULT 300 COMMENT '允许打卡距离(米)',
+  `max_accuracy_m` int DEFAULT 200 COMMENT '最大定位精度(米)',
   `create_by` varchar(50) DEFAULT NULL COMMENT '创建人',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_by` varchar(50) DEFAULT NULL COMMENT '更新人',
@@ -22,6 +27,11 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_machine_room` (
 CREATE TABLE IF NOT EXISTS `biz_roomops_record` (
   `id` varchar(32) NOT NULL COMMENT '主键',
   `record_id` varchar(64) NOT NULL COMMENT '业务记录编号',
+  `task_id` varchar(100) DEFAULT NULL COMMENT '关联任务编号',
+  `submission_no` int NOT NULL DEFAULT '1' COMMENT '任务内提交序号',
+  `submission_type` varchar(20) NOT NULL DEFAULT 'FINAL' COMMENT '提交类型: PROGRESS/FINAL',
+  `review_status` varchar(20) NOT NULL DEFAULT 'SUBMITTED' COMMENT '审核状态: PROGRESS/SUBMITTED/REJECTED/ACCEPTED',
+  `is_current` tinyint NOT NULL DEFAULT '1' COMMENT '是否当前版本',
   `business_type` varchar(32) NOT NULL COMMENT '业务类型: inspection/fault/engineering',
   `domain_code` varchar(50) NOT NULL DEFAULT 'core_network' COMMENT '专业编码',
   `domain_short_code` varchar(20) NOT NULL DEFAULT 'CORE' COMMENT '专业编号简写',
@@ -36,6 +46,8 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_record` (
   `latitude` decimal(18,12) DEFAULT NULL COMMENT '纬度',
   `longitude` decimal(18,12) DEFAULT NULL COMMENT '经度',
   `accuracy` decimal(18,6) DEFAULT NULL COMMENT '定位精度',
+  `temperature` decimal(8,2) DEFAULT NULL COMMENT '温度(℃)',
+  `humidity` decimal(8,2) DEFAULT NULL COMMENT '湿度(%)',
   `captured_at` datetime DEFAULT NULL COMMENT '现场采集时间',
   `submitted_at` datetime DEFAULT NULL COMMENT '提交时间',
   `environment_status` varchar(50) DEFAULT NULL COMMENT '环境状态',
@@ -50,6 +62,10 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_record` (
   `remaining_issues` varchar(1000) DEFAULT NULL COMMENT '遗留问题',
   `remark_note` varchar(1000) DEFAULT NULL COMMENT '备注说明',
   `raw_form_json` longtext COMMENT '原始表单JSON',
+  `check_items_json` longtext COMMENT '结构化检查项JSON',
+  `room_proof` varchar(255) DEFAULT NULL COMMENT '二维码或NFC现场凭证',
+  `evidence_status` varchar(32) DEFAULT NULL COMMENT '服务端证据校验状态',
+  `evidence_distance_m` decimal(10,2) DEFAULT NULL COMMENT '距机房距离(米)',
   `create_by` varchar(50) DEFAULT NULL COMMENT '创建人',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_by` varchar(50) DEFAULT NULL COMMENT '更新人',
@@ -58,6 +74,7 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_record` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_biz_roomops_record_record_id` (`record_id`),
   KEY `idx_biz_roomops_record_business_type` (`business_type`),
+  KEY `idx_biz_roomops_record_task` (`task_id`, `submission_no`),
   KEY `idx_biz_roomops_record_domain_region` (`domain_code`, `region_code`),
   KEY `idx_biz_roomops_record_room_id` (`room_id`),
   KEY `idx_biz_roomops_record_submitted_at` (`submitted_at`),
@@ -146,6 +163,7 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_sync_log` (
 CREATE TABLE IF NOT EXISTS `biz_roomops_task` (
   `id` varchar(32) NOT NULL COMMENT '主键',
   `task_id` varchar(100) NOT NULL COMMENT '任务编号',
+  `record_id` varchar(64) DEFAULT NULL COMMENT '本次操作关联的提交记录',
   `business_type` varchar(32) NOT NULL COMMENT '业务类型: inspection/fault/engineering',
   `task_title` varchar(200) DEFAULT NULL COMMENT '任务标题',
   `task_content` varchar(2000) DEFAULT NULL COMMENT '任务内容',
@@ -209,3 +227,34 @@ CREATE TABLE IF NOT EXISTS `biz_roomops_task_round` (
   KEY `idx_biz_roomops_task_round_task` (`task_id`, `round_no`),
   KEY `idx_biz_roomops_task_round_action` (`action`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='机房运维-任务流转记录';
+
+CREATE TABLE IF NOT EXISTS `biz_roomops_template` (
+  `id` varchar(32) NOT NULL, `template_code` varchar(64) NOT NULL, `template_name` varchar(100) NOT NULL,
+  `business_type` varchar(32) NOT NULL DEFAULT 'inspection', `check_items_json` longtext NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT '1', `create_by` varchar(50) DEFAULT NULL, `create_time` datetime DEFAULT NULL,
+  `update_by` varchar(50) DEFAULT NULL, `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_roomops_template_code` (`template_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检模板';
+
+CREATE TABLE IF NOT EXISTS `biz_roomops_month_plan` (
+  `id` varchar(32) NOT NULL, `plan_code` varchar(64) NOT NULL, `plan_name` varchar(100) NOT NULL,
+  `plan_month` varchar(7) NOT NULL, `template_id` varchar(32) NOT NULL, `room_ids_json` longtext NOT NULL,
+  `assignee_userid` varchar(100) DEFAULT NULL, `assignee_name` varchar(100) DEFAULT NULL,
+  `deadline_day` int NOT NULL DEFAULT 28, `status` varchar(20) NOT NULL DEFAULT 'DRAFT',
+  `generated_count` int NOT NULL DEFAULT 0, `create_by` varchar(50) DEFAULT NULL, `create_time` datetime DEFAULT NULL,
+  `update_by` varchar(50) DEFAULT NULL, `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_roomops_plan_code` (`plan_code`), KEY `idx_roomops_plan_month` (`plan_month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='月度巡检计划';
+
+CREATE TABLE IF NOT EXISTS `biz_roomops_issue` (
+  `id` varchar(32) NOT NULL, `issue_id` varchar(100) NOT NULL, `record_id` varchar(64) NOT NULL,
+  `room_id` varchar(64) DEFAULT NULL, `room_name` varchar(100) DEFAULT NULL, `description` varchar(2000) NOT NULL,
+  `severity` varchar(20) NOT NULL DEFAULT 'normal', `status` varchar(20) NOT NULL DEFAULT 'OPEN',
+  `reporter_name` varchar(100) DEFAULT NULL, `assignee_userid` varchar(100) DEFAULT NULL,
+  `assignee_name` varchar(100) DEFAULT NULL, `deadline_at` datetime DEFAULT NULL,
+  `rectification_result` varchar(2000) DEFAULT NULL, `resolved_at` datetime DEFAULT NULL,
+  `closed_at` datetime DEFAULT NULL, `closed_by` varchar(100) DEFAULT NULL,
+  `create_time` datetime DEFAULT NULL, `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`), UNIQUE KEY `uk_roomops_issue_record` (`record_id`),
+  UNIQUE KEY `uk_roomops_issue_id` (`issue_id`), KEY `idx_roomops_issue_status_deadline` (`status`, `deadline_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检问题整改闭环';

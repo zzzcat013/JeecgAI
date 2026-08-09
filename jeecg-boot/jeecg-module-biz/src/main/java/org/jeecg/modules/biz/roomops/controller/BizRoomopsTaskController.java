@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.SecurityUtils;
+import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.vo.LoginUser;
@@ -100,17 +101,20 @@ public class BizRoomopsTaskController {
   }
 
   @PostMapping(value = "/add")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> add(@RequestBody BizRoomopsTask entity) {
     BizRoomopsTask saved = bizRoomopsTaskService.createTask(entity, currentUserId(), currentUserName());
     return Result.ok(saved);
   }
 
   @PutMapping(value = "/edit")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> edit(@RequestBody BizRoomopsTask entity) {
     return Result.ok(bizRoomopsTaskService.updateTask(entity, currentUserId(), currentUserName()));
   }
 
   @PostMapping(value = "/confirm")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> confirm(@RequestBody JSONObject body) {
     String taskId = body.getString("taskId");
     String remark = body.getString("remark");
@@ -122,6 +126,7 @@ public class BizRoomopsTaskController {
   }
 
   @PostMapping(value = "/reject")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> reject(@RequestBody JSONObject body) {
     String taskId = body.getString("taskId");
     if (taskId == null || taskId.trim().isEmpty()) {
@@ -139,6 +144,7 @@ public class BizRoomopsTaskController {
   }
 
   @PostMapping(value = "/push")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> push(@RequestBody(required = false) JSONObject body) {
     String taskId = body == null ? "" : body.getString("taskId");
     try {
@@ -155,6 +161,7 @@ public class BizRoomopsTaskController {
   }
 
   @PostMapping(value = "/archive")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> archive(@RequestBody JSONObject body) {
     String taskId = body.getString("taskId");
     if (taskId == null || taskId.trim().isEmpty()) {
@@ -166,12 +173,14 @@ public class BizRoomopsTaskController {
   }
 
   @DeleteMapping(value = "/delete")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> delete(@RequestParam(name = "id", required = true) String id) {
     bizRoomopsTaskService.removeById(id);
     return Result.ok("删除成功!");
   }
 
   @DeleteMapping(value = "/deleteBatch")
+  @RequiresPermissions("roomops:task:edit")
   public Result<?> deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
     bizRoomopsTaskService.removeByIds(Arrays.asList(ids.split(",")));
     return Result.ok("批量删除成功！");

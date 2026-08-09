@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -41,6 +42,7 @@ public class BizRoomopsRecordController {
   }
 
   @PostMapping(value = "/add")
+  @RequiresPermissions("roomops:record:edit")
   public Result<?> add(@RequestBody BizRoomopsRecord entity) {
     bizRoomopsRecordService.save(entity);
     return Result.ok("添加成功！");
@@ -54,12 +56,14 @@ public class BizRoomopsRecordController {
   }
 
   @DeleteMapping(value = "/delete")
+  @RequiresPermissions("roomops:record:edit")
   public Result<?> delete(@RequestParam(name = "id", required = true) String id) {
     bizRoomopsRecordService.removeById(id);
     return Result.ok("删除成功!");
   }
 
   @DeleteMapping(value = "/deleteBatch")
+  @RequiresPermissions("roomops:record:edit")
   public Result<?> deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
     bizRoomopsRecordService.removeByIds(Arrays.asList(ids.split(",")));
     return Result.ok("批量删除成功！");
@@ -80,5 +84,15 @@ public class BizRoomopsRecordController {
     record.setPhotoCount(
         bizRoomopsPhotoService.count(new QueryWrapper<BizRoomopsPhoto>().eq("record_id", record.getRecordId())));
     return Result.ok(record);
+  }
+
+  @GetMapping(value = "/listByTaskId")
+  public Result<?> listByTaskId(@RequestParam(name = "taskId") String taskId) {
+    List<BizRoomopsRecord> records = bizRoomopsRecordService.list(
+        new QueryWrapper<BizRoomopsRecord>().eq("task_id", taskId.trim())
+            .orderByDesc("submission_no", "submitted_at"));
+    records.forEach(record -> record.setPhotoCount(
+        bizRoomopsPhotoService.count(new QueryWrapper<BizRoomopsPhoto>().eq("record_id", record.getRecordId()))));
+    return Result.ok(records);
   }
 }

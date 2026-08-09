@@ -102,6 +102,13 @@ INSERT INTO `sys_permission` (
   NULL, 2, 1.00, 0, NULL, 1, 0,
   0, 0, '从钉钉通讯录同步机房运维人员',
   'admin', NOW(), 0, 0, '1', 0
+),
+(
+  'roomops000000000000000000000024', 'roomops000000000000000000000001', '巡检治理中心',
+  '/roomops/governance', 'biz/roomops/pages/GovernanceCenter', 1,
+  'RoomopsGovernanceCenter', 1, 4.00, 0, 'ant-design:dashboard-outlined', 1, 1,
+  0, 0, '巡检模板、月度计划、整改闭环和月度统计归档',
+  'admin', NOW(), 0, 0, '1', 0
 )
 ON DUPLICATE KEY UPDATE
   `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `url`=VALUES(`url`),
@@ -109,3 +116,8 @@ ON DUPLICATE KEY UPDATE
   `menu_type`=VALUES(`menu_type`), `sort_no`=VALUES(`sort_no`), `icon`=VALUES(`icon`),
   `is_leaf`=VALUES(`is_leaf`), `hidden`=VALUES(`hidden`), `description`=VALUES(`description`),
   `del_flag`=0, `status`='1', `update_by`='admin', `update_time`=NOW();
+
+INSERT IGNORE INTO `sys_role_permission` (`id`, `role_id`, `permission_id`) VALUES
+('roomopsgov000000000000000000001', 'f6817f48af4fb3af11b9e8bf182f618b', 'roomops000000000000000000000024'),
+('roomopsgov000000000000000000002', '2085331438676848641', 'roomops000000000000000000000024'),
+('roomopsgov000000000000000000003', '2085716441645244417', 'roomops000000000000000000000024');

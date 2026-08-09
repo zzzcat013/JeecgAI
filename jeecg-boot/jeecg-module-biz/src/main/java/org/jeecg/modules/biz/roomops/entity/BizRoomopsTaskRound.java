@@ -14,6 +14,7 @@ public class BizRoomopsTaskRound {
   private String id;
 
   private String taskId;
+  private String recordId;
   private Integer roundNo;
   private String action;
   private String fromStatus;

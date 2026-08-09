@@ -16,6 +16,11 @@ public class BizRoomopsRecord {
   private String id;
 
   private String recordId;
+  private String taskId;
+  private Integer submissionNo;
+  private String submissionType;
+  private String reviewStatus;
+  private Integer isCurrent;
   private String businessType;
   private String domainCode;
   private String domainShortCode;
@@ -30,6 +35,8 @@ public class BizRoomopsRecord {
   private BigDecimal latitude;
   private BigDecimal longitude;
   private BigDecimal accuracy;
+  private BigDecimal temperature;
+  private BigDecimal humidity;
   private Date capturedAt;
   private Date submittedAt;
   private String environmentStatus;
@@ -47,6 +54,10 @@ public class BizRoomopsRecord {
   private String remarkNote;
 
   private String rawFormJson;
+  private String checkItemsJson;
+  private String roomProof;
+  private String evidenceStatus;
+  private BigDecimal evidenceDistanceM;
 
   private String createBy;
   private Date createTime;

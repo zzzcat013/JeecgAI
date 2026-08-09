@@ -275,6 +275,24 @@
               <div class="content-text">{{ detailTask.taskContent || '无' }}</div>
             </a-descriptions-item>
           </a-descriptions>
+          <div class="round-title">提交记录（{{ detailSubmissions.length }}）</div>
+          <a-list v-if="detailSubmissions.length" bordered size="small" :data-source="detailSubmissions">
+            <template #renderItem="{ item }">
+              <a-list-item>
+                <a-list-item-meta>
+                  <template #title>
+                    第 {{ item.submissionNo || 1 }} 次 · {{ submissionTypeLabel(item.submissionType) }}
+                    <a-tag :color="reviewStatusColor(item.reviewStatus)">{{ reviewStatusLabel(item.reviewStatus) }}</a-tag>
+                  </template>
+                  <template #description>
+                    {{ item.inspectorName || '-' }} · {{ formatTime(item.submittedAt) }} · {{ item.photoCount || 0 }} 张照片
+                  </template>
+                </a-list-item-meta>
+                <a-button type="link" @click="openRecordDetail(item.recordId)">查看本次内容</a-button>
+              </a-list-item>
+            </template>
+          </a-list>
+          <a-empty v-else description="暂无提交记录" />
           <div class="round-title">流转记录</div>
           <a-timeline v-if="detailTask.rounds?.length" class="round-timeline">
             <a-timeline-item v-for="round in detailTask.rounds" :key="round.id">
@@ -284,6 +302,7 @@
                 <span class="round-time">{{ round.actionTime || round.createTime || '' }}</span>
               </div>
               <div v-if="round.remark" class="round-remark">{{ round.remark }}</div>
+              <a-button v-if="round.recordId" type="link" size="small" @click="openRecordDetail(round.recordId)">查看本次提交</a-button>
             </a-timeline-item>
           </a-timeline>
           <a-empty v-else description="暂无流转记录" />
@@ -348,6 +367,7 @@
     createTask,
     deleteTask,
     listTasks,
+    listTaskRecords,
     pushTask,
     queryTask,
     rejectTask,
@@ -383,6 +403,7 @@
   const confirmOpen = ref(false);
   const rejectOpen = ref(false);
   const detailTask = ref<any>(null);
+  const detailSubmissions = ref<any[]>([]);
   const selectedTask = ref<any>(null);
   const confirmRemark = ref('');
   const rejectRemark = ref('');
@@ -510,10 +531,25 @@
       SUBMIT: '提交记录',
       REJECT: '驳回重发',
       CONFIRM: '确认闭环',
+      PROGRESS: '提交工程进度',
       ARCHIVE: '归档任务',
       UNARCHIVE: '恢复任务',
     };
     return map[value || ''] || value || '-';
+  }
+
+  function submissionTypeLabel(value?: string) {
+    return value === 'PROGRESS' ? '进度提交' : '最终提交';
+  }
+
+  function reviewStatusLabel(value?: string) {
+    const map: Record<string, string> = { PROGRESS: '进度记录', SUBMITTED: '待确认', REJECTED: '已驳回', ACCEPTED: '已通过' };
+    return map[value || ''] || value || '-';
+  }
+
+  function reviewStatusColor(value?: string) {
+    const map: Record<string, string> = { PROGRESS: 'blue', SUBMITTED: 'cyan', REJECTED: 'red', ACCEPTED: 'green' };
+    return map[value || ''] || 'default';
   }
 
   function formatTime(value?: string) {
@@ -768,9 +804,14 @@
     detailOpen.value = true;
     detailLoading.value = true;
     detailTask.value = null;
+    detailSubmissions.value = [];
     try {
-      const data: any = await queryTask({ id: record.id });
+      const [data, submissions]: any[] = await Promise.all([
+        queryTask({ id: record.id }),
+        listTaskRecords(record.taskId),
+      ]);
       detailTask.value = data;
+      detailSubmissions.value = submissions || [];
     } catch (e: any) {
       message.error(e?.message || '任务详情加载失败');
       detailTask.value = record;

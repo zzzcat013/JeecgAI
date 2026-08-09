@@ -21,6 +21,7 @@ import org.jeecg.modules.biz.roomops.service.IBizRoomopsPhotoService;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsRecordService;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsSyncLogService;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsTaskService;
+import org.jeecg.modules.biz.roomops.service.RoomopsGovernanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,6 +41,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -63,6 +65,9 @@ public class BizRoomopsSyncPullController {
 
   @Autowired
   private IBizRoomopsTaskService taskService;
+
+  @Autowired
+  private RoomopsGovernanceService governanceService;
 
   @Value("${jeecg.roomops.sync.vpsBaseUrl:}")
   private String vpsBaseUrl;
@@ -107,13 +112,12 @@ public class BizRoomopsSyncPullController {
   }
 
   public Result<PullResult> pullFromVps(Integer limit) {
-    Result<PullResult> result = doPull(limit);
     try {
       taskService.pullTaskUpdatesFromVps();
     } catch (Exception e) {
       log.error("Task pull from VPS failed", e);
     }
-    return result;
+    return doPull(limit);
   }
 
   private Result<PullResult> checkNotifyToken(String token) {
@@ -154,12 +158,13 @@ public class BizRoomopsSyncPullController {
         String recordId = text(recordJson, "record_id", "recordId");
         try {
           syncOne(batchId, recordJson);
-          ack(recordId, "synced", "");
+          JSONArray photos = recordJson.getJSONArray("photos");
+          ack(recordId, "synced", "", photos == null ? 0 : photos.size());
           succeeded++;
         } catch (Exception e) {
           log.error("Roomops pull failed, recordId={}", recordId, e);
           writeSyncLog(batchId, recordId, text(recordJson, "business_type", "businessType"), "failed", e.getMessage());
-          ack(recordId, "failed", e.getMessage());
+          ack(recordId, "failed", e.getMessage(), null);
           failed++;
         }
       }
@@ -180,7 +185,9 @@ public class BizRoomopsSyncPullController {
     String businessType = defaultText(text(recordJson, "business_type", "businessType"), "inspection");
     BizRoomopsRecord record = buildRecord(recordJson, recordId, businessType);
     upsertRecord(record);
-    taskService.markSubmitted(recordId, record.getInspectorName(), record.getDingtalkUserid());
+    governanceService.upsertIssueFromRecord(record);
+    taskService.markSubmitted(recordId, record.getTaskId(), record.getSubmissionType(),
+        record.getInspectorName(), record.getDingtalkUserid());
     upsertDingtalkUser(record);
 
     JSONArray photos = recordJson.getJSONArray("photos");
@@ -206,6 +213,11 @@ public class BizRoomopsSyncPullController {
   private BizRoomopsRecord buildRecord(JSONObject payload, String recordId, String businessType) {
     BizRoomopsRecord record = new BizRoomopsRecord();
     record.setRecordId(recordId);
+    record.setTaskId(text(payload, "task_id", "taskId"));
+    record.setSubmissionNo(integer(text(payload, "submission_no", "submissionNo"), 1));
+    record.setSubmissionType(defaultText(text(payload, "submission_type", "submissionType"), "FINAL"));
+    record.setReviewStatus(defaultText(text(payload, "review_status", "reviewStatus"), "SUBMITTED"));
+    record.setIsCurrent(integer(text(payload, "is_current", "isCurrent"), 1));
     record.setBusinessType(businessType);
     record.setDomainCode("core_network");
     record.setDomainShortCode("CORE");
@@ -220,6 +232,8 @@ public class BizRoomopsSyncPullController {
     record.setLatitude(decimal(text(payload, "latitude")));
     record.setLongitude(decimal(text(payload, "longitude")));
     record.setAccuracy(decimal(text(payload, "accuracy")));
+    record.setTemperature(decimal(text(payload, "temperature")));
+    record.setHumidity(decimal(text(payload, "humidity")));
     record.setCapturedAt(date(text(payload, "captured_at", "capturedAt")));
     record.setSubmittedAt(defaultDate(date(text(payload, "submitted_at", "submittedAt")), now()));
     record.setEnvironmentStatus(text(payload, "environment_status", "environmentStatus"));
@@ -230,8 +244,13 @@ public class BizRoomopsSyncPullController {
     record.setFaultOrderNo(text(payload, "fault_order_no", "faultOrderNo"));
     record.setHandlingResult(text(payload, "handling_result", "handlingResult"));
     record.setConstructionContent(text(payload, "construction_content", "constructionContent"));
+    record.setSiteProblems(text(payload, "site_problems", "siteProblems"));
     record.setRemainingIssues(text(payload, "remaining_issues", "remainingIssues"));
     record.setRemarkNote(text(payload, "remark_note", "remarkNote"));
+    record.setCheckItemsJson(text(payload, "check_items_json", "checkItemsJson"));
+    record.setRoomProof(text(payload, "room_proof", "roomProof"));
+    record.setEvidenceStatus(text(payload, "evidence_status", "evidenceStatus"));
+    record.setEvidenceDistanceM(decimal(text(payload, "evidence_distance_m", "evidenceDistanceM")));
     record.setRawFormJson(defaultText(text(payload, "raw_form_json", "rawFormJson"), payload.toJSONString()));
     record.setUpdateTime(now());
     return record;
@@ -269,6 +288,15 @@ public class BizRoomopsSyncPullController {
   }
 
   private void upsertRecord(BizRoomopsRecord record) {
+    if (!record.getTaskId().isEmpty() && Integer.valueOf(1).equals(record.getIsCurrent())) {
+      List<BizRoomopsRecord> previous = recordService.list(new QueryWrapper<BizRoomopsRecord>()
+          .eq("task_id", record.getTaskId()).ne("record_id", record.getRecordId()).eq("is_current", 1));
+      for (BizRoomopsRecord item : previous) {
+        item.setIsCurrent(0);
+        item.setUpdateTime(now());
+        recordService.updateById(item);
+      }
+    }
     BizRoomopsRecord existing = recordService.getOne(new QueryWrapper<BizRoomopsRecord>().eq("record_id", record.getRecordId()), false);
     if (existing == null) {
       record.setCreateTime(now());
@@ -366,11 +394,14 @@ public class BizRoomopsSyncPullController {
     }
   }
 
-  private void ack(String recordId, String status, String error) throws Exception {
+  private void ack(String recordId, String status, String error, Integer photoCount) throws Exception {
     JSONObject payload = new JSONObject();
     payload.put("recordId", recordId);
     payload.put("status", status);
     payload.put("error", error == null ? "" : error);
+    if (photoCount != null) {
+      payload.put("photoCount", photoCount);
+    }
     byte[] body = payload.toJSONString().getBytes(StandardCharsets.UTF_8);
     HttpURLConnection connection = openConnection("/api/sync/ack", "POST");
     connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");

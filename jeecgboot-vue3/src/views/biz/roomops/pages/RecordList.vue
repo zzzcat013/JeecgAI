@@ -65,6 +65,11 @@
         <template v-if="column.key === 'recordId'">
           <JEllipsis :value="record.recordId" :length="18" />
         </template>
+        <template v-else-if="column.key === 'submissionNo'">第 {{ record.submissionNo || 1 }} 次</template>
+        <template v-else-if="column.key === 'submissionType'">{{ record.submissionType === 'PROGRESS' ? '进度' : '最终' }}</template>
+        <template v-else-if="column.key === 'reviewStatus'">
+          {{ reviewStatusLabel(record.reviewStatus) }}
+        </template>
         <template v-else-if="column.key === 'roomId'">
           <JEllipsis :value="record.roomId || '-'" :length="14" />
         </template>
@@ -227,13 +232,25 @@
 
   const baseColumns = [
     { title: '记录编号', dataIndex: 'recordId', key: 'recordId', width: 160, ellipsisLength: 12 },
+    { title: '任务编号', dataIndex: 'taskId', key: 'taskId', width: 180 },
+    { title: '提交序号', dataIndex: 'submissionNo', key: 'submissionNo', width: 90 },
+    { title: '提交类型', dataIndex: 'submissionType', key: 'submissionType', width: 90 },
+    { title: '审核状态', dataIndex: 'reviewStatus', key: 'reviewStatus', width: 90 },
     businessTypeColumn(),
     { title: '地市', dataIndex: 'regionName', key: 'regionName', width: 70 },
     { title: '机房编号', dataIndex: 'roomId', key: 'roomId', width: 120, ellipsisLength: 10 },
     { title: '机房名称', dataIndex: 'roomName', key: 'roomName', width: 140, ellipsisLength: 12 },
     { title: '执行人员', dataIndex: 'inspectorName', key: 'inspectorName', width: 100 },
     { title: '照片', dataIndex: 'photoCount', key: 'photoCount', width: 80 },
+    { title: '温度(℃)', dataIndex: 'temperature', key: 'temperature', width: 90 },
+    { title: '湿度(%)', dataIndex: 'humidity', key: 'humidity', width: 90 },
+    { title: '证据校验', dataIndex: 'evidenceStatus', key: 'evidenceStatus', width: 100 },
   ];
+
+  function reviewStatusLabel(value?: string) {
+    const map: Record<string, string> = { PROGRESS: '进度记录', SUBMITTED: '待确认', REJECTED: '已驳回', ACCEPTED: '已通过' };
+    return map[value || ''] || value || '-';
+  }
   const commonTailColumns = [
     { title: '业务摘要', key: 'summary', width: 280 },
     { title: '上传方式', dataIndex: 'uploadMode', key: 'uploadModeName', width: 90 },
@@ -283,6 +300,10 @@
       { name: 'roomId', label: '机房编号', defaultValue: 'TY01ROOM1500' },
       { name: 'roomName', label: '机房名称', defaultValue: '一枢纽15楼机房' },
       { name: 'inspectorName', label: '执行人员' },
+      { name: 'temperature', label: '温度(℃)' },
+      { name: 'humidity', label: '湿度(%)' },
+      { name: 'evidenceStatus', label: '证据校验状态' },
+      { name: 'evidenceDistanceM', label: '距机房距离(米)' },
       { name: 'uploadMode', label: '上传方式', defaultValue: 'direct' },
       { name: 'submittedAt', label: '提交时间', type: 'datetime' },
     ];

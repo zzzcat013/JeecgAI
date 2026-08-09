@@ -24,7 +24,8 @@ public interface IBizRoomopsTaskService extends IService<BizRoomopsTask> {
 
   void pullTaskUpdatesFromVps();
 
-  void markSubmitted(String recordId, String inspectorName, String inspectorUserid);
+  void markSubmitted(String recordId, String taskId, String submissionType,
+                     String inspectorName, String inspectorUserid);
 
   List<BizRoomopsTaskRound> listRounds(String taskId);
 }

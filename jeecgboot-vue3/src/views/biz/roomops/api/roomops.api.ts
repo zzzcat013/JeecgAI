@@ -16,6 +16,10 @@ export function listRecords(params: RoomopsRecordQuery = {}) {
   return defHttp.get({ url: '/roomops/record/list', params });
 }
 
+export function listTaskRecords(taskId: string) {
+  return defHttp.get({ url: '/roomops/record/listByTaskId', params: { taskId } });
+}
+
 export function listPhotos(params: { recordId?: string } = {}) {
   return defHttp.get({ url: '/roomops/photo/list', params });
 }

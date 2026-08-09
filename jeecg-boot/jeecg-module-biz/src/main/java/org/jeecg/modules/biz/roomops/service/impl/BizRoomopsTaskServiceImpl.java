@@ -7,10 +7,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.modules.biz.roomops.entity.BizRoomopsMachineRoom;
+import org.jeecg.modules.biz.roomops.entity.BizRoomopsRecord;
 import org.jeecg.modules.biz.roomops.entity.BizRoomopsTask;
 import org.jeecg.modules.biz.roomops.entity.BizRoomopsTaskRound;
 import org.jeecg.modules.biz.roomops.mapper.BizRoomopsTaskMapper;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsMachineRoomService;
+import org.jeecg.modules.biz.roomops.service.IBizRoomopsRecordService;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsTaskRoundService;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsTaskService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +46,9 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
 
   @Autowired
   private IBizRoomopsMachineRoomService machineRoomService;
+
+  @Autowired
+  private IBizRoomopsRecordService recordService;
 
   @Value("${jeecg.roomops.sync.vpsBaseUrl:}")
   private String vpsBaseUrl;
@@ -127,8 +132,9 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     task.setUpdateBy(operatorName);
     task.setUpdateTime(new Date());
     updateById(task);
+    updateRecordReviewStatus(task.getRecordId(), "ACCEPTED");
     addRound(task.getTaskId(), task.getRoundCount(), "CONFIRM", fromStatus, "DONE",
-        operatorUserid, operatorName, defaultText(remark, "确认任务完成"));
+        operatorUserid, operatorName, defaultText(remark, "确认任务完成"), task.getRecordId());
     tryPushTask(task);
   }
 
@@ -157,6 +163,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
       task.setAssigneeName(defaultText(reassignName, task.getAssigneeName()));
     }
     updateById(task);
+    updateRecordReviewStatus(task.getRecordId(), "REJECTED");
     String roundRemark = defaultText(remark, "任务被驳回，重新下发");
     if (clearAssignee) {
       roundRemark += "，改为待接单";
@@ -164,7 +171,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
       roundRemark += "，重新指定执行人：" + reassignName;
     }
     addRound(task.getTaskId(), task.getRoundCount(), "REJECT", fromStatus, toStatus,
-        operatorUserid, operatorName, roundRemark);
+        operatorUserid, operatorName, roundRemark, task.getRecordId());
     tryPushTask(task);
   }
 
@@ -244,16 +251,22 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
   }
 
   @Override
-  public void markSubmitted(String recordId, String inspectorName, String inspectorUserid) {
-    if (blank(recordId)) {
+  public void markSubmitted(String recordId, String taskId, String submissionType,
+                            String inspectorName, String inspectorUserid) {
+    if (blank(recordId) || blank(taskId)) {
       return;
     }
-    BizRoomopsTask task = getByTaskId(recordId);
-    if (task == null || "DONE".equals(task.getStatus()) || "SUBMITTED".equals(task.getStatus())) {
+    BizRoomopsTask task = getByTaskId(taskId);
+    if (task == null || "DONE".equals(task.getStatus()) || recordId.equals(task.getRecordId())) {
+      return;
+    }
+    boolean progress = "PROGRESS".equalsIgnoreCase(submissionType);
+    if (!progress && "SUBMITTED".equals(task.getStatus())) {
       return;
     }
     String fromStatus = task.getStatus();
-    task.setStatus("SUBMITTED");
+    String toStatus = progress ? fromStatus : "SUBMITTED";
+    task.setStatus(toStatus);
     task.setSubmittedAt(new Date());
     task.setRecordId(recordId);
     if (blank(task.getAssigneeName())) {
@@ -264,8 +277,8 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     }
     task.setUpdateTime(new Date());
     updateById(task);
-    addRound(task.getTaskId(), task.getRoundCount(), "SUBMIT", fromStatus, "SUBMITTED",
-        inspectorUserid, inspectorName, "执行人已提交现场记录");
+    addRound(task.getTaskId(), task.getRoundCount(), progress ? "PROGRESS" : "SUBMIT", fromStatus, toStatus,
+        inspectorUserid, inspectorName, progress ? "执行人已提交工程进度" : "执行人已提交现场记录", recordId);
   }
 
   @Override
@@ -316,8 +329,14 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
 
   private void addRound(String taskId, Integer roundNo, String action, String fromStatus, String toStatus,
                         String operatorUserid, String operatorName, String remark) {
+    addRound(taskId, roundNo, action, fromStatus, toStatus, operatorUserid, operatorName, remark, "");
+  }
+
+  private void addRound(String taskId, Integer roundNo, String action, String fromStatus, String toStatus,
+                        String operatorUserid, String operatorName, String remark, String recordId) {
     BizRoomopsTaskRound round = new BizRoomopsTaskRound();
     round.setTaskId(taskId);
+    round.setRecordId(recordId);
     round.setRoundNo(defaultInt(roundNo, 1));
     round.setAction(action);
     round.setFromStatus(fromStatus);
@@ -328,6 +347,20 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     round.setActionTime(new Date());
     round.setCreateTime(new Date());
     taskRoundService.save(round);
+  }
+
+  private void updateRecordReviewStatus(String recordId, String status) {
+    if (blank(recordId)) {
+      return;
+    }
+    BizRoomopsRecord record = recordService.getOne(
+        new QueryWrapper<BizRoomopsRecord>().eq("record_id", recordId).last("limit 1"), false);
+    if (record == null) {
+      return;
+    }
+    record.setReviewStatus(status);
+    record.setUpdateTime(new Date());
+    recordService.updateById(record);
   }
 
   private BizRoomopsTask getByTaskId(String taskId) {
@@ -458,6 +491,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
       }
       BizRoomopsTaskRound round = new BizRoomopsTaskRound();
       round.setTaskId(taskId);
+      round.setRecordId(text(roundJson, "recordId", "record_id"));
       round.setRoundNo(integer(roundJson, "roundNo", "round_no"));
       round.setAction(action);
       round.setFromStatus(text(roundJson, "fromStatus", "from_status"));
@@ -502,6 +536,8 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     json.put("confirmUserid", task.getConfirmUserid());
     json.put("recordId", task.getRecordId());
     json.put("projectId", task.getProjectId());
+    json.put("createdAt", formatDateTime(task.getCreateTime()));
+    json.put("updatedAt", formatDateTime(task.getUpdateTime()));
     return json;
   }
 
