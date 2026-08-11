@@ -5,7 +5,7 @@
       <a-space>
         <template v-if="viewMode === 'active'">
           <a-button type="primary" @click="openAdd">派单</a-button>
-          <a-button @click="pushAll">下发全部</a-button>
+          <a-button @click="pushAll">重新同步全部活动任务</a-button>
         </template>
         <a-button @click="load">刷新</a-button>
       </a-space>
@@ -126,7 +126,7 @@
                   <a-menu-item v-if="record.recordId" key="record" @click="openRecordDetail(record.recordId)">查看提交</a-menu-item>
                   <a-menu-item v-if="canConfirm(record)" key="confirm" @click="openConfirm(record)">确认完成</a-menu-item>
                   <a-menu-item v-if="canReject(record)" key="reject" @click="openReject(record)">驳回重发</a-menu-item>
-                  <a-menu-item v-if="canPush(record)" key="push" @click="pushOne(record)">下发</a-menu-item>
+                  <a-menu-item v-if="canPush(record)" key="push" @click="pushOne(record)">重新同步到小程序</a-menu-item>
                   <a-menu-item v-if="!isArchived(record)" key="edit" @click="openEdit(record)">编辑</a-menu-item>
                   <a-menu-item v-if="!isArchived(record)" key="archive" @click="toggleArchive(record, true)">归档</a-menu-item>
                   <a-menu-item v-if="isArchived(record)" key="restore" @click="toggleArchive(record, false)">恢复</a-menu-item>
@@ -872,7 +872,7 @@
   async function pushOne(record: any) {
     try {
       await pushTask({ taskId: record.taskId });
-      message.success('任务已下发到小程序前置服务');
+      message.success('任务已重新同步到小程序前置服务');
     } catch (e: any) {
       message.error(e?.message || '下发失败');
     }
@@ -881,7 +881,7 @@
   async function pushAll() {
     try {
       await pushTask({});
-      message.success('全部活动任务已下发到小程序前置服务');
+      message.success('全部活动任务已重新同步到小程序前置服务');
     } catch (e: any) {
       message.error(e?.message || '下发失败');
     }
