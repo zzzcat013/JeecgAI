@@ -17,6 +17,8 @@ public interface IBizRoomopsTaskService extends IService<BizRoomopsTask> {
                   boolean clearAssignee, String operatorUserid, String operatorName);
 
   void archiveTask(String taskId, boolean archived, String operatorUserid, String operatorName);
+  void deleteTasks(List<String> ids);
+
 
   void pushTask(String taskId) throws Exception;
 

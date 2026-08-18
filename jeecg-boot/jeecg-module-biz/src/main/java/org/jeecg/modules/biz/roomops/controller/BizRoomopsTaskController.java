@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Arrays;
+import java.util.Collections;
 
 @Slf4j
 @RestController
@@ -175,14 +176,14 @@ public class BizRoomopsTaskController {
   @DeleteMapping(value = "/delete")
   @RequiresPermissions("roomops:task:edit")
   public Result<?> delete(@RequestParam(name = "id", required = true) String id) {
-    bizRoomopsTaskService.removeById(id);
+    bizRoomopsTaskService.deleteTasks(Collections.singletonList(id));
     return Result.ok("删除成功!");
   }
 
   @DeleteMapping(value = "/deleteBatch")
   @RequiresPermissions("roomops:task:edit")
   public Result<?> deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
-    bizRoomopsTaskService.removeByIds(Arrays.asList(ids.split(",")));
+    bizRoomopsTaskService.deleteTasks(Arrays.asList(ids.split(",")));
     return Result.ok("批量删除成功！");
   }
 

@@ -17,6 +17,7 @@ import org.jeecg.modules.biz.roomops.service.IBizRoomopsTaskRoundService;
 import org.jeecg.modules.biz.roomops.service.IBizRoomopsTaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,11 +51,64 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
   @Autowired
   private IBizRoomopsRecordService recordService;
 
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
+
   @Value("${jeecg.roomops.sync.vpsBaseUrl:}")
   private String vpsBaseUrl;
 
   @Value("${jeecg.roomops.sync.pullToken:}")
   private String pullToken;
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public void deleteTasks(List<String> ids) {
+    if (ids == null || ids.isEmpty()) {
+      return;
+    }
+    List<BizRoomopsTask> tasks = listByIds(ids);
+    List<String> taskIds = tasks.stream()
+        .map(BizRoomopsTask::getTaskId)
+        .filter(id -> id != null && !id.trim().isEmpty())
+        .collect(Collectors.toList());
+    removeByIds(ids);
+    if (!taskIds.isEmpty()) {
+      jdbcTemplate.batchUpdate(
+          "insert into biz_roomops_task_tombstone (task_id, deleted_at) values (?, now()) "
+              + "on duplicate key update deleted_at = values(deleted_at)",
+          taskIds.stream().map(id -> new Object[]{id}).collect(Collectors.toList()));
+    }
+    try {
+      notifyTaskDeletedToVps(taskIds);
+    } catch (Exception e) {
+      log.warn("任务删除同步 VPS 失败，taskIds={}, error={}", taskIds, e.getMessage());
+    }
+  }
+
+  private void notifyTaskDeletedToVps(List<String> taskIds) throws Exception {
+    if (taskIds.isEmpty() || blank(vpsBaseUrl) || blank(pullToken)) {
+      return;
+    }
+    JSONObject payload = new JSONObject();
+    payload.put("taskIds", taskIds);
+    byte[] body = payload.toJSONString().getBytes(StandardCharsets.UTF_8);
+    String base = vpsBaseUrl.endsWith("/") ? vpsBaseUrl.substring(0, vpsBaseUrl.length() - 1) : vpsBaseUrl;
+    HttpURLConnection connection = (HttpURLConnection) new URL(base + "/api/tasks/delete")
+        .openConnection(java.net.Proxy.NO_PROXY);
+    connection.setRequestMethod("POST");
+    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+    connection.setRequestProperty("X-Roomops-Pull-Token", pullToken);
+    connection.setConnectTimeout(10000);
+    connection.setReadTimeout(30000);
+    connection.setDoOutput(true);
+    connection.getOutputStream().write(body);
+    int status = connection.getResponseCode();
+    if (status < 200 || status >= 300) {
+      String message = readResponse(connection);
+      throw new IllegalStateException("VPS任务删除失败：" + status + " " + message);
+    }
+    log.info("任务删除已同步 VPS，taskIds={}", taskIds);
+  }
 
   @Override
   @Transactional(rollbackFor = Exception.class)
@@ -65,6 +119,9 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
       task.setTaskId(generateTaskId(task));
     } else {
       task.setTaskId(task.getTaskId().trim());
+    }
+    if (!blank(task.getTaskId())) {
+      jdbcTemplate.update("delete from biz_roomops_task_tombstone where task_id = ?", task.getTaskId());
     }
     task.setBusinessType(defaultText(task.getBusinessType(), "inspection"));
     task.setStatus(defaultText(task.getStatus(), resolveInitialStatus(task)));
@@ -192,6 +249,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     addRound(task.getTaskId(), task.getRoundCount(), archived ? "ARCHIVE" : "UNARCHIVE",
         fromStatus, fromStatus, operatorUserid, operatorName,
         archived ? "任务已归档" : "任务已恢复");
+    tryPushTask(task);
   }
 
   @Override
@@ -251,6 +309,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
   }
 
   @Override
+  @Transactional(rollbackFor = Exception.class)
   public void markSubmitted(String recordId, String taskId, String submissionType,
                             String inspectorName, String inspectorUserid) {
     if (blank(recordId) || blank(taskId)) {
@@ -445,6 +504,15 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
   }
 
   private void upsertFromVps(BizRoomopsTask incoming) {
+    if (isTombstoned(incoming.getTaskId())) {
+      log.info("VPS 拉取到已删除任务，跳过并补偿删除：taskId={}", incoming.getTaskId());
+      try {
+        notifyTaskDeletedToVps(Collections.singletonList(incoming.getTaskId()));
+      } catch (Exception e) {
+        log.warn("VPS 补偿删除失败：taskId={}, error={}", incoming.getTaskId(), e.getMessage());
+      }
+      return;
+    }
     BizRoomopsTask existing = getByTaskId(incoming.getTaskId());
     if (existing == null) {
       incoming.setStatus(defaultText(incoming.getStatus(), "AVAILABLE"));
@@ -536,9 +604,21 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     json.put("confirmUserid", task.getConfirmUserid());
     json.put("recordId", task.getRecordId());
     json.put("projectId", task.getProjectId());
+    json.put("archived", task.getArchived());
+    json.put("archivedAt", formatDateTime(task.getArchivedAt()));
+    json.put("archivedBy", task.getArchivedBy());
     json.put("createdAt", formatDateTime(task.getCreateTime()));
     json.put("updatedAt", formatDateTime(task.getUpdateTime()));
     return json;
+  }
+
+  private boolean isTombstoned(String taskId) {
+    if (blank(taskId)) {
+      return false;
+    }
+    Integer count = jdbcTemplate.queryForObject(
+        "select count(1) from biz_roomops_task_tombstone where task_id = ?", Integer.class, taskId);
+    return count != null && count > 0;
   }
 
   private String generateTaskId(BizRoomopsTask task) {
