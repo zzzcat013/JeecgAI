@@ -74,20 +74,16 @@ JeecgBoot低代码平台兼容所有J2EE项目开发，支持信创国产化，�
 - 数据库：达梦、人大金仓、TiDB
 - 中间件：东方通 TongWeb、TongRDS，宝兰德 AppServer、CacheDB, [信创配置文档](https://help.jeecg.com/java/tongweb-deploy/)
 
-
-版本说明
+项目说明
 -----------------------------------
 
-|下载 | SpringBoot4 + Shiro                                   |SpringBoot3+ SpringAuthorizationServer | SpringBoot3 + Sa-Token |
-|------|---------------------------------------------------------|----------------------------|-------------------|
-| Github | [`main`](https://github.com/jeecgboot/JeecgBoot)        | [`springboot3_sas`](https://github.com/jeecgboot/JeecgBoot/tree/springboot3_sas) 分支  |  [`springboot3-satoken`](https://github.com/jeecgboot/JeecgBoot/tree/springboot3-satoken) 分支|
-| Gitee | [`main`](https://github.com/jeecgboot/JeecgBoot) | [`springboot3_sas`](https://gitee.com/jeecg/JeecgBoot/tree/springboot3_sas) 分支|  [`springboot3-satoken`](https://gitee.com/jeecg/JeecgBoot/tree/springboot3-satoken) 分支|
+| 项目 | 说明 |
+|------|------|
+| `jeecg-boot` | 后端 SpringBoot4 源码（Shiro+Mybatis+SpringCloudAlibaba，支持单体/微服务切换） |
+| `jeecgboot-vue3` | 前端 Vue3+TS 源码（vue3+vite6+ts 最新技术栈） |
+| `jeecg-uniapp` | [APP 开发框架，一套代码多端适配，支持 APP、小程序、H5、鸿蒙](https://github.com/jeecgboot/JeecgUniapp) |
+| `jeecg-boot-starter` | [jeecg-boot 对应的底层封装 starter](https://github.com/jeecgboot/jeecg-boot-starter)：微服务启动、xxljob、分布式锁、RabbitMQ、分布式事务、ShardingSphere 分库分表等 |
 
-
-- `jeecg-boot` 是后端JAVA源码项目Springboot4+Shiro+Mybatis+SpringCloudAlibaba（支持单体和微服务切换）.
-- `jeecgboot-vue3` 是前端VUE3源码项目（vue3+vite6+ts最新技术栈）.
-- `JeecgUniapp`  是[配套APP框架](https://github.com/jeecgboot/JeecgUniapp) 适配多个终端，支持APP、小程序、H5、鸿蒙、鸿蒙Next.
-- `jeecg-boot-starter`  是[jeecg-boot对应的底层封装starter](https://github.com/jeecgboot/jeecg-boot-starter) ：微服务启动、xxljob、分布式锁starter、rabbitmq、分布式事务、分库分表shardingsphere等.
 - 参考 [文档](https://help.jeecg.com/ui/2dev/mini) 可以删除不需要的demo，制作一个精简版本
 
 
@@ -111,7 +107,7 @@ JeecgBoot低代码平台兼容所有J2EE项目开发，支持信创国产化，�
 - 官方网站：  [http://www.jeecg.com](http://www.jeecg.com)
 - 入门指南：  [快速入门](http://www.jeecg.com/doc/quickstart)  | [开发文档](https://help.jeecg.com)  | [AI应用手册](https://help.jeecg.com/aigc) | [视频教程](http://jeecg.com/doc/video)
 - 技术支持：  [反馈问题](https://github.com/jeecgboot/JeecgBoot/issues/new?template=bug_report.md)    | [低代码体验一分钟](https://jeecg.blog.csdn.net/article/details/106079007) 
-- QQ交流群 ： 964611995、⑩716488839(满)、⑨808791225(满)、其他(满)
+- QQ交流群 ： 716913034、964611995(满)、⑩716488839(满)、⑨808791225(满)、其他(满)
 
 
 AI 应用平台介绍
@@ -203,12 +199,12 @@ JeecgBoot平台提供了一套完善的AI应用管理系统模块，是一套类
 - 依赖管理：Maven
 - 基础框架：Spring Boot 4.1.0
 - 微服务框架： Spring Cloud Alibaba 2025.1.0.0
+- AI框架：langchain4j 1.17.2，AI模型支持 `ChatGPT` `DeepSeek` `千问` `智普` `minimax`、`本地模型`等
 - 持久层框架：MybatisPlus 3.5.16
 - 报表工具： JimuReport 2.1.5
 - 安全框架：Apache Shiro 3.0.0，Jwt 4.5.0
 - 微服务技术栈：Spring Cloud Alibaba、Nacos、Gateway、Sentinel、Skywalking
 - 数据库连接池：阿里巴巴Druid 1.2.28
-- AI大模型：支持 `ChatGPT` `DeepSeek` `千问`等各种常规模式
 - 日志打印：logback
 - 缓存：Redis
 - 其他：autopoi, fastjson，poi，Swagger-ui，quartz, lombok（简化代码）等。
