@@ -36,12 +36,12 @@
       <a-row :gutter="16" align="middle">
         <a-col :span="16">
           <a-form-item label="选择文件">
-            <input type="file" @change="onFileChange" />
+            <input ref="fileInputRef" type="file" @change="onFileChange" />
           </a-form-item>
         </a-col>
         <a-col :span="8" class="actions">
           <a-space>
-            <a-button type="primary" :disabled="!canSubmit" @click="submit">上传</a-button>
+            <a-button type="primary" :disabled="!canSubmit" :loading="uploading" @click="submit">上传</a-button>
           </a-space>
         </a-col>
       </a-row>
@@ -52,7 +52,14 @@
         <a-input v-model:value="q.title" placeholder="名称" style="width: 200px" />
         <a-button @click="loadList">查询</a-button>
       </a-space>
-      <a-table :columns="listCols" :data-source="listRows" row-key="id" :pagination="false" style="margin-top:12px" />
+      <a-table :columns="listCols" :data-source="listRows" row-key="id" :pagination="false" style="margin-top:12px">
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'latest'">
+            <a-tag v-if="record.latest" color="blue">最新</a-tag>
+            <span v-else>—</span>
+          </template>
+        </template>
+      </a-table>
     </div>
   </div>
   </template>
@@ -66,6 +73,8 @@ import { message } from 'ant-design-vue';
 const form = ref<{ title?: string; fileYear?: string | number; remark?: string }>({ title: '', fileYear: '', remark: '' });
 const typeSel = ref<{ l1?: string; l2?: string; l3?: string }>({});
 const fileObj = ref<File | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const uploading = ref(false);
 
 function onTypeChange(v: { l1?: string; l2?: string; l3?: string }) { typeSel.value = v; }
 function onFileChange(e: Event) { const f = (e.target as HTMLInputElement).files?.[0] || null; fileObj.value = f; }
@@ -83,6 +92,7 @@ const canSubmit = computed(() => !!(typeSel.value.l1 && typeSel.value.l2 && type
 async function submit() {
   try {
     if (!canSubmit.value || !fileObj.value) return;
+    uploading.value = true;
     const r = await uploadDoc(fileObj.value, {
       directoryName: 'doc',
       typeCode1: typeSel.value.l1!,
@@ -92,14 +102,20 @@ async function submit() {
       fileYear: form.value.fileYear ? Number(form.value.fileYear) : undefined,
       remark: form.value.remark || undefined,
     });
-    if (r?.success) {
+    if (r?.success === true || r?.code === 200) {
       message.success(r?.message || '上传成功');
     } else {
       throw new Error(r?.message || '上传失败');
     }
+    fileObj.value = null;
+    if (fileInputRef.value) {
+      fileInputRef.value.value = '';
+    }
     await loadList();
   } catch (e: any) {
     message.error(e?.message || '上传失败');
+  } finally {
+    uploading.value = false;
   }
 }
 
@@ -109,7 +125,7 @@ const listCols = [
   { title: '名称', dataIndex: 'displayName', key: 'displayName' },
   { title: '类型', dataIndex: 'fileType', key: 'fileType' },
   { title: '版本', dataIndex: 'version', key: 'version' },
-  { title: 'latest', dataIndex: 'latest', key: 'latest' },
+  { title: '最新', dataIndex: 'latest', key: 'latest' },
   { title: '上传时间', dataIndex: 'uploadTime', key: 'uploadTime' },
   { title: '类别路径', dataIndex: 'categoryPath', key: 'categoryPath' },
   { title: '年份', dataIndex: 'fileYear', key: 'fileYear' },

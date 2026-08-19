@@ -140,15 +140,8 @@ public class Ai5gDocumentController {
       }
 
       // 版本号与latest处理
-      com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<BizDocFile> vq = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
-      vq.select("id","version");
-      vq.eq("original_name", orgName).orderByDesc("version");
-      java.util.List<BizDocFile> vers = bizDocFileService.list(vq);
-      BizDocFile last = vers != null && !vers.isEmpty() ? vers.get(0) : null;
-      int version = last == null ? 1 : (last.getVersion() == null ? 1 : last.getVersion() + 1);
-      com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<BizDocFile> uw = new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
-      uw.eq("original_name", orgName).set("latest", false);
-      bizDocFileService.update(uw);
+      int version = nextVersion(orgName, seg);
+      markOldVersionsNotLatest(orgName, seg);
 
       BizDocFile doc = new BizDocFile();
       doc.setDisplayName((title != null && title.trim().length() > 0) ? title : orgName);
@@ -971,15 +964,51 @@ public class Ai5gDocumentController {
   private int nextVersion(String originalName, String categoryPath) {
       com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<BizDocFile> vq = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
       vq.select("id","version");
-      vq.eq("original_name", originalName).eq("category_path", categoryPath).orderByDesc("version");
+      vq.eq("original_name", originalName);
+      if (oConvertUtils.isEmpty(categoryPath)) {
+          vq.isNull("category_path");
+      } else {
+          vq.eq("category_path", categoryPath);
+      }
+      vq.orderByDesc("version");
       java.util.List<BizDocFile> vers = bizDocFileService.list(vq);
       BizDocFile last = vers != null && !vers.isEmpty() ? vers.get(0) : null;
       return last == null ? 1 : (last.getVersion() == null ? 1 : last.getVersion() + 1);
   }
 
   private void markOldVersionsNotLatest(String originalName, String categoryPath) {
+      if (oConvertUtils.isEmpty(originalName)) {
+          return;
+      }
       com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<BizDocFile> uw = new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
-      uw.eq("original_name", originalName).eq("category_path", categoryPath).set("latest", false);
+      uw.eq("original_name", originalName).set("latest", false);
+      if (oConvertUtils.isEmpty(categoryPath)) {
+          uw.isNull("category_path");
+      } else {
+          uw.eq("category_path", categoryPath);
+      }
+      bizDocFileService.update(uw);
+  }
+
+  private void recomputeLatest(String originalName, String categoryPath) {
+      if (oConvertUtils.isEmpty(originalName)) {
+          return;
+      }
+      com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<BizDocFile> qw = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+      qw.select("id").eq("original_name", originalName).orderByDesc("version").orderByDesc("upload_time");
+      if (oConvertUtils.isEmpty(categoryPath)) {
+          qw.isNull("category_path");
+      } else {
+          qw.eq("category_path", categoryPath);
+      }
+      java.util.List<BizDocFile> remaining = bizDocFileService.list(qw);
+      if (remaining == null || remaining.isEmpty()) {
+          return;
+      }
+      String latestId = remaining.get(0).getId();
+      markOldVersionsNotLatest(originalName, categoryPath);
+      com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<BizDocFile> uw = new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+      uw.eq("id", latestId).set("latest", true);
       bizDocFileService.update(uw);
   }
 
@@ -1547,6 +1576,9 @@ public class Ai5gDocumentController {
     BizDocFile doc = bizDocFileService.getById(id);
     if (doc == null) return Result.error("未找到文档");
     boolean ok = bizDocFileService.removeById(id);
+    if (ok) {
+      recomputeLatest(doc.getOriginalName(), doc.getCategoryPath());
+    }
     if (ok && CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
       try {
         java.io.File src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
@@ -1751,11 +1783,20 @@ public class Ai5gDocumentController {
     if (body.getId() == null) return Result.error("id 不能为空");
     BizDocFile origin = bizDocFileService.getById(body.getId());
     if (origin == null) return Result.error("未找到文档");
+    if (body.getLatest() != null) {
+      origin.setLatest(body.getLatest());
+    }
     origin.setDisplayName(body.getDisplayName());
     origin.setRemark(body.getRemark());
     origin.setFileYear(body.getFileYear());
     origin.setProcessStatus(body.getProcessStatus());
     bizDocFileService.updateById(origin);
+    if (Boolean.TRUE.equals(body.getLatest())) {
+      markOldVersionsNotLatest(origin.getOriginalName(), origin.getCategoryPath());
+      com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<BizDocFile> latestUw = new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
+      latestUw.eq("id", origin.getId()).set("latest", true);
+      bizDocFileService.update(latestUw);
+    }
     return Result.OK(origin);
   }
 

@@ -60,6 +60,9 @@
         <a-form-item label="状态">
           <a-input v-model:value="editForm.processStatus" placeholder="uploaded/converted/rag 等" />
         </a-form-item>
+        <a-form-item label="是否最新">
+          <a-switch v-model:checked="editForm.latest" :checked-value="true" :un-checked-value="false" />
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -403,11 +406,11 @@ async function toMd(rec: any) {
 }
 
 const editOpen = ref(false);
-const editForm = ref<{ id?: string; displayName?: string; remark?: string; fileYear?: string | number; processStatus?: string }>({});
-function openEdit(rec: any) { editForm.value = { id: rec.id, displayName: rec.displayName, remark: rec.remark, fileYear: rec.fileYear, processStatus: rec.processStatus }; editOpen.value = true; }
+const editForm = ref<{ id?: string; displayName?: string; remark?: string; fileYear?: string | number; processStatus?: string; latest?: boolean }>({});
+function openEdit(rec: any) { editForm.value = { id: rec.id, displayName: rec.displayName, remark: rec.remark, fileYear: rec.fileYear, processStatus: rec.processStatus, latest: Boolean(rec.latest) }; editOpen.value = true; }
 async function submitEdit() {
   try {
-    await updateDoc({ id: editForm.value.id!, displayName: editForm.value.displayName, remark: editForm.value.remark, fileYear: editForm.value.fileYear ? Number(editForm.value.fileYear) : undefined, processStatus: editForm.value.processStatus });
+    await updateDoc({ id: editForm.value.id!, displayName: editForm.value.displayName, remark: editForm.value.remark, fileYear: editForm.value.fileYear ? Number(editForm.value.fileYear) : undefined, processStatus: editForm.value.processStatus, latest: editForm.value.latest });
     message.success('保存成功');
     editOpen.value = false;
     load();
