@@ -5,10 +5,12 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.jeecg.common.util.oConvertUtils;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
@@ -16,6 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -35,6 +38,13 @@ public class MineruClientUtil {
         org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(30000); // 30s
         factory.setReadTimeout(1200000);   // 20min
+        return new RestTemplate(factory);
+    }
+
+    private static RestTemplate getStatusRestTemplate() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10000);
+        factory.setReadTimeout(30000);
         return new RestTemplate(factory);
     }
 
@@ -58,10 +68,185 @@ public class MineruClientUtil {
      * @return 包含 "content" (Markdown内容) 和 "hasImages" (布尔值) 的 JSONObject
      */
     public static JSONObject parsePdf(String mineruUrl, File pdfFile, String mode) {
+        return parsePdf(mineruUrl, pdfFile, mode, false);
+    }
+
+    /**
+     * 调用 MinerU 远程接口解析 PDF
+     *
+     * @param mineruUrl MinerU 服务地址
+     * @param pdfFile   PDF 文件
+     * @param mode      gradio 或 api
+     * @param fastMode  快速模式，关闭重型表格/公式/图片识别，避免大文档长时间占用
+     * @return 包含 "content" (Markdown内容) 和 "hasImages" (布尔值) 的 JSONObject
+     */
+    public static JSONObject parsePdf(String mineruUrl, File pdfFile, String mode, boolean fastMode) {
         if ("api".equalsIgnoreCase(mode)) {
-            return parsePdfByApi(mineruUrl, pdfFile);
+            return parsePdfByApi(mineruUrl, pdfFile, fastMode);
         }
         return parsePdfByGradio(mineruUrl, pdfFile);
+    }
+
+    /**
+     * 提交 MinerU 异步解析任务，返回 task_id。
+     */
+    public static String submitParseTask(String mineruUrl, File pdfFile, boolean fastMode) {
+        try {
+            if (mineruUrl == null || !mineruUrl.startsWith("http")) {
+                log.error("MinerU URL 配置错误: {}", mineruUrl);
+                return null;
+            }
+            String normalized = normalizeMineruUrl(mineruUrl);
+            String tasksUrl = normalized + "tasks";
+            RestTemplate restTemplate = getTimeoutRestTemplate();
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = buildApiRequestEntity(pdfFile, fastMode);
+
+            log.info("MinerU 异步任务开始提交文件: {}, 目标: {}", pdfFile.getName(), tasksUrl);
+            ResponseEntity<String> response = restTemplate.postForEntity(tasksUrl, requestEntity, String.class);
+            if (response.getStatusCode().value() != 202 || response.getBody() == null) {
+                log.error("MinerU 异步任务提交失败: {}, 响应: {}", response.getStatusCode(), response.getBody());
+                return null;
+            }
+            JSONObject payload = JSON.parseObject(response.getBody());
+            String taskId = payload.getString("task_id");
+            if (oConvertUtils.isEmpty(taskId)) {
+                log.error("MinerU 异步任务提交后未返回 task_id: {}", response.getBody());
+                return null;
+            }
+            log.info("MinerU 异步任务已提交, task_id: {}", taskId);
+            return taskId;
+        } catch (Exception e) {
+            log.error("MinerU 异步任务提交异常", e);
+            return null;
+        }
+    }
+
+    /**
+     * 查询 MinerU 异步任务状态。
+     */
+    public static JSONObject getParseTaskStatus(String mineruUrl, String taskId) {
+        try {
+            if (mineruUrl == null || !mineruUrl.startsWith("http") || oConvertUtils.isEmpty(taskId)) {
+                return null;
+            }
+            String normalized = normalizeMineruUrl(mineruUrl);
+            String statusUrl = normalized + "tasks/" + taskId;
+            RestTemplate restTemplate = getStatusRestTemplate();
+            ResponseEntity<String> response = restTemplate.getForEntity(statusUrl, String.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                log.warn("MinerU 任务状态查询失败: {}, status={}", taskId, response.getStatusCode());
+                return null;
+            }
+            return JSON.parseObject(response.getBody());
+        } catch (Exception e) {
+            log.warn("MinerU 任务状态查询异常, taskId={}", taskId, e);
+            return null;
+        }
+    }
+
+    /**
+     * 轮询 MinerU 异步任务，完成后拉取结果并解析。
+     */
+    public static JSONObject waitForParseTask(String mineruUrl, String taskId, String outputDir, Consumer<JSONObject> statusConsumer) {
+        long deadline = System.currentTimeMillis() + 24L * 60 * 60 * 1000;
+        int consecutiveNullStatus = 0;
+        while (System.currentTimeMillis() < deadline) {
+            if (Thread.currentThread().isInterrupted()) {
+                log.warn("MinerU 任务轮询线程已中断，taskId={}", taskId);
+                return null;
+            }
+            JSONObject status = getParseTaskStatus(mineruUrl, taskId);
+            if (status == null) {
+                consecutiveNullStatus++;
+                if (consecutiveNullStatus > 30) {
+                    log.error("MinerU 任务状态连续获取失败，按失败处理, taskId={}", taskId);
+                    return null;
+                }
+                sleepQuietly(5000);
+                continue;
+            }
+            consecutiveNullStatus = 0;
+            if (statusConsumer != null) {
+                statusConsumer.accept(status);
+            }
+            String taskStatus = status.getString("status");
+            if ("completed".equalsIgnoreCase(taskStatus)) {
+                log.info("MinerU 异步任务完成，开始拉取结果, taskId={}", taskId);
+                return fetchParseTaskResult(mineruUrl, taskId, outputDir);
+            }
+            if ("failed".equalsIgnoreCase(taskStatus)) {
+                log.error("MinerU 异步任务失败, taskId={}, error={}", taskId, status.getString("error"));
+                return null;
+            }
+            sleepQuietly(3000);
+        }
+        log.error("MinerU 异步任务等待超时(24小时), taskId={}", taskId);
+        return null;
+    }
+
+    /**
+     * 拉取 MinerU 异步任务最终结果。
+     */
+    public static JSONObject fetchParseTaskResult(String mineruUrl, String taskId, String outputDir) {
+        try {
+            String normalized = normalizeMineruUrl(mineruUrl);
+            String resultUrl = normalized + "tasks/" + taskId + "/result";
+            RestTemplate restTemplate = getTimeoutRestTemplate();
+            ResponseEntity<byte[]> response = restTemplate.exchange(resultUrl, HttpMethod.GET, null, byte[].class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().length == 0) {
+                log.error("MinerU 异步结果拉取失败: taskId={}, status={}", taskId, response.getStatusCode());
+                return null;
+            }
+            byte[] responseBytes = response.getBody();
+            MediaType contentType = response.getHeaders().getContentType();
+            if ((contentType != null && MediaType.APPLICATION_JSON.includes(contentType)) || looksLikeJson(responseBytes)) {
+                String responseText = new String(responseBytes, StandardCharsets.UTF_8);
+                return parseApiJsonResult(responseText, outputDir);
+            }
+            log.info("MinerU 异步结果返回 ZIP，大小: {} bytes", responseBytes.length);
+            return extractZipBytes(responseBytes, outputDir);
+        } catch (Exception e) {
+            log.error("MinerU 异步结果拉取异常, taskId={}", taskId, e);
+            return null;
+        }
+    }
+
+    private static HttpEntity<MultiValueMap<String, Object>> buildApiRequestEntity(File pdfFile, boolean fastMode) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        headers.setAccept(java.util.Collections.singletonList(MediaType.ALL));
+        headers.set("User-Agent", "JeecgAI-MinerU-Client/1.0");
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("files", new FileSystemResource(pdfFile));
+        body.add("lang_list", "ch");
+        body.add("backend", fastMode ? "pipeline" : "hybrid-engine");
+        if (!fastMode) {
+            body.add("effort", "medium");
+        }
+        body.add("parse_method", "auto");
+        body.add("formula_enable", fastMode ? "false" : "true");
+        body.add("table_enable", fastMode ? "false" : "true");
+        body.add("image_analysis", fastMode ? "false" : "true");
+        body.add("return_md", "true");
+        body.add("return_middle_json", "false");
+        body.add("return_model_output", "false");
+        body.add("return_content_list", "false");
+        body.add("return_images", "true");
+        body.add("response_format_zip", "true");
+        body.add("return_original_file", "false");
+        body.add("client_side_output_generation", "false");
+        body.add("start_page_id", "0");
+        body.add("end_page_id", "99999");
+        return new HttpEntity<>(body, headers);
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -158,7 +343,7 @@ public class MineruClientUtil {
     /**
      * 调用 MinerU FastAPI /file_parse 接口解析 PDF。
      */
-    private static JSONObject parsePdfByApi(String mineruUrl, File pdfFile) {
+    private static JSONObject parsePdfByApi(String mineruUrl, File pdfFile, boolean fastMode) {
         try {
             if (mineruUrl == null || !mineruUrl.startsWith("http")) {
                 log.error("MinerU URL 配置错误: {}", mineruUrl);
@@ -169,35 +354,27 @@ public class MineruClientUtil {
 
             RestTemplate restTemplate = getTimeoutRestTemplate();
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-            headers.setAccept(java.util.Collections.singletonList(MediaType.ALL));
-            headers.set("User-Agent", "JeecgAI-MinerU-Client/1.0");
-
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("files", new FileSystemResource(pdfFile));
-            body.add("lang_list", "ch");
-            body.add("backend", "hybrid-engine");
-            body.add("effort", "medium");
-            body.add("parse_method", "auto");
-            body.add("formula_enable", "true");
-            body.add("table_enable", "true");
-            body.add("image_analysis", "true");
-            body.add("return_md", "true");
-            body.add("return_middle_json", "false");
-            body.add("return_model_output", "false");
-            body.add("return_content_list", "false");
-            body.add("return_images", "true");
-            body.add("response_format_zip", "true");
-            body.add("return_original_file", "false");
-            body.add("client_side_output_generation", "false");
-            body.add("start_page_id", "0");
-            body.add("end_page_id", "99999");
-
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = buildApiRequestEntity(pdfFile, fastMode);
             log.info("MinerU API 开始解析文件: {}, 目标: {}", pdfFile.getName(), fileParseUrl);
 
-            ResponseEntity<byte[]> response = restTemplate.exchange(fileParseUrl, HttpMethod.POST, requestEntity, byte[].class);
+            ResponseEntity<byte[]> response = null;
+            int attempt = 0;
+            long busyWaitDeadline = System.currentTimeMillis() + 20 * 60 * 1000;
+            while (response == null) {
+                attempt++;
+                try {
+                    response = restTemplate.exchange(fileParseUrl, HttpMethod.POST, requestEntity, byte[].class);
+                } catch (HttpServerErrorException e) {
+                    if (e.getStatusCode().value() != 503) {
+                        throw e;
+                    }
+                    if (System.currentTimeMillis() >= busyWaitDeadline) {
+                        throw e;
+                    }
+                    log.warn("MinerU API 繁忙(503)，等待30秒后重试，第 {} 次", attempt);
+                    Thread.sleep(30_000L);
+                }
+            }
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().length == 0) {
                 log.error("MinerU API 解析失败: {}, 响应为空", response.getStatusCode());
                 return null;

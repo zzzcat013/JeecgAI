@@ -59,6 +59,21 @@ public class BizDocFile {
   @TableField("source_package_path")
   private String sourcePackagePath;
 
+  @TableField("convert_started_at")
+  private Date convertStartedAt;
+  @TableField("mineru_task_id")
+  private String mineruTaskId;
+  @TableField("mineru_task_status")
+  private String mineruTaskStatus;
+  @TableField("mineru_queued_ahead")
+  private Integer mineruQueuedAhead;
+  @TableField("mineru_error")
+  private String mineruError;
+  @TableField("mineru_started_at")
+  private Date mineruStartedAt;
+  @TableField("mineru_completed_at")
+  private Date mineruCompletedAt;
+
   @TableField("create_by")
   private String createBy;
   @TableField("create_time")

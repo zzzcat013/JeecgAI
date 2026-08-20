@@ -2,6 +2,8 @@ package org.jeecg.modules.biz.ai5g.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PreDestroy;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import io.minio.ListObjectsArgs;
 import io.minio.MinioClient;
 import org.jeecg.modules.biz.ai5g.util.KnowledgePortalTokenUtil;
@@ -16,7 +18,6 @@ import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.util.CommonUtils;
 import org.jeecg.common.util.filter.SsrfFileTypeFilter;
-import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.biz.ai5g.entity.BizDocFile;
 import org.jeecg.modules.biz.ai5g.service.IBizDocFileService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,11 +26,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -61,6 +64,9 @@ public class Ai5gDocumentController {
   @Value(value = "${jeecg.minio.bucketName:}")
   private String minioBucketName;
 
+  @Value(value = "${jeecg.ai5g.mineru-fast-mode:true}")
+  private boolean mineruFastMode;
+
   @Autowired
   private IBizDocFileService bizDocFileService;
   @Autowired
@@ -78,11 +84,193 @@ public class Ai5gDocumentController {
   private static final String DOMAIN_URL_PLACEHOLDER = "#{domainURL}";
 
   private final Set<String> convertingDocIds = ConcurrentHashMap.newKeySet();
-  private final ExecutorService mdConvertExecutor = Executors.newFixedThreadPool(2);
+  private final ExecutorService mdConvertExecutor = Executors.newSingleThreadExecutor();
 
   @PreDestroy
   public void shutdownMdConvertExecutor() {
     mdConvertExecutor.shutdownNow();
+  }
+
+  @EventListener(ApplicationReadyEvent.class)
+  public void resumeInterruptedMineruTasks() {
+    try {
+      List<BizDocFile> docs = bizDocFileService.list(new LambdaQueryWrapper<BizDocFile>()
+          .eq(BizDocFile::getProcessStatus, "processing")
+          .isNotNull(BizDocFile::getMineruTaskId));
+      for (BizDocFile doc : docs) {
+        if (!convertingDocIds.add(doc.getId())) {
+          continue;
+        }
+        mdConvertExecutor.submit(() -> {
+          try {
+            resumeMineruTask(doc);
+          } catch (Exception e) {
+            log.error("恢复 MinerU 异步任务异常, docId={}", doc.getId(), e);
+            markMineruTaskFailed(doc, "恢复 MinerU 异步任务异常: " + e.getMessage());
+          } finally {
+            convertingDocIds.remove(doc.getId());
+          }
+        });
+      }
+      if (!docs.isEmpty()) {
+        log.info("AI5G 启动恢复 MinerU 异步任务数量: {}", docs.size());
+      }
+    } catch (Exception e) {
+      log.warn("AI5G 启动恢复 MinerU 异步任务失败", e);
+    }
+  }
+
+  private void resumeMineruTask(BizDocFile doc) {
+    java.io.File workDir = null;
+    try {
+      String mineruUrl = environment.getProperty("jeecg.airag.know.mineru-url");
+      if (oConvertUtils.isEmpty(mineruUrl) || oConvertUtils.isEmpty(doc.getMineruTaskId())) {
+        markMineruTaskFailed(doc, "MinerU 异步任务参数不完整");
+        return;
+      }
+      workDir = java.nio.file.Files.createTempDirectory("ai5g-mineru-resume-").toFile();
+      com.alibaba.fastjson.JSONObject mineruRes = MineruClientUtil.waitForParseTask(
+          mineruUrl, doc.getMineruTaskId(), workDir.getAbsolutePath(), status -> updateMineruTaskStatus(doc, status));
+      if (mineruRes == null || oConvertUtils.isEmpty(mineruRes.getString("content"))) {
+        markMineruTaskFailed(doc, "MinerU 异步任务未返回有效结果");
+        return;
+      }
+
+      String objectName = getMinioObjectName(doc.getStoragePath());
+      String mdRel = objectName == null
+          ? (doc.getStoragePath() == null ? "result.md" : doc.getStoragePath().replaceAll("\\.[^./\\\\]+$", "") + ".md")
+          : objectName.replaceAll("\\.[^./\\\\]+$", "") + ".md";
+      java.io.File mdFile = new java.io.File(workDir, "mineru.md");
+      java.io.File convertedAssetRootDir = null;
+      java.io.File convertedAssetMarkdown = null;
+      String markdownPath = mineruRes.getString("markdownPath");
+      String extractDir = mineruRes.getString("extractDir");
+      if (oConvertUtils.isNotEmpty(markdownPath) && new java.io.File(markdownPath).exists()) {
+        java.io.File mineruMarkdown = new java.io.File(markdownPath);
+        org.apache.commons.io.FileUtils.copyFile(mineruMarkdown, mdFile);
+        if (oConvertUtils.isNotEmpty(extractDir) && new java.io.File(extractDir).exists()) {
+          convertedAssetRootDir = new java.io.File(extractDir);
+          convertedAssetMarkdown = mineruMarkdown;
+        }
+      } else {
+        org.apache.commons.io.FileUtils.writeStringToFile(mdFile, mineruRes.getString("content"), java.nio.charset.StandardCharsets.UTF_8);
+      }
+
+      boolean saved = saveConvertedMarkdown(doc, mdFile, mdRel, convertedAssetRootDir, convertedAssetMarkdown);
+      if (saved) {
+        doc.setMineruTaskStatus("completed");
+        doc.setMineruCompletedAt(new Date());
+        boolean clearRemark = isConversionFailureRemark(doc.getRemark());
+        if (clearRemark) {
+          doc.setRemark(null);
+        }
+        doc.setProcessStatus("success");
+        bizDocFileService.updateById(doc);
+        if (clearRemark) {
+          forceClearRemark(doc.getId());
+        }
+      } else {
+        markMineruTaskFailed(doc, "MinerU 异步结果保存失败");
+      }
+    } catch (Exception e) {
+      log.error("MinerU 异步任务恢复处理失败, docId={}", doc.getId(), e);
+      markMineruTaskFailed(doc, "MinerU 异步任务恢复处理失败: " + e.getMessage());
+    } finally {
+      if (workDir != null && workDir.exists()) {
+        try {
+          org.apache.commons.io.FileUtils.deleteDirectory(workDir);
+        } catch (Exception e) {
+          log.warn("清理 MinerU 恢复临时目录失败: {}", workDir.getAbsolutePath(), e);
+        }
+      }
+    }
+  }
+
+  private void updateMineruTaskStatus(BizDocFile doc, com.alibaba.fastjson.JSONObject status) {
+    if (status == null || doc == null) {
+      return;
+    }
+    String taskStatus = status.getString("status");
+    boolean changed = false;
+    if (oConvertUtils.isNotEmpty(taskStatus) && !java.util.Objects.equals(doc.getMineruTaskStatus(), taskStatus)) {
+      doc.setMineruTaskStatus(taskStatus);
+      changed = true;
+    }
+    Integer queuedAhead = status.getInteger("queued_ahead");
+    if (queuedAhead != null && !java.util.Objects.equals(doc.getMineruQueuedAhead(), queuedAhead)) {
+      doc.setMineruQueuedAhead(queuedAhead);
+      changed = true;
+    }
+    String error = status.getString("error");
+    if (!java.util.Objects.equals(doc.getMineruError(), error)) {
+      doc.setMineruError(truncateText(error, 500));
+      changed = true;
+    }
+    Date startedAt = parseMineruDate(status.getString("started_at"));
+    if (startedAt != null && !java.util.Objects.equals(doc.getMineruStartedAt(), startedAt)) {
+      doc.setMineruStartedAt(startedAt);
+      changed = true;
+    }
+    Date completedAt = parseMineruDate(status.getString("completed_at"));
+    if (completedAt != null && !java.util.Objects.equals(doc.getMineruCompletedAt(), completedAt)) {
+      doc.setMineruCompletedAt(completedAt);
+      changed = true;
+    }
+    if (changed) {
+      bizDocFileService.updateById(doc);
+    }
+  }
+
+  private Date parseMineruDate(String iso) {
+    if (oConvertUtils.isEmpty(iso)) {
+      return null;
+    }
+    try {
+      return Date.from(java.time.OffsetDateTime.parse(iso).toInstant());
+    } catch (Exception ignored) {
+    }
+    try {
+      return Date.from(java.time.Instant.parse(iso));
+    } catch (Exception ignored) {
+    }
+    return null;
+  }
+
+  private void markMineruTaskFailed(BizDocFile doc, String remark) {
+    doc.setProcessStatus("failed");
+    doc.setMineruTaskStatus("failed");
+    doc.setRemark(truncateText(remark, 500));
+    bizDocFileService.updateById(doc);
+  }
+
+  private boolean saveConvertedMarkdown(BizDocFile doc, java.io.File mdFile, String mdRel,
+                                        java.io.File convertedAssetRootDir, java.io.File convertedAssetMarkdown) {
+    try {
+      if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+        if (convertedAssetRootDir != null && convertedAssetMarkdown != null && convertedAssetMarkdown.exists()) {
+          com.alibaba.fastjson.JSONObject packageResult = uploadConvertedMarkdownPackage(convertedAssetRootDir.toPath(), convertedAssetMarkdown, doc);
+          String mdObjectName = packageResult.getString("mainObjectName");
+          doc.setMdPath(buildMinioUrl(mdObjectName));
+          doc.setAssetRoot(packageResult.getString("assetRoot"));
+          doc.setAssetManifest(packageResult.getString("assetManifest"));
+          if (oConvertUtils.isEmpty(doc.getSourcePackagePath())) {
+            doc.setSourcePackagePath(doc.getStoragePath());
+          }
+          rewriteAndUploadMarkdown(mdFile, doc, mdObjectName, packageResult.getString("mainRelativeDir"));
+        } else {
+          try (java.io.InputStream in = new java.io.FileInputStream(mdFile)) {
+            doc.setMdPath(uploadMinioObject(in, mdFile.length(), "text/markdown;charset=UTF-8", mdRel));
+          }
+        }
+      } else {
+        doc.setMdPath(mdRel);
+      }
+      doc.setMdConverted(true);
+      return true;
+    } catch (Exception e) {
+      log.error("保存转换结果失败, docId={}", doc.getId(), e);
+      return false;
+    }
   }
 
   @GetMapping("/debug/knowledge-portal-token")
@@ -368,7 +556,23 @@ public class Ai5gDocumentController {
     }
 
     doc.setProcessStatus("processing");
-    bizDocFileService.updateById(doc);
+    doc.setConvertStartedAt(null);
+    doc.setMineruTaskId(null);
+    doc.setMineruTaskStatus(null);
+    doc.setMineruQueuedAhead(null);
+    doc.setMineruError(null);
+    doc.setMineruStartedAt(null);
+    doc.setMineruCompletedAt(null);
+    bizDocFileService.update(new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<BizDocFile>()
+        .eq(BizDocFile::getId, id)
+        .set(BizDocFile::getProcessStatus, "processing")
+        .set(BizDocFile::getConvertStartedAt, null)
+        .set(BizDocFile::getMineruTaskId, null)
+        .set(BizDocFile::getMineruTaskStatus, null)
+        .set(BizDocFile::getMineruQueuedAhead, null)
+        .set(BizDocFile::getMineruError, null)
+        .set(BizDocFile::getMineruStartedAt, null)
+        .set(BizDocFile::getMineruCompletedAt, null));
 
     try {
       mdConvertExecutor.submit(() -> {
@@ -412,6 +616,7 @@ public class Ai5gDocumentController {
             }
 
             boolean converted = false;
+            boolean mineruTaskCompleted = false;
             java.io.File convertedAssetRootDir = null;
             java.io.File convertedAssetMarkdown = null;
             
@@ -462,11 +667,26 @@ public class Ai5gDocumentController {
                 if (isOffice || "pdf".equals(ft)) {
                    if (org.jeecg.common.util.oConvertUtils.isNotEmpty(mineruUrl)) {
                         log.info("使用 MinerU 远程服务解析: {}, mode: {}", mineruUrl, mineruMode);
-                  com.alibaba.fastjson.JSONObject mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile, mineruMode);
+                  com.alibaba.fastjson.JSONObject mineruRes = null;
+                  if ("api".equalsIgnoreCase(mineruMode)) {
+                      String mineruTaskId = MineruClientUtil.submitParseTask(mineruUrl, mineruInputFile, mineruFastMode);
+                      if (oConvertUtils.isNotEmpty(mineruTaskId)) {
+                          doc.setMineruTaskId(mineruTaskId);
+                          doc.setMineruTaskStatus("pending");
+                          doc.setConvertStartedAt(new Date());
+                          bizDocFileService.updateById(doc);
+                          mineruRes = MineruClientUtil.waitForParseTask(mineruUrl, mineruTaskId, workDir.getAbsolutePath(), status -> updateMineruTaskStatus(doc, status));
+                      } else {
+                          log.warn("MinerU 异步任务提交失败，尝试本地/兜底转换");
+                      }
+                  } else {
+                      mineruRes = MineruClientUtil.parsePdf(mineruUrl, mineruInputFile, mineruMode, mineruFastMode);
+                  }
                   if (mineruRes != null && org.jeecg.common.util.oConvertUtils.isNotEmpty(mineruRes.getString("content"))) {
                       try {
                                 String markdownPath = mineruRes.getString("markdownPath");
                                 String extractDir = mineruRes.getString("extractDir");
+                                mineruTaskCompleted = "api".equalsIgnoreCase(mineruMode) && oConvertUtils.isNotEmpty(doc.getMineruTaskId());
                                 if (oConvertUtils.isNotEmpty(markdownPath) && new java.io.File(markdownPath).exists()) {
                                     java.io.File mineruMarkdown = new java.io.File(markdownPath);
                                     org.apache.commons.io.FileUtils.copyFile(mineruMarkdown, mdFile);
@@ -556,44 +776,42 @@ public class Ai5gDocumentController {
             }
 
             if (converted && mdFile.exists()) {
-                if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
-                    if (convertedAssetRootDir != null && convertedAssetMarkdown != null && convertedAssetMarkdown.exists()) {
-                        com.alibaba.fastjson.JSONObject packageResult = uploadConvertedMarkdownPackage(convertedAssetRootDir.toPath(), convertedAssetMarkdown, doc);
-                        String mdObjectName = packageResult.getString("mainObjectName");
-                        doc.setMdPath(buildMinioUrl(mdObjectName));
-                        doc.setAssetRoot(packageResult.getString("assetRoot"));
-                        doc.setAssetManifest(packageResult.getString("assetManifest"));
-                        if (oConvertUtils.isEmpty(doc.getSourcePackagePath())) {
-                            doc.setSourcePackagePath(doc.getStoragePath());
-                        }
-                        rewriteAndUploadMarkdown(mdFile, doc, mdObjectName, packageResult.getString("mainRelativeDir"));
-                    } else {
-                        try (java.io.InputStream in = new java.io.FileInputStream(mdFile)) {
-                            doc.setMdPath(uploadMinioObject(in, mdFile.length(), "text/markdown;charset=UTF-8", mdRel));
-                        }
+                boolean saved = saveConvertedMarkdown(doc, mdFile, mdRel, convertedAssetRootDir, convertedAssetMarkdown);
+                if (saved) {
+                    if (mineruTaskCompleted) {
+                        doc.setMineruTaskStatus("completed");
+                        doc.setMineruCompletedAt(new Date());
+                    }
+                    boolean clearRemark = isConversionFailureRemark(doc.getRemark());
+                    doc.setMdConverted(true);
+                    if (clearRemark) {
+                        doc.setRemark(null);
+                    }
+                    doc.setProcessStatus("success");
+                    bizDocFileService.updateById(doc);
+                    if (clearRemark) {
+                        forceClearRemark(doc.getId());
                     }
                 } else {
-                    doc.setMdPath(mdRel);
-                }
-                boolean clearRemark = isConversionFailureRemark(doc.getRemark());
-                doc.setMdConverted(true);
-                if (clearRemark) {
-                    doc.setRemark(null);
-                }
-                doc.setProcessStatus("success");
-                bizDocFileService.updateById(doc);
-                if (clearRemark) {
-                    forceClearRemark(doc.getId());
+                    doc.setProcessStatus("failed");
+                    doc.setRemark("转换结果保存失败");
+                    bizDocFileService.updateById(doc);
                 }
             } else {
+                if (oConvertUtils.isNotEmpty(doc.getMineruTaskId())) {
+                    doc.setMineruTaskStatus("failed");
+                }
                 doc.setProcessStatus("failed");
                 doc.setRemark("转换失败");
                 bizDocFileService.updateById(doc);
             }
         } catch (Exception e) {
             log.error("convert to md error", e);
+            if (oConvertUtils.isNotEmpty(doc.getMineruTaskId())) {
+                doc.setMineruTaskStatus("failed");
+            }
             doc.setProcessStatus("failed");
-            doc.setRemark("转换异常: " + e.getMessage());
+            doc.setRemark(truncateText("转换异常: " + e.getMessage(), 500));
             bizDocFileService.updateById(doc);
         } finally {
             if (workDir != null && workDir.exists()) {
@@ -609,7 +827,7 @@ public class Ai5gDocumentController {
     } catch (Exception e) {
       convertingDocIds.remove(id);
       doc.setProcessStatus("failed");
-      doc.setRemark("转换任务提交失败: " + e.getMessage());
+      doc.setRemark(truncateText("转换任务提交失败: " + e.getMessage(), 500));
       bizDocFileService.updateById(doc);
       return Result.error("转换任务提交失败: " + e.getMessage());
     }
@@ -902,6 +1120,10 @@ public class Ai5gDocumentController {
   private io.minio.MinioClient buildMinioClient() {
       okhttp3.OkHttpClient httpClient = new okhttp3.OkHttpClient.Builder()
           .proxy(java.net.Proxy.NO_PROXY)
+          .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+          .readTimeout(300, java.util.concurrent.TimeUnit.SECONDS)
+          .writeTimeout(300, java.util.concurrent.TimeUnit.SECONDS)
+          .callTimeout(300, java.util.concurrent.TimeUnit.SECONDS)
           .build();
       return io.minio.MinioClient.builder()
           .endpoint(minioUrl)
@@ -1067,6 +1289,7 @@ public class Ai5gDocumentController {
 
       try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(rootPath)) {
           stream.filter(java.nio.file.Files::isRegularFile)
+              .filter(path -> isConvertedResultAsset(path, mainPath))
               .forEach(path -> {
                   try {
                       java.nio.file.Path normalizedPath = path.toAbsolutePath().normalize();
@@ -1104,6 +1327,19 @@ public class Ai5gDocumentController {
       result.put("mainObjectName", mainObjectName[0]);
       result.put("mainRelativeDir", getParentRelativePath(mainRel));
       return result;
+  }
+
+  private boolean isConvertedResultAsset(java.nio.file.Path path, java.nio.file.Path mainPath) {
+      try {
+          java.nio.file.Path normalizedPath = path.toAbsolutePath().normalize();
+          if (normalizedPath.equals(mainPath)) {
+              return true;
+          }
+          String fileExt = org.apache.commons.io.FilenameUtils.getExtension(normalizedPath.getFileName().toString()).toLowerCase();
+          return PACKAGE_ASSET_EXT.contains(fileExt);
+      } catch (Exception e) {
+          throw new RuntimeException(e);
+      }
   }
 
   private String rewriteMarkdownAssetUrls(String content, BizDocFile doc) {
@@ -1283,8 +1519,25 @@ public class Ai5gDocumentController {
       return remark.startsWith("转换失败")
           || remark.startsWith("转换异常")
           || remark.startsWith("MinIO源文件下载失败")
+          || remark.startsWith("MinIO结果上传卡住")
           || remark.startsWith("源文件不存在")
+          || remark.startsWith("服务重启导致转换中断")
+          || remark.startsWith("MinerU处理超时/卡住")
+          || remark.startsWith("MinerU 异步任务参数不完整")
+          || remark.startsWith("MinerU 异步任务未返回有效结果")
+          || remark.startsWith("MinerU 异步结果保存失败")
+          || remark.startsWith("MinerU 异步任务恢复处理失败")
+          || remark.startsWith("恢复 MinerU 异步任务异常")
+          || remark.startsWith("转换结果保存失败")
+          || remark.startsWith("转换任务提交失败")
           || remark.startsWith("暂不支持该文件类型转换为 Markdown");
+  }
+
+  private String truncateText(String text, int maxLength) {
+      if (text == null || text.length() <= maxLength) {
+          return text;
+      }
+      return text.substring(0, maxLength);
   }
 
   private void forceClearRemark(String docId) {

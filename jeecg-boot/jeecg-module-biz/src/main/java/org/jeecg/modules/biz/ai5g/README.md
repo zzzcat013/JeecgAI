@@ -22,10 +22,12 @@
 2. `docx` / `doc` / `pptx` / `ppt` 先通过 LibreOffice 转 PDF，再由 MinerU 解析为 Markdown。
 3. `docx` 转 PDF 时，实际执行的是 `soffice --headless --convert-to pdf <source> --outdir <tmpOutDir>`，并配合临时 `UserInstallation` 目录避免并发和权限问题。
 4. 这里使用的 MinerU / `magic-pdf` 不是 PDF-only，当前链路会把 `docx`、`pdf` 等正式文档都交给同一套解析流程，输出统一的 Markdown 与资源包。
-5. 资源包类文档会把主 Markdown、图片和其他资源放入 `doc/packages/{packageId}/`。
+5. 资源包类文档只把主 Markdown 和 Markdown 引用的图片上传到 `doc/packages/{packageId}/`；MinerU 生成的 PDF/JSON 中间文件不上传 MinIO。
 6. Markdown 预览时，图片统一通过 `/ai5g/doc/assets/{docId}/...` 代理读取。
 7. 文档管理页“导入知识库”直接读取当前 Markdown 内容，不再依赖原始源文件。
 8. 导入前会把 Markdown 中的图片地址统一规范为 `#{domainURL}/ai5g/doc/assets/{docId}/...`，避免重复拼接域名前缀。
+9. MinerU API 模式为异步转换，任务提交后写入 `convertStartedAt/mineruTaskId/mineruTaskStatus`，后台轮询并同步排队、开始、完成、错误状态。
+10. 后端启动时会恢复 `processing` 且已有 `mineruTaskId` 的转换任务；成功保存结果后清理历史失败备注。
 
 ## 文档表
 
@@ -46,6 +48,13 @@
 - `asset_root`：资源包根目录，例如 `doc/packages/{packageId}/`
 - `asset_manifest`：资源清单 JSON，记录资源包内相对路径与对象名映射
 - `source_package_path`：原始资源包或源文件路径
+- `convert_started_at`：文档转换任务提交时间
+- `mineru_task_id`：MinerU 异步任务 ID
+- `mineru_task_status`：MinerU 任务状态，`pending/processing/completed/failed`
+- `mineru_queued_ahead`：MinerU 排队前任务数
+- `mineru_error`：MinerU 任务错误信息
+- `mineru_started_at`：MinerU 任务开始时间
+- `mineru_completed_at`：MinerU 任务完成时间
 
 ## 文档存储规则
 - 源文件：`doc/files/yyyyMM/{fileName}`
@@ -60,6 +69,7 @@
 - `biz_ai5g_docfile.asset_root` + `asset_manifest` 决定图片资源的真实对象位置。
 - `biz_ai5g_docfile.md_path` 决定 Markdown 内容所在对象。
 - `biz_ai5g_docfile.storage_path` 决定原始文件所在对象。
+- `asset_manifest` 使用 `LONGTEXT`，大文档图片较多时不会触发字段超长；`remark` 使用 `TEXT`。
 
 ## AIRag 知识库
 - AIRag 导入优先使用已转换好的 Markdown 内容，而不是原始源文件。
@@ -78,6 +88,7 @@
 - Word/PDF 转 Markdown 时，Office 先通过 LibreOffice 预转 PDF，再走 MinerU 解析，失败后再走文本兜底。
 - Pandoc/Tika 兜底仅保证文本可读，不保证图片可用。
 - 文档查看页和文档管理页都直接消费后端返回的 Markdown 内容，不再做历史路径兼容。
+- 文档管理页状态展示：`success` 显示“转MD成功”，`failed` 显示“转MD失败”，`processing` 显示排队/解析/耗时信息。
 - 文档管理页的“预览”优先展示 PDF 结果，标题栏的“下载原件”则返回原始上传文件。
 - Markdown 重新导入 AIRag 时，如果图片路径已经是当前正式资源地址，就不再打 zip；只有需要完全自包含资源包时，才考虑目录打包导入。
 

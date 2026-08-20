@@ -16,10 +16,10 @@
         </template>
         <template v-if="column.key==='processStatus'">
           <a-tag v-if="record.processStatus === 'processing'" color="processing">
-             <template #icon><loading-outlined /></template> 处理中
+             <template #icon><loading-outlined /></template> {{ mineruStatusText(record) }}
           </a-tag>
-          <a-tag v-else-if="record.processStatus === 'success'" color="success">成功</a-tag>
-          <a-tag v-else-if="record.processStatus === 'failed'" color="error">失败</a-tag>
+          <a-tag v-else-if="record.processStatus === 'success'" color="success">转MD成功</a-tag>
+          <a-tag v-else-if="record.processStatus === 'failed'" color="error">转MD失败</a-tag>
           <span v-else>{{ record.processStatus }}</span>
         </template>
         <template v-if="column.key==='action'">
@@ -185,6 +185,33 @@ const cols = [
 ];
 
 function onTypeChange(v: { l1?: string; l2?: string; l3?: string }) { typeSel.value = v; }
+
+function mineruStatusText(rec: any) {
+  let text = '处理中';
+  if (rec.mineruTaskStatus === 'pending') {
+    text = '排队中';
+  } else if (rec.mineruTaskStatus === 'processing') {
+    text = '解析中';
+  }
+  if (rec.mineruQueuedAhead > 0) {
+    text += `（前${rec.mineruQueuedAhead}）`;
+  }
+  const elapsed = formatElapsed(rec.convertStartedAt || rec.mineruStartedAt);
+  if (elapsed) {
+    text += ` ${elapsed}`;
+  }
+  return text;
+}
+
+function formatElapsed(value?: string) {
+  if (!value) return '';
+  const start = new Date(value).getTime();
+  if (Number.isNaN(start)) return '';
+  const minutes = Math.floor((Date.now() - start) / 60000);
+  if (minutes <= 0) return '';
+  if (minutes < 60) return `已${minutes}m`;
+  return `已${Math.floor(minutes / 60)}h${minutes % 60}m`;
+}
 
 // 轮询定时器
 let pollTimer: any = null;

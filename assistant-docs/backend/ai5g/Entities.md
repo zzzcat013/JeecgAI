@@ -6,15 +6,17 @@
 - 版本与状态：`latest`、`processStatus`
 - 存储：`storagePath`、`storageFilename`、`contentType`、`size`
 - Markdown：`mdConverted`、`mdPath`
+- MinerU 异步：`convertStartedAt`、`mineruTaskId`、`mineruTaskStatus`、`mineruQueuedAhead`、`mineruError`、`mineruStartedAt`、`mineruCompletedAt`
 - zip 资源包：`assetRoot`、`assetManifest`、`sourcePackagePath`
   - `assetRoot`：MinIO 对象前缀，例如 `doc/01/04/01/packages/{uuid}/`
-  - `assetManifest`：包内图片资源清单 JSON，包含相对路径、对象名、类型、大小；第一版用于表达主文档和图片的关系，后续可迁移为子表
+  - `assetManifest`：包内图片资源清单 JSON，包含相对路径、对象名、类型、大小；字段使用 `LONGTEXT`，避免大文档图片清单超长
   - `sourcePackagePath`：原始 zip 包或原始上传文件在 MinIO 上的访问路径
+- `remark` 使用 `TEXT`，用于保存较长失败提示；转换成功时会清理系统生成的失败备注
 - 审计：`createBy/createTime/updateBy/updateTime`
 
 ## 资源包关系模型
 - 主 Markdown 与图片不建子表，关系由 `assetRoot + assetManifest + Markdown 图片链接` 三者共同表达。
-- MinIO 中保存完整资源包目录，Markdown 图片统一通过后端代理读取：
+- MinIO 中只保存主 Markdown 和 Markdown 引用的图片资源，不保存 MinerU 生成的 PDF/JSON 中间产物；Markdown 图片统一通过后端代理读取：
   - 预览返回：完整后端 URL，如 `http://host/jeecg-boot/ai5g/doc/assets/{docId}/images/a.jpg`
   - 知识库保存：占位符 URL，如 `#{domainURL}/ai5g/doc/assets/{docId}/images/a.jpg`
 - `#{domainURL}` 由前端按当前环境替换，避免知识库中固化 `localhost` 或某台服务器域名。

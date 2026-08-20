@@ -24,11 +24,18 @@ public class BizDocFileStartupRecovery {
       if (count == 0) {
         return;
       }
-      bizDocFileService.update(new LambdaUpdateWrapper<BizDocFile>()
+      long asyncCount = bizDocFileService.count(new LambdaQueryWrapper<BizDocFile>()
           .eq(BizDocFile::getProcessStatus, "processing")
-          .set(BizDocFile::getProcessStatus, "failed")
-          .set(BizDocFile::getRemark, "服务重启导致转换中断，请重新提交"));
-      log.info("AI5G 文档转换启动恢复完成，已重置 processing 文档: {}", count);
+          .isNotNull(BizDocFile::getMineruTaskId));
+      long interruptedCount = count - asyncCount;
+      if (interruptedCount > 0) {
+        bizDocFileService.update(new LambdaUpdateWrapper<BizDocFile>()
+            .eq(BizDocFile::getProcessStatus, "processing")
+            .isNull(BizDocFile::getMineruTaskId)
+            .set(BizDocFile::getProcessStatus, "failed")
+            .set(BizDocFile::getRemark, "服务重启导致转换中断，请重新提交"));
+      }
+      log.info("AI5G 文档转换启动恢复完成，重置中断文档: {}, 保留MinerU异步任务: {}", interruptedCount, asyncCount);
     } catch (Exception e) {
       log.warn("AI5G 文档转换启动恢复失败", e);
     }

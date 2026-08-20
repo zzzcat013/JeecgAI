@@ -24,7 +24,10 @@
 - POST `/ai5g/doc/convert/{id}`
   - 说明：异步执行 AI 转 Markdown，更新 `processStatus`
   - CSV：直接转换为 Markdown 表格
-  - Office/PDF：Office 先通过 LibreOffice 预转 PDF，再优先走 MinerU 远程解析；远程失败后回退本地 MinerU；MinerU 输出目录按资源包模型上传 MinIO 并保留图片资源
+  - Office/PDF：Office 先通过 LibreOffice 预转 PDF，再优先走 MinerU 远程解析；远程失败后回退本地 MinerU
+  - MinerU API 模式：提交任务时写入 `convertStartedAt/mineruTaskId/mineruTaskStatus`，轮询时同步 `mineruQueuedAhead/mineruStartedAt/mineruCompletedAt/mineruError`
+  - 启动恢复：后端启动时会恢复 `processing` 且已有 `mineruTaskId` 的任务，拉取远程结果后继续保存
+  - 结果上传：只上传主 Markdown 和 Markdown 引用的图片；MinerU 生成的 `_origin.pdf`、`_layout.pdf`、`_middle.json`、`content_list*.json`、`model.json` 等中间文件不上传 MinIO
   - Pandoc/Tika：作为兜底，仅保证文本转换，不保证图片提取
 - GET `/ai5g/doc/preview/{id}`
   - 说明：返回文件预览；Office 在 MinIO 模式下会临时转 PDF 预览
@@ -49,6 +52,8 @@
 - 图片关系第一版保存在 `BizDocFile.assetRoot/assetManifest/sourcePackagePath`，未建图片子表；后续如需资源级权限、资源审计或单图管理，可迁移到子表。
 - AI 应用最终回答是否展示图片，需要应用 Prompt 要求模型保留命中片段中的 Markdown 图片链接；后端保证图片入库、检索内容携带链接、资源可访问。
 - MinerU 正常输出资源目录时可保留图片；Pandoc/Tika 兜底路径偏文本抽取，不承诺图片保留。
+- 大文档图片清单可能超过 `TEXT` 上限，`assetManifest` 使用 `LONGTEXT`；失败备注使用 `TEXT`，避免长异常信息导致状态无法更新。
+- 前端状态展示：`success` 显示为“转MD成功”，`failed` 显示为“转MD失败”，`processing` 显示排队/解析/耗时信息。
 
 ## 代码参考
 - 控制器：[Ai5gDocumentController.java](/Users/zhangxj/source/java/jeecgAI/JeecgAI/jeecg-boot/jeecg-module-biz/src/main/java/org/jeecg/modules/biz/ai5g/controller/Ai5gDocumentController.java)

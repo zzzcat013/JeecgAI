@@ -345,6 +345,8 @@ cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
 - 文档管理“预览”可在后端容器内直接转 PDF。
 - 文档管理“导入知识库”继续使用当前已生成的 Markdown。
 - AIRag 的文档解析继续由远程 MinerU API 处理，不受主业务容器是否安装 `magic-pdf` 影响。
+- AI5G 转换结果只上传主 Markdown 和 Markdown 引用的图片，MinerU 生成的 PDF/JSON 中间文件不上传 MinIO。
+- 当前环境 Flyway 为关闭状态，部署前需手工应用 `V20260820_1__ai5g_docfile_mineru_async.sql` 和 `V20260820_2__ai5g_docfile_manifest_remark.sql` 两个数据库变更；`asset_manifest` 使用 `LONGTEXT`，`remark` 使用 `TEXT`。
 
 ### 10.5 不建议的做法
 
