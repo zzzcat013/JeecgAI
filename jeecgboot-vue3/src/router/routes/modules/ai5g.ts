@@ -21,6 +21,24 @@ const ai5g: AppRouteModule = {
       },
     },
     {
+      path: 'document-overview',
+      name: 'Ai5gDocumentOverview',
+      component: () => import('/@/views/biz/ai5g/pages/DocumentOverview.vue'),
+      meta: {
+        title: '文档管理概览',
+        icon: 'ant-design:bar-chart-outlined',
+      },
+    },
+    {
+      path: 'doc-manage',
+      name: 'Ai5gDocumentManage',
+      component: () => import('/@/views/biz/ai5g/pages/DocumentManage.vue'),
+      meta: {
+        title: '文档管理',
+        icon: 'ant-design:folder-open-outlined',
+      },
+    },
+    {
       path: 'toc-private-network',
       name: 'TocPrivateNetworkQuery',
       component: () => import('/@/views/biz/ai5g/pages/TocPrivateNetworkQuery.vue'),

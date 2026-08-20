@@ -33,3 +33,35 @@ export function uploadDoc(file: File, params: UploadParams) {
 export function pageDoc(params: { pageNo?: number; pageSize?: number; typeCode1?: string; typeCode2?: string; typeCode3?: string; title?: string; fileYear?: number }) {
   return defHttp.get<any>({ url: '/ai5g/doc/page', params });
 }
+
+export interface DocOverview {
+  summary: {
+    total: number;
+    latest: number;
+    mdConverted: number;
+    processing: number;
+    success: number;
+    failed: number;
+    totalSize: number;
+  };
+  status: { statusCode: string; docCount: number }[];
+  fileTypes: {
+    fileType: string;
+    docCount: number;
+    latestCount: number;
+    mdCount: number;
+    totalSize: number;
+  }[];
+  categories: {
+    categoryPath: string;
+    docCount: number;
+    latestCount: number;
+    mdCount: number;
+    totalSize: number;
+    lastUploadTime?: string;
+  }[];
+}
+
+export function docOverview() {
+  return defHttp.get<DocOverview>({ url: '/ai5g/doc/overview' });
+}

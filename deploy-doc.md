@@ -346,7 +346,7 @@ cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
 - 文档管理“导入知识库”继续使用当前已生成的 Markdown。
 - AIRag 的文档解析继续由远程 MinerU API 处理，不受主业务容器是否安装 `magic-pdf` 影响。
 - AI5G 转换结果只上传主 Markdown 和 Markdown 引用的图片，MinerU 生成的 PDF/JSON 中间文件不上传 MinIO。
-- 当前环境 Flyway 为关闭状态，部署前需手工应用 `V20260820_1__ai5g_docfile_mineru_async.sql` 和 `V20260820_2__ai5g_docfile_manifest_remark.sql` 两个数据库变更；`asset_manifest` 使用 `LONGTEXT`，`remark` 使用 `TEXT`。
+- 当前环境 Flyway 为关闭状态，部署前需手工应用 `V20260820_1__ai5g_docfile_mineru_async.sql`、`V20260820_2__ai5g_docfile_manifest_remark.sql`、`V20260820_3__ai5g_doc_overview_menu.sql`、`V20260820_4__ai5g_docfile_fix_size.sql` 和 `V20260820_5__ai5g_docfile_tombstone.sql` 五个数据库变更；其中第三个变更用于新增“文档管理概览”菜单，第四个变更用于修复转换后被 Markdown 文本大小覆盖的源文件大小，第五个变更用于删除文档后的 MinIO 清理墓碑表。
 
 ### 10.5 不建议的做法
 

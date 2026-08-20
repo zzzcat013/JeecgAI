@@ -19,6 +19,9 @@
 - GET `/ai5g/doc/page`
   - 入参：`pageNo`、`pageSize`、`typeCode1/2/3?`、`title?`
   - 返回：分页 `BizDocFile`
+- GET `/ai5g/doc/overview`
+  - 说明：返回上传文档概览统计，供前端概览页直接渲染
+  - 返回：`summary`（总数/最新版本/处理中/成功/失败/可用MD/总大小）、`status`（状态数量）、`fileTypes`（扩展名数量）、`categories`（分类路径数量）
 - GET `/ai5g/doc/get/{id}`
   - 返回：单条 `BizDocFile`
 - POST `/ai5g/doc/convert/{id}`
@@ -40,6 +43,8 @@
   - 配置：读取 `knowledge-portal.base-url/token-url/api-key/username/timeout`
 - GET `/ai5g/doc/debug/knowledge-portal-token-curl`
   - 说明：匿名调试接口，只生成可执行 curl 命令，不发起请求；用于排查服务端网关路径、加密参数和网络连通性
+- DELETE `/ai5g/doc/remove/{id}`
+  - 说明：删除文档记录并写入 `biz_ai5g_docfile_tombstone`，同步清理 MinIO 源文件、Markdown 和资源包；清理失败保留标记，启动时自动重试
 
 ## 知识库图片 URL 归一化
 - 前端导入 AIRag 知识库时会读取 `/ai5g/doc/preview-md/{id}`，该接口返回的是预览友好的完整 URL。

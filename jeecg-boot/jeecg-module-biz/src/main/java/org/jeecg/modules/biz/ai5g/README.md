@@ -28,6 +28,9 @@
 8. 导入前会把 Markdown 中的图片地址统一规范为 `#{domainURL}/ai5g/doc/assets/{docId}/...`，避免重复拼接域名前缀。
 9. MinerU API 模式为异步转换，任务提交后写入 `convertStartedAt/mineruTaskId/mineruTaskStatus`，后台轮询并同步排队、开始、完成、错误状态。
 10. 后端启动时会恢复 `processing` 且已有 `mineruTaskId` 的转换任务；成功保存结果后清理历史失败备注。
+11. 文档管理概览页通过 `/ai5g/doc/overview` 聚合 `biz_ai5g_docfile`，统计状态、文件类型、分类路径、最新版本和 Markdown 可用数量；统计包含历史版本。
+12. `biz_ai5g_docfile.size` 始终表示原始上传文件大小；AI 转 MD 后不会用 Markdown 文本大小覆盖该字段。
+13. 删除文档时先删除数据库记录，再写入 `biz_ai5g_docfile_tombstone` 清理标记，并同步清理 MinIO 源文件、Markdown 和资源包；清理失败会保留 `pending/failed` 标记，后端启动时自动重试。
 
 ## 文档表
 
@@ -55,6 +58,14 @@
 - `mineru_error`：MinerU 任务错误信息
 - `mineru_started_at`：MinerU 任务开始时间
 - `mineru_completed_at`：MinerU 任务完成时间
+
+### `biz_ai5g_docfile_tombstone`
+文档删除清理标记表，用于避免“数据库记录已删除，MinIO 文件仍残留”：
+- `source_object`：原始上传文件对象
+- `md_object`：转换后的 Markdown 对象
+- `asset_root`：图片等资源包前缀
+- `source_package_object`：原始资源包对象
+- `status`：`pending/cleaned/failed`
 
 ## 文档存储规则
 - 源文件：`doc/files/yyyyMM/{fileName}`

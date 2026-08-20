@@ -73,6 +73,8 @@ public class Ai5gDocumentController {
   private org.jeecg.modules.biz.ai5g.service.IBizDocTypeService bizDocTypeService;
   @Autowired
   private org.springframework.core.env.Environment environment;
+  @Autowired
+  private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
   private static final Set<String> ALLOW_EXT = new HashSet<>(Arrays.asList("pdf","doc","docx","xlsx","xls","csv"));
   private static final Set<String> PACKAGE_ASSET_EXT = new HashSet<>(Arrays.asList("png","jpg","jpeg","gif","bmp","webp","svg"));
@@ -118,6 +120,7 @@ public class Ai5gDocumentController {
     } catch (Exception e) {
       log.warn("AI5G 启动恢复 MinerU 异步任务失败", e);
     }
+    retryPendingTombstones();
   }
 
   private void resumeMineruTask(BizDocFile doc) {
@@ -530,6 +533,37 @@ public class Ai5gDocumentController {
     if (fileYear != null) qw.eq("file_year", fileYear);
     qw.orderByDesc("upload_time");
     return Result.OK(bizDocFileService.page(page, qw));
+  }
+
+  @GetMapping("/overview")
+  public Result<?> overview() {
+    java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+
+    java.util.Map<String, Object> summary = new java.util.LinkedHashMap<>();
+    summary.put("total", countSql("SELECT COUNT(*) FROM biz_ai5g_docfile"));
+    summary.put("latest", countSql("SELECT COUNT(*) FROM biz_ai5g_docfile WHERE latest = 1"));
+    summary.put("mdConverted", countSql("SELECT COUNT(*) FROM biz_ai5g_docfile WHERE md_converted = 1"));
+    summary.put("processing", countSql("SELECT COUNT(*) FROM biz_ai5g_docfile WHERE process_status = 'processing'"));
+    summary.put("success", countSql("SELECT COUNT(*) FROM biz_ai5g_docfile WHERE process_status = 'success'"));
+    summary.put("failed", countSql("SELECT COUNT(*) FROM biz_ai5g_docfile WHERE process_status = 'failed'"));
+    summary.put("totalSize", jdbcTemplate.queryForObject("SELECT COALESCE(SUM(size), 0) FROM biz_ai5g_docfile", Long.class));
+    data.put("summary", summary);
+
+    data.put("status", jdbcTemplate.queryForList(
+        "SELECT COALESCE(NULLIF(process_status, ''), 'unset') AS statusCode, COUNT(*) AS docCount " +
+        "FROM biz_ai5g_docfile GROUP BY statusCode ORDER BY docCount DESC"));
+    data.put("fileTypes", jdbcTemplate.queryForList(
+        "SELECT COALESCE(NULLIF(file_type, ''), 'unknown') AS fileType, COUNT(*) AS docCount, " +
+        "SUM(CASE WHEN latest = 1 THEN 1 ELSE 0 END) AS latestCount, " +
+        "SUM(CASE WHEN md_converted = 1 THEN 1 ELSE 0 END) AS mdCount, COALESCE(SUM(size), 0) AS totalSize " +
+        "FROM biz_ai5g_docfile GROUP BY file_type ORDER BY docCount DESC, fileType ASC"));
+    data.put("categories", jdbcTemplate.queryForList(
+        "SELECT COALESCE(NULLIF(category_path, ''), 'unclassified') AS categoryPath, COUNT(*) AS docCount, " +
+        "SUM(CASE WHEN latest = 1 THEN 1 ELSE 0 END) AS latestCount, " +
+        "SUM(CASE WHEN md_converted = 1 THEN 1 ELSE 0 END) AS mdCount, COALESCE(SUM(size), 0) AS totalSize, " +
+        "MAX(upload_time) AS lastUploadTime " +
+        "FROM biz_ai5g_docfile GROUP BY category_path ORDER BY docCount DESC, categoryPath ASC"));
+    return Result.OK(data);
   }
 
   @GetMapping("/get/{id}")
@@ -1271,7 +1305,6 @@ public class Ai5gDocumentController {
       try (java.io.InputStream in = new java.io.ByteArrayInputStream(data)) {
           uploadMinioObject(in, data.length, "text/markdown;charset=UTF-8", objectName);
       }
-      doc.setSize((long) data.length);
       bizDocFileService.updateById(doc);
   }
 
@@ -1857,12 +1890,36 @@ public class Ai5gDocumentController {
     boolean ok = bizDocFileService.removeById(id);
     if (ok) {
       recomputeLatest(doc.getOriginalName(), doc.getCategoryPath());
-    }
-    if (ok && CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
+      String tombstoneId = null;
       try {
-        java.io.File src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
-        if (src.exists()) src.delete();
-      } catch (Exception ignore) {}
+        tombstoneId = insertDocTombstone(doc);
+      } catch (Exception e) {
+        log.warn("AI5G 删除后写入清理标记失败, docId={}", doc.getId(), e);
+      }
+      if (CommonConstant.UPLOAD_TYPE_MINIO.equals(uploadType)) {
+        try {
+          cleanupDocMinio(doc);
+          if (tombstoneId != null) {
+            markTombstoneStatus(tombstoneId, "cleaned", null);
+          }
+        } catch (Exception e) {
+          log.error("文档删除后清理MinIO失败, docId={}, tombstoneId={}", doc.getId(), tombstoneId, e);
+          if (tombstoneId != null) {
+            markTombstoneStatus(tombstoneId, "failed", truncateText(e.getMessage(), 1000));
+          }
+        }
+      } else {
+        if (CommonConstant.UPLOAD_TYPE_LOCAL.equals(uploadType)) {
+          try {
+            java.io.File src = new java.io.File(uploadpath + java.io.File.separator + doc.getStoragePath());
+            if (src.exists()) src.delete();
+          } catch (Exception ignore) {
+          }
+        }
+        if (tombstoneId != null) {
+          markTombstoneStatus(tombstoneId, "cleaned", null);
+        }
+      }
     }
     return ok ? Result.OK(true) : Result.error("删除失败");
   }
@@ -2054,6 +2111,105 @@ public class Ai5gDocumentController {
         // 清理临时文件
         if (tmpSrc.exists()) tmpSrc.delete();
         if (tmpOutDir.exists()) org.apache.commons.io.FileUtils.deleteDirectory(tmpOutDir);
+    }
+  }
+
+  private Long countSql(String sql) {
+    return jdbcTemplate.queryForObject(sql, Long.class);
+  }
+
+  private String insertDocTombstone(BizDocFile doc) {
+    String id = "ai5g-del-" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+    jdbcTemplate.update(
+        "INSERT INTO biz_ai5g_docfile_tombstone " +
+        "(id, doc_id, display_name, original_name, source_object, md_object, asset_root, source_package_object, status, create_time) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())",
+        id,
+        doc.getId(),
+        doc.getDisplayName(),
+        doc.getOriginalName(),
+        resolveMinioObjectName(doc),
+        getMinioObjectName(doc.getMdPath()),
+        normalizeObjectName(doc.getAssetRoot()),
+        getMinioObjectName(doc.getSourcePackagePath())
+    );
+    return id;
+  }
+
+  private void markTombstoneStatus(String id, String status, String error) {
+    jdbcTemplate.update(
+        "UPDATE biz_ai5g_docfile_tombstone SET status = ?, error_msg = ?, " +
+        "cleaned_at = IF(? = 'cleaned', NOW(), cleaned_at), update_time = NOW() WHERE id = ?",
+        status,
+        error,
+        status,
+        id
+    );
+  }
+
+  private void cleanupDocMinio(BizDocFile doc) throws Exception {
+    cleanupTombstoneObjects(
+        resolveMinioObjectName(doc),
+        getMinioObjectName(doc.getMdPath()),
+        normalizeObjectName(doc.getAssetRoot()),
+        getMinioObjectName(doc.getSourcePackagePath())
+    );
+  }
+
+  private void cleanupTombstoneObjects(String sourceObject, String mdObject, String assetRoot, String sourcePackageObject) throws Exception {
+    io.minio.MinioClient client = buildMinioClient();
+    removeMinioObjectQuietly(client, sourceObject);
+    removeMinioObjectQuietly(client, mdObject);
+    removeMinioObjectQuietly(client, sourcePackageObject);
+    if (oConvertUtils.isNotEmpty(assetRoot)) {
+      removeMinioPrefixQuietly(client, assetRoot);
+    }
+  }
+
+  private void removeMinioObjectQuietly(io.minio.MinioClient client, String objectName) throws Exception {
+    if (oConvertUtils.isEmpty(objectName)) {
+      return;
+    }
+    try {
+      client.statObject(io.minio.StatObjectArgs.builder().bucket(minioBucketName).object(objectName).build());
+    } catch (Exception e) {
+      return;
+    }
+    client.removeObject(io.minio.RemoveObjectArgs.builder().bucket(minioBucketName).object(objectName).build());
+  }
+
+  private void removeMinioPrefixQuietly(io.minio.MinioClient client, String prefix) throws Exception {
+    for (io.minio.Result<io.minio.messages.Item> item : client.listObjects(io.minio.ListObjectsArgs.builder()
+        .bucket(minioBucketName)
+        .prefix(prefix)
+        .recursive(true)
+        .build())) {
+      client.removeObject(io.minio.RemoveObjectArgs.builder().bucket(minioBucketName).object(item.get().objectName()).build());
+    }
+  }
+
+  private void retryPendingTombstones() {
+    try {
+      java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
+          "SELECT id, source_object, md_object, asset_root, source_package_object " +
+          "FROM biz_ai5g_docfile_tombstone WHERE status IN ('pending', 'failed') LIMIT 100");
+      for (java.util.Map<String, Object> row : rows) {
+        String id = row.get("id") == null ? null : row.get("id").toString();
+        try {
+          cleanupTombstoneObjects(
+              row.get("source_object") == null ? null : row.get("source_object").toString(),
+              row.get("md_object") == null ? null : row.get("md_object").toString(),
+              row.get("asset_root") == null ? null : row.get("asset_root").toString(),
+              row.get("source_package_object") == null ? null : row.get("source_package_object").toString()
+          );
+          markTombstoneStatus(id, "cleaned", null);
+        } catch (Exception e) {
+          log.warn("AI5G 删除清理重试失败, tombstoneId={}", id, e);
+          markTombstoneStatus(id, "failed", truncateText(e.getMessage(), 1000));
+        }
+      }
+    } catch (Exception e) {
+      log.warn("AI5G 删除清理重试查询失败", e);
     }
   }
 

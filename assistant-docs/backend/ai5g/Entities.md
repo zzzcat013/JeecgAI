@@ -4,7 +4,7 @@
 - 关键字段：`actualFileName`、`originalName`、`displayName`、`version`、`uploadTime`、`fileType`
 - 类别与目录：`categoryPath`（含子目录结构），`fileYear`、`remark`
 - 版本与状态：`latest`、`processStatus`
-- 存储：`storagePath`、`storageFilename`、`contentType`、`size`
+- 存储：`storagePath`、`storageFilename`、`contentType`、`size`（始终为原始上传文件大小，转 MD 后不覆盖为 Markdown 文本大小）
 - Markdown：`mdConverted`、`mdPath`
 - MinerU 异步：`convertStartedAt`、`mineruTaskId`、`mineruTaskStatus`、`mineruQueuedAhead`、`mineruError`、`mineruStartedAt`、`mineruCompletedAt`
 - zip 资源包：`assetRoot`、`assetManifest`、`sourcePackagePath`
@@ -13,6 +13,10 @@
   - `sourcePackagePath`：原始 zip 包或原始上传文件在 MinIO 上的访问路径
 - `remark` 使用 `TEXT`，用于保存较长失败提示；转换成功时会清理系统生成的失败备注
 - 审计：`createBy/createTime/updateBy/updateTime`
+
+## BizDocFileTombstone（表：biz_ai5g_docfile_tombstone）
+- 删除文档时写入，记录待清理的 MinIO 源文件、Markdown、资源包前缀和原始资源包对象。
+- `status`：`pending/cleaned/failed`；清理失败后保留记录，后端启动时自动重试。
 
 ## 资源包关系模型
 - 主 Markdown 与图片不建子表，关系由 `assetRoot + assetManifest + Markdown 图片链接` 三者共同表达。
