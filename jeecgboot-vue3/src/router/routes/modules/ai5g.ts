@@ -5,13 +5,23 @@ const ai5g: AppRouteModule = {
   path: '/ai5g',
   name: 'Ai5g',
   component: LAYOUT,
-  redirect: '/ai5g/document-viewer',
+  redirect: '/ai5g/home',
   meta: {
     orderNo: 11,
     icon: 'ion:document-text-outline',
     title: 'AI5G文档',
   },
   children: [
+    {
+      path: 'home',
+      name: 'Ai5gHome',
+      component: () => import('/@/views/biz/ai5g/pages/Ai5gHome.vue'),
+      meta: {
+        title: 'AI5G首页',
+        icon: 'ant-design:home-outlined',
+        hidden: true,
+      },
+    },
     {
       path: 'document-viewer',
       name: 'Ai5gDocumentViewer',
