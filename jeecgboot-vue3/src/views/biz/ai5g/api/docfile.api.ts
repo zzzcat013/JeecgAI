@@ -12,7 +12,7 @@ export interface UploadParams {
 
 export function uploadDoc(file: File, params: UploadParams) {
   return defHttp.uploadFile(
-    { url: '/ai5g/doc/upload', params: {} },
+    { url: '/ai5g/doc/upload', params: {}, timeout: 10 * 60 * 1000 },
     {
       file,
       name: 'file',
