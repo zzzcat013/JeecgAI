@@ -1,6 +1,7 @@
 package org.jeecg.modules.biz.ai5g.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.PreDestroy;
 import io.minio.ListObjectsArgs;
 import io.minio.MinioClient;
 import org.jeecg.modules.biz.ai5g.util.KnowledgePortalTokenUtil;
@@ -30,6 +31,9 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @RestController
@@ -72,6 +76,14 @@ public class Ai5gDocumentController {
   private static final long MINIO_PART_SIZE = 10L * 1024 * 1024;
   private static final java.util.regex.Pattern MD_IMAGE_PATTERN = java.util.regex.Pattern.compile("!\\[(.*?)]\\((.*?)\\)");
   private static final String DOMAIN_URL_PLACEHOLDER = "#{domainURL}";
+
+  private final Set<String> convertingDocIds = ConcurrentHashMap.newKeySet();
+  private final ExecutorService mdConvertExecutor = Executors.newFixedThreadPool(2);
+
+  @PreDestroy
+  public void shutdownMdConvertExecutor() {
+    mdConvertExecutor.shutdownNow();
+  }
 
   @GetMapping("/debug/knowledge-portal-token")
   @IgnoreAuth
@@ -348,14 +360,20 @@ public class Ai5gDocumentController {
       return Result.error("当前上传模式暂不支持后台Markdown转换: " + uploadType);
     }
     
-    // 异步执行转换任务
-    new Thread(() -> {
+    if ("processing".equals(doc.getProcessStatus())) {
+      return Result.error("当前文档正在转换中，请勿重复提交");
+    }
+    if (!convertingDocIds.add(id)) {
+      return Result.error("该文档已有转换任务，请稍后查看结果");
+    }
+
+    doc.setProcessStatus("processing");
+    bizDocFileService.updateById(doc);
+
+    try {
+      mdConvertExecutor.submit(() -> {
         java.io.File workDir = null;
         try {
-            // 更新状态为处理中
-            doc.setProcessStatus("processing");
-            bizDocFileService.updateById(doc);
-            
             String ft = doc.getFileType() == null ? "" : doc.getFileType().toLowerCase();
             
             workDir = java.nio.file.Files.createTempDirectory("ai5g-doc-convert-").toFile();
@@ -585,8 +603,16 @@ public class Ai5gDocumentController {
                     log.warn("清理转换临时目录失败: {}", workDir.getAbsolutePath(), e);
                 }
             }
+            convertingDocIds.remove(id);
         }
-    }).start();
+      });
+    } catch (Exception e) {
+      convertingDocIds.remove(id);
+      doc.setProcessStatus("failed");
+      doc.setRemark("转换任务提交失败: " + e.getMessage());
+      bizDocFileService.updateById(doc);
+      return Result.error("转换任务提交失败: " + e.getMessage());
+    }
 
     return Result.OK("转换任务已提交，请稍候查看结果");
   }

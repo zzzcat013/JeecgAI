@@ -29,7 +29,7 @@
             <a-dropdown>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="md-convert" @click="toMd(record)">AI转MD</a-menu-item>
+                  <a-menu-item key="md-convert" :disabled="record.processStatus === 'processing' || convertingIds[record.id]" @click="toMd(record)">AI转MD</a-menu-item>
                   <a-menu-item v-if="record.mdConverted" key="md-result" @click="openMdPreview(record)">MD结果</a-menu-item>
                   <a-menu-item key="import-kb" @click="openImportToKb(record)">导入知识库</a-menu-item>
                   <a-menu-item key="delete">
@@ -169,6 +169,7 @@ import BizLocalImportModal from '../components/BizLocalImportModal.vue';
 const typeSel = ref<{ l1?: string; l2?: string; l3?: string }>({});
 const q = ref<{ title?: string; fileYear?: string }>({ title: '', fileYear: '' });
 const rows = ref<any[]>([]);
+const convertingIds = ref<Record<string, boolean>>({});
 
 const cols = [
   { title: '名称', dataIndex: 'displayName', key: 'displayName' },
@@ -385,10 +386,11 @@ async function del(rec: any) {
 }
 
 async function toMd(rec: any) {
-  if (rec.processStatus === 'processing') {
+  if (rec.processStatus === 'processing' || convertingIds.value[rec.id]) {
     message.warning('当前文档正在处理中，请稍后查看结果');
     return;
   }
+  convertingIds.value[rec.id] = true;
   try {
     message.loading({ content: '正在提交AI转MD任务...', key: 'md' });
     const r = await defHttp.post({ url: `/ai5g/doc/convert/${rec.id}` }, { isTransformResponse: false });
@@ -402,6 +404,8 @@ async function toMd(rec: any) {
     }
   } catch (e: any) {
     message.error({ content: e?.message || '请求失败', key: 'md' });
+  } finally {
+    delete convertingIds.value[rec.id];
   }
 }
 
