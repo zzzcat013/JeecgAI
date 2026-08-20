@@ -32,7 +32,7 @@
 			#{runningCount},
 			#{sucCount},
 			#{failCount}
-		);
+		)
 		&lt;!&ndash;<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">
 			SELECT LAST_INSERT_ID() 
 		</selectKey>&ndash;&gt;
