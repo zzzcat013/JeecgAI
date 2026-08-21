@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @Description: 省市区
@@ -20,12 +21,15 @@ import java.util.List;
  */
 @Component("pca")
 public class ProvinceCityArea {
-    List<Area> areaList;
+    // 使用 CopyOnWriteArrayList + volatile 解决懒加载场景下并发 add / 遍历导致的 ConcurrentModificationException
+    // 列表在 initAreaList 完成后即不再修改,迭代器为快照式,读路径无锁
+    private volatile List<Area> areaList;
 
     public String getText(String code){
         if(StringUtils.isNotBlank(code)){
             this.initAreaList();
-            if(this.areaList!=null || this.areaList.size()>0){
+            // 修复逻辑 bug:原 || 写错,areaList==null 时会先 false 再走 size() 抛 NPE,改为 &&
+            if(this.areaList!=null && this.areaList.size()>0){
                 List<String> ls = new ArrayList<String>();
                 getAreaByCode(code,ls);
                 return String.join("/",ls);
@@ -127,39 +131,44 @@ public class ProvinceCityArea {
     }
 
     private void initAreaList(){
-        //System.out.println("=====================");
-        if(this.areaList==null || this.areaList.size()==0){
-            this.areaList = new ArrayList<Area>();
-            try {
-                String jsonData = oConvertUtils.readStatic("classpath:static/pca.json");
-                JSONObject baseJson = JSONObject.parseObject(jsonData);
-                //第一层 省
-                JSONObject provinceJson = baseJson.getJSONObject("86");
-                for(String provinceKey: provinceJson.keySet()){
-                    //System.out.println("===="+provinceKey);
-                    Area province = new Area(provinceKey,provinceJson.getString(provinceKey),"86");
-                    this.areaList.add(province);
-                    //第二层 市
-                    JSONObject cityJson = baseJson.getJSONObject(provinceKey);
-                    for(String cityKey:cityJson.keySet()){
-                        //System.out.println("-----"+cityKey);
-                        Area city = new Area(cityKey,cityJson.getString(cityKey),provinceKey);
-                        this.areaList.add(city);
-                        //第三层 区
-                        JSONObject areaJson =  baseJson.getJSONObject(cityKey);
-                        if(areaJson!=null){
-                            for(String areaKey:areaJson.keySet()){
-                                //System.out.println("········"+areaKey);
-                                Area area = new Area(areaKey,areaJson.getString(areaKey),cityKey);
-                                // 代码逻辑说明: VUEN-1088 online 导入 省市区导入后 导入数据错乱 北京市/市辖区/西城区-->山西省/晋城市/城区
-                                area.setAheadText(cityJson.getString(cityKey));
-                                this.areaList.add(area);
+        // 双重检查 + volatile:保证列表仅被一个线程初始化,避免懒加载场景下并发 add / 遍历导致的 ConcurrentModificationException
+        if(this.areaList==null || this.areaList.isEmpty()){
+            synchronized (this) {
+                if(this.areaList==null || this.areaList.isEmpty()){
+                    // CopyOnWriteArrayList 的迭代器为快照式,即使与其他读线程并发也不会抛 CME
+                    this.areaList = new CopyOnWriteArrayList<Area>();
+                    try {
+                        String jsonData = oConvertUtils.readStatic("classpath:static/pca.json");
+                        JSONObject baseJson = JSONObject.parseObject(jsonData);
+                        //第一层 省
+                        JSONObject provinceJson = baseJson.getJSONObject("86");
+                        for(String provinceKey: provinceJson.keySet()){
+                            //System.out.println("===="+provinceKey);
+                            Area province = new Area(provinceKey,provinceJson.getString(provinceKey),"86");
+                            this.areaList.add(province);
+                            //第二层 市
+                            JSONObject cityJson = baseJson.getJSONObject(provinceKey);
+                            for(String cityKey:cityJson.keySet()){
+                                //System.out.println("-----"+cityKey);
+                                Area city = new Area(cityKey,cityJson.getString(cityKey),provinceKey);
+                                this.areaList.add(city);
+                                //第三层 区
+                                JSONObject areaJson =  baseJson.getJSONObject(cityKey);
+                                if(areaJson!=null){
+                                    for(String areaKey:areaJson.keySet()){
+                                        //System.out.println("········"+areaKey);
+                                        Area area = new Area(areaKey,areaJson.getString(areaKey),cityKey);
+                                        // 代码逻辑说明: VUEN-1088 online 导入 省市区导入后 导入数据错乱 北京市/市辖区/西城区-->山西省/晋城市/城区
+                                        area.setAheadText(cityJson.getString(cityKey));
+                                        this.areaList.add(area);
+                                    }
+                                }
                             }
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
         }
 

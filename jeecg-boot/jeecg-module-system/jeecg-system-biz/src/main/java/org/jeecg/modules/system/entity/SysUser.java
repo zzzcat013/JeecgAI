@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jeecg.common.aspect.annotation.Dict;
+import org.jeecg.common.system.query.QueryConditionIgnore;
 import org.jeecgframework.poi.excel.annotation.Excel;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -56,12 +57,14 @@ public class SysUser implements Serializable {
      * 密码
      */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @QueryConditionIgnore
     private String password;
 
     /**
      * md5密码盐
      */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @QueryConditionIgnore
     private String salt;
 
     /**

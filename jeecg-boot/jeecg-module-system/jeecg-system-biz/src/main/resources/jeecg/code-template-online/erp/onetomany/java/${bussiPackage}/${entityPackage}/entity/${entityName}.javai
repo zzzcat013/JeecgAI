@@ -49,6 +49,14 @@ public class ${entityName} implements Serializable {
         <#assign list_field_dictCode=', dictTable = "${po.dictTable}", dicText = "${po.dictText?split(",")[2]}", dicCode = "${po.dictText?split(",")[0]}"'>
     <#elseif po.classType=='link_table'>
         <#assign list_field_dictCode=', dictTable = "${po.dictTable}", dicCode = "${po.dictField}", dicText = "${po.dictText?split(",")[0]}"'>
+    <#elseif po.classType=='popup_dict'>
+        <#if po.dictTable?default("")?trim?length gt 1>
+            <#assign list_field_dictCode=', dictTable = "${po.dictTable}", dicText = "${po.dictText}", dicCode = "${po.dictField}"'>
+        </#if>
+    <#elseif po.classType=='popup'>
+        <#if po.dictTable?default("")?trim?length gt 1>
+            <#assign list_field_dictCode=', dictTable = "${po.dictTable}", dicText = "${po.dictText}", dicCode = "${po.dictField}"'>
+        </#if>
     </#if>
 	/**${po.filedComment}*/
 	<#if po.fieldName == primaryKeyField>

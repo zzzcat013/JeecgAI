@@ -22,6 +22,7 @@ import org.jeecg.modules.airag.common.handler.AIChatParams;
 import org.jeecg.modules.airag.llm.consts.LLMConsts;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
 import org.jeecg.modules.airag.llm.handler.AIChatHandler;
+import org.jeecg.modules.airag.llm.handler.AiragModelTestParamsResolver;
 import org.jeecg.modules.airag.llm.handler.EmbeddingHandler;
 import org.jeecg.modules.airag.llm.service.IAiragModelService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,10 +63,16 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
      * @return
      */
     @GetMapping(value = "/list")
+    @RequiresPermissions("airag:model:list")
     public Result<IPage<AiragModel>> queryPageList(AiragModel airagModel, @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo, @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize, HttpServletRequest req) {
         QueryWrapper<AiragModel> queryWrapper = QueryGenerator.initQueryWrapper(airagModel, req.getParameterMap());
         Page<AiragModel> page = new Page<AiragModel>(pageNo, pageSize);
         IPage<AiragModel> pageList = airagModelService.page(page, queryWrapper);
+        //update-begin---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——列表场景禁止回传 credential，避免有 airag:model:list 的角色一次性拖走所有模型的密钥。编辑场景密钥仍由 /queryById 单条返回-----------
+        if (pageList != null && pageList.getRecords() != null) {
+            pageList.getRecords().forEach(m -> m.setCredential(null));
+        }
+        //update-end---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——列表场景禁止回传 credential，避免有 airag:model:list 的角色一次性拖走所有模型的密钥。编辑场景密钥仍由 /queryById 单条返回-----------
         return Result.OK(pageList);
     }
 
@@ -89,6 +96,21 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
         airagModelService.save(airagModel);
         return Result.OK("添加成功！");
     }
+
+	/**
+	 * 复制AI模型配置
+	 *
+	 * @param id 原模型ID
+	 * @return 复制结果
+	 * @author scott
+	 * @since 2026-08-06 LHZP-1552 AI模型配置增加复制功能
+	 */
+	@PostMapping(value = "/copy/{id}")
+	@RequiresPermissions("airag:model:add")
+	public Result<String> copy(@PathVariable("id") String id) {
+		airagModelService.copyModel(id);
+		return Result.OK("复制成功！");
+	}
 
     /**
      * 编辑
@@ -134,6 +156,7 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
      * @return
      */
     @GetMapping(value = "/queryById")
+    @RequiresPermissions("airag:model:queryById")
     public Result<AiragModel> queryById(@RequestParam(name = "id", required = true) String id) {
         AiragModel airagModel = airagModelService.getById(id);
         if (airagModel == null) {
@@ -142,6 +165,24 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
         return Result.OK(airagModel);
     }
 
+    //update-begin---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——新增无权限的简化单条接口，返回模型基础信息但脱敏 credential，避免泄露 API Key-----------
+    /**
+     * 通过id查询（简化版，无需权限），返回模型基础信息但脱敏 credential
+     *
+     * @param id
+     * @return
+     */
+    @GetMapping(value = "/detail")
+    public Result<AiragModel> queryByIdSimple(@RequestParam(name = "id", required = true) String id) {
+        AiragModel airagModel = airagModelService.getById(id);
+        if (airagModel == null) {
+            return Result.error("未找到对应数据");
+        }
+        airagModel.setCredential(null);
+        return Result.OK(airagModel);
+    }
+    //update-end---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——新增无权限的简化单条接口，返回模型基础信息但脱敏 credential，避免泄露 API Key-----------
+
     /**
      * 导出excel
      *
@@ -149,6 +190,7 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
      * @param airagModel
      */
     @RequestMapping(value = "/exportXls")
+    @RequiresPermissions("airag:model:exportXls")
     public ModelAndView exportXls(HttpServletRequest request, AiragModel airagModel) {
         return super.exportXls(request, airagModel, AiragModel.class, "AiRag模型配置");
     }
@@ -161,11 +203,13 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
      * @return
      */
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
+    @RequiresPermissions("airag:model:importExcel")
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response) {
         return super.importExcel(request, response, AiragModel.class);
     }
 
     @PostMapping(value = "/test")
+    @RequiresPermissions("airag:model:test")
     public Result<?> test(@RequestBody AiragModel airagModel) {
         // 验证 模型名称/模型类型/基础模型
         AssertUtils.assertNotEmpty("模型名称不能为空", airagModel.getName());
@@ -183,6 +227,9 @@ public class AiragModelController extends JeecgController<AiragModel, IAiragMode
             //update-begin---author:wangshuai---date:2026-01-07---for:【QQYUN-12145】【AI】AI 绘画创作---=
             }else if(LLMConsts.MODEL_TYPE_IMAGE.equals(airagModel.getModelType())){
                 AIChatParams aiChatParams = new AIChatParams();
+				//update-begin---author:scott ---date:20260810  for：图片模型测试连接使用快速参数-----------
+				AiragModelTestParamsResolver.applyImageTestParams(aiChatParams, airagModel.getProvider(), airagModel.getModelName());
+				//update-end---author:scott ---date:20260810  for：图片模型测试连接使用快速参数-----------
                 //update-begin---author:wangshuai---date:2026-03-02---for:兼容图生图模型测试---
                 String modelName = airagModel.getModelName();
                 if(ImageEditEnum.isImageEditModel(modelName)){

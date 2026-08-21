@@ -7,14 +7,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.aspect.annotation.AutoLog;
 import org.jeecg.common.system.base.controller.JeecgController;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.modules.system.entity.SysCheckRule;
 import org.jeecg.modules.system.service.ISysCheckRuleService;
+import org.jeecgframework.poi.excel.entity.ImportParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.servlet.ModelAndView;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +26,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * @Description: 编码校验规则
@@ -98,8 +103,11 @@ public class SysCheckRuleController extends JeecgController<SysCheckRule, ISysCh
      */
     @AutoLog(value = "编码校验规则-添加")
     @Operation(summary = "编码校验规则-添加")
+    @RequiresPermissions("system:checkRule:add")
     @PostMapping(value = "/add")
     public Result add(@RequestBody SysCheckRule sysCheckRule) {
+        sysCheckRule.setCreateBy(null);
+        sysCheckRule.setCreateTime(null);
         sysCheckRuleService.save(sysCheckRule);
         return Result.ok("添加成功！");
     }
@@ -112,6 +120,7 @@ public class SysCheckRuleController extends JeecgController<SysCheckRule, ISysCh
      */
     @AutoLog(value = "编码校验规则-编辑")
     @Operation(summary = "编码校验规则-编辑")
+    @RequiresPermissions("system:checkRule:edit")
     @RequestMapping(value = "/edit", method = {RequestMethod.PUT,RequestMethod.POST})
     public Result edit(@RequestBody SysCheckRule sysCheckRule) {
         sysCheckRuleService.updateById(sysCheckRule);
@@ -126,6 +135,7 @@ public class SysCheckRuleController extends JeecgController<SysCheckRule, ISysCh
      */
     @AutoLog(value = "编码校验规则-通过id删除")
     @Operation(summary = "编码校验规则-通过id删除")
+    @RequiresPermissions("system:checkRule:delete")
     @DeleteMapping(value = "/delete")
     public Result delete(@RequestParam(name = "id", required = true) String id) {
         sysCheckRuleService.removeById(id);
@@ -140,6 +150,7 @@ public class SysCheckRuleController extends JeecgController<SysCheckRule, ISysCh
      */
     @AutoLog(value = "编码校验规则-批量删除")
     @Operation(summary = "编码校验规则-批量删除")
+    @RequiresPermissions("system:checkRule:deleteBatch")
     @DeleteMapping(value = "/deleteBatch")
     public Result deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
         this.sysCheckRuleService.removeByIds(Arrays.asList(ids.split(",")));
@@ -180,7 +191,21 @@ public class SysCheckRuleController extends JeecgController<SysCheckRule, ISysCh
      */
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result importExcel(HttpServletRequest request, HttpServletResponse response) {
-        return super.importExcel(request, response, SysCheckRule.class);
+        MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
+        Map<String, MultipartFile> fileMap = multipartRequest.getFileMap();
+        for (Map.Entry<String, MultipartFile> entry : fileMap.entrySet()) {
+            ImportParams params = new ImportParams();
+            params.setTitleRows(2);
+            params.setHeadRows(1);
+            params.setNeedSave(true);
+            try {
+                return sysCheckRuleService.importExcel(entry.getValue(), params);
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+                return Result.error("文件导入失败：" + e.getMessage());
+            }
+        }
+        return Result.error("文件导入失败：未找到上传文件");
     }
 
 }

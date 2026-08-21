@@ -31,10 +31,9 @@
     </repositories>
 
     <properties>
-        <kotlin.version>2.2.0</kotlin.version>
-        <liteflow.version>2.15.0</liteflow.version>
         <apache-tika.version>3.3.1</apache-tika.version>
         <langchain4j-community-bom.version>1.17.2-beta27</langchain4j-community-bom.version>
+        <liteflow.version>2.15.0</liteflow.version>
     </properties>
 
     <dependencyManagement>
@@ -72,27 +71,11 @@
             <artifactId>jeecg-system-cloud-api</artifactId>
         </dependency>-->
 
-        <!-- aiflow依赖 -->
         <dependency>
             <groupId>org.jeecgframework.boot3</groupId>
             <artifactId>jeecg-aiflow-boot4</artifactId>
-            <version>3.9.2</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>commons-io</groupId>
-                    <artifactId>commons-io</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-beanutils</groupId>
-                    <artifactId>commons-beanutils</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.yomahub</groupId>
-                    <artifactId>liteflow-script-python</artifactId>
-                </exclusion>
-            </exclusions>
+            <version>3.9.5</version>
         </dependency>
-
         <!-- begin 注意：这几个依赖体积较大，每个约50MB。若发布时需要使用，请将 <scope>provided</scope> 删除 -->
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
@@ -106,46 +89,8 @@
             <version>${liteflow.version}</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>com.yomahub</groupId>
-            <artifactId>liteflow-script-groovy</artifactId>
-            <version>${liteflow.version}</version>
-            <scope>runtime</scope>
-        </dependency>
         <!-- end 注意：这几个依赖体积较大，每个约50MB。若发布时需要使用，请将 <scope>provided</scope> 删除 -->
 
-        <!-- aiflow 脚本依赖 -->
-        <dependency>
-            <groupId>com.yomahub</groupId>
-            <artifactId>liteflow-script-python</artifactId>
-            <version>${liteflow.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.yomahub</groupId>
-            <artifactId>liteflow-script-kotlin</artifactId>
-            <version>${liteflow.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.jetbrains.kotlin</groupId>
-                    <artifactId>kotlin-scripting-jsr223</artifactId>
-                </exclusion>
-            </exclusions>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.yomahub</groupId>
-            <artifactId>liteflow-script-aviator</artifactId>
-            <version>${liteflow.version}</version>
-            <scope>runtime</scope>
-            <exclusions>
-                <exclusion>
-                    <artifactId>aviator</artifactId>
-                    <groupId>com.googlecode.aviator</groupId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <!-- aiflow 脚本依赖 -->
 
         <!-- langChain4j model support -->
         <dependency>
@@ -262,13 +207,6 @@
         <dependency>
             <groupId>com.deepoove</groupId>
             <artifactId>poi-tl</artifactId>
-            <version>1.12.2</version>
-            <exclusions>
-                <exclusion>
-                    <artifactId>poi-ooxml</artifactId>
-                    <groupId>org.apache.poi</groupId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <!-- jsoup HTML parser library @ https://jsoup.org/ -->
         <dependency>

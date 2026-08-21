@@ -31,6 +31,7 @@ import org.jeecg.modules.system.service.ISysAnnouncementSendService;
 import org.jeecg.modules.system.service.ISysAnnouncementService;
 import org.jeecg.modules.system.service.impl.SysBaseApiImpl;
 import org.jeecg.modules.system.service.impl.ThirdAppDingtalkServiceImpl;
+import org.jeecg.modules.system.service.impl.ThirdAppFeishuServiceImpl;
 import org.jeecg.modules.system.service.impl.ThirdAppWechatEnterpriseServiceImpl;
 import org.jeecg.modules.system.util.XssUtils;
 import org.jeecgframework.poi.excel.ExcelImportUtil;
@@ -82,6 +83,8 @@ public class SysAnnouncementController {
     ThirdAppWechatEnterpriseServiceImpl wechatEnterpriseService;
 	@Autowired
     ThirdAppDingtalkServiceImpl dingtalkService;
+	@Autowired
+	ThirdAppFeishuServiceImpl feishuService;
 	@Autowired
 	private SysBaseApiImpl sysBaseApi;
 	@Autowired
@@ -143,6 +146,14 @@ public class SysAnnouncementController {
 	public Result<SysAnnouncement> add(@RequestBody SysAnnouncement sysAnnouncement) {
 		Result<SysAnnouncement> result = new Result<SysAnnouncement>();
 		try {
+			// 代码逻辑说明: priority 枚举白名单，防止存入非法 payload 到 sys_announcement.priority 触发存储型 XSS
+			String pri = sysAnnouncement.getPriority();
+			if (pri != null && !pri.isEmpty()
+					&& !CommonConstant.PRIORITY_H.equals(pri)
+					&& !CommonConstant.PRIORITY_M.equals(pri)
+					&& !CommonConstant.PRIORITY_L.equals(pri)) {
+				return result.error500("priority 参数非法，仅允许 H/M/L");
+			}
 			// 代码逻辑说明: 标题处理xss攻击的问题
 			String title = XssUtils.scriptXss(sysAnnouncement.getTitile());
 			sysAnnouncement.setTitile(title);
@@ -181,6 +192,14 @@ public class SysAnnouncementController {
 			if(sysAnnouncementEntity==null) {
 				result.error500("未找到对应实体");
 			}else {
+				// 代码逻辑说明: priority 枚举白名单，防止存入非法 payload 到 sys_announcement.priority 触发存储型 XSS
+				String pri = sysAnnouncement.getPriority();
+				if (pri != null && !pri.isEmpty()
+						&& !CommonConstant.PRIORITY_H.equals(pri)
+						&& !CommonConstant.PRIORITY_M.equals(pri)
+						&& !CommonConstant.PRIORITY_L.equals(pri)) {
+					return result.error500("priority 参数非法，仅允许 H/M/L");
+				}
 				// 代码逻辑说明: 标题处理xss攻击的问题
 				String title = XssUtils.scriptXss(sysAnnouncement.getTitile());
 				sysAnnouncement.setTitile(title);
@@ -354,6 +373,7 @@ public class SysAnnouncementController {
 					// 同步企业微信、钉钉的消息通知
 					Response<String> dtResponse = dingtalkService.sendActionCardMessage(sysAnnouncement, null, true);
 					wechatEnterpriseService.sendTextCardMessage(sysAnnouncement, null,true);
+					feishuService.sendAnnouncementMessage(sysAnnouncement, null, true);
 
 					if (dtResponse != null && dtResponse.isSuccess()) {
 						String taskId = dtResponse.getResult();

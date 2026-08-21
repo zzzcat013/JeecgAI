@@ -99,7 +99,7 @@ public class SysRoleController {
 	 */
 	@RequiresPermissions("system:role:list")
 	@RequestMapping(value = "/list", method = RequestMethod.GET)
-	public Result<IPage<SysRole>> queryPageList(SysRole role,
+	public Result<IPage<SysRole>> list(SysRole role,
 									  @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
 									  @RequestParam(name="pageSize", defaultValue="10") Integer pageSize,
 									  @RequestParam(name="isMultiTranslate", required = false) Boolean isMultiTranslate,
@@ -162,6 +162,7 @@ public class SysRoleController {
 				role.setRoleCode(RandomUtil.randomString(10));
 			}
 			role.setCreateTime(new Date());
+			role.setUpdateTime(new Date());
 			sysRoleService.save(role);
 			result.success("添加成功！");
 		} catch (Exception e) {

@@ -29,7 +29,7 @@ public interface SysUserDepartMapper extends BaseMapper<SysUserDepart>{
 	 * @param realname
 	 * @return
 	 */
-	List<SysUser> queryDepartUserList(@Param("orgCode") String orgCode, @Param("realname") String realname);
+	List<SysUser> queryDepartUserList(@Param("orgCode") String orgCode, @Param("realname") String realname, @Param("status") Integer status);
 
 	/**
 	 * 根据部门查询部门用户

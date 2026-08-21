@@ -192,6 +192,9 @@
             <#assign orgField=po.dictField?default("")>
         </#if>
         <#assign extAttrs="code: '${po.dictTable?default('')}', orgFields: '${orgField}', destFields: '${po.fieldName}', popupMulti: false,">
+    <#elseif po.classType=='popup_dict'>
+    <#-- popup字典 -->
+        <#assign extAttrs="code: '${po.dictTable?default('')}', orgFields: '${po.dictField?default('')}', destFields: '${po.dictText?default('')}', popupMulti: ${po.extendParams.popupMulti?c},">
     </#if>
 
     <#return "${po.fieldName}: {title: '${po.filedComment}',order: ${order},${baseAttrs}${extAttrs}${picker}}" >

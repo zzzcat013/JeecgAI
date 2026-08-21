@@ -10,6 +10,7 @@ import org.jeecg.modules.system.entity.SysUser;
 import org.jeecg.modules.system.model.SysUserSysDepPostModel;
 import org.jeecg.modules.system.vo.SysDepartExportVo;
 import org.jeecg.modules.system.vo.SysDepartPositionVo;
+import org.jeecg.modules.system.vo.SysUserDepartIdVo;
 import org.jeecg.modules.system.vo.SysUserDepVo;
 import org.jeecg.modules.system.vo.lowapp.ExportDepartVo;
 import org.apache.ibatis.annotations.Param;
@@ -58,6 +59,15 @@ public interface SysDepartMapper extends BaseMapper<SysDepart> {
      * @return
      */
     List<Map<String, String>> queryDepartIdsByUserIds(@Param("userIds") Collection<String> userIds);
+
+    /**
+     * 批量查询用户所属部门IDs（VO版，跨数据库兼容，消除N+1查询）
+     * @author scott
+     * @since 2026-07-01 listAll接口N+1查询改造
+     * @param userIds 用户ID列表
+     * @return 每条含 userId 和 departId
+     */
+    List<SysUserDepartIdVo> queryDepartIdVosByUserIds(@Param("userIds") Collection<String> userIds);
 
     /**
      * 通过部门编码获取部门id
@@ -251,9 +261,10 @@ public interface SysDepartMapper extends BaseMapper<SysDepart> {
      * 
      * @param parentId
      * @param postName
+     * @param tenantId
      * @return
      */
-    String getDepIdByDepIdAndPostName(@Param("parentId") String parentId, @Param("postName") String postName);
+    String getDepIdByDepIdAndPostName(@Param("parentId") String parentId, @Param("postName") String postName, @Param("tenantId") Integer tenantId);
 
     /**
      * 根据部门id 获取职级名称

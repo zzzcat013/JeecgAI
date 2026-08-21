@@ -755,6 +755,7 @@ public class SysDictController {
 	 * @param id
 	 * @return
 	 */
+	@RequiresPermissions("system:dict:putRecycleBin")
 	@RequestMapping(value = "/back/{id}", method = RequestMethod.PUT)
 	public Result<?> back(@PathVariable("id") String id) {
 		try {
@@ -766,11 +767,12 @@ public class SysDictController {
 		}
 	}
 	/**
-	 * 还原被逻辑删除的用户
+	 * 还原被逻辑删除的字典
 	 *
 	 * @param jsonObject
 	 * @return
 	 */
+	@RequiresPermissions("system:dict:putRecycleBin")
 	@RequestMapping(value = "/putRecycleBin", method = RequestMethod.PUT)
 	public Result putRecycleBin(@RequestBody JSONObject jsonObject, HttpServletRequest request) {
 		try {
@@ -855,5 +857,38 @@ public class SysDictController {
 		sysDictVo.setLowAppId(lowAppId);
 		sysDictService.editDictByLowAppId(sysDictVo);
 		return Result.ok("编辑成功");
+	}
+
+	/**
+	 * 【JLinkTableCard 关联记录专用接口】
+	 * 多字段分页查询任意数据库表数据，一次请求返回所有指定字段，支持分页、关键词搜索、按 valueField 回显
+	 *
+	 * @param tableName    表名，如 sys_user
+	 * @param showFields   展示字段，逗号分隔，如 realname,username,avater
+	 * @param valueField   值字段，如 id
+	 * @param keyword      关键词搜索（可选）
+	 * @param keyValues    按 valueField 精确查找的值，逗号分隔（回显用，可选）
+	 * @param pageNo       页码，默认 1
+	 * @param pageSize     每页大小，默认 10
+	 */
+	@GetMapping("/queryTableDataForLinkRecord")
+	//update-begin---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
+	public Result<Map<String, Object>> queryTableDataForLinkRecord(
+			@RequestParam String tableName,
+			@RequestParam String showFields,
+			@RequestParam String valueField,
+			@RequestParam(required = false) String keyword,
+			@RequestParam(required = false) String keyValues,
+			@RequestParam(defaultValue = "1") Integer pageNo,
+			@RequestParam(defaultValue = "10") Integer pageSize) {
+		try {
+			Map<String, Object> data = sysDictService.queryTableDataForLinkRecord(
+					tableName, showFields, valueField,
+					keyword, keyValues, pageNo, pageSize);
+			return Result.ok(data);
+		} catch (Exception e) {
+			log.error("[queryTableDataForLinkRecord] 查询失败 tableName={} showFields={}", tableName, showFields, e);
+			return Result.error("查询失败：" + e.getMessage());
+		}
 	}
 }

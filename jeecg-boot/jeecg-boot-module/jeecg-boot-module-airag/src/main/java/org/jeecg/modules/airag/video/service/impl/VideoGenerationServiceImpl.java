@@ -133,8 +133,7 @@ public class VideoGenerationServiceImpl implements IVideoGenerationService {
         AiChatConfig.ModelConfig config = aiChatConfig.getAiModelVideo();
         String apiKey = config.getApiKey();
         String model = config.getModel();
-        String apiHost = config.getApiHost();
-        String baseUrl = apiHost.endsWith("/") ? apiHost.substring(0, apiHost.length() - 1) : apiHost;
+        String baseUrl = getVideoApiBaseUrl(config);
 
         JSONObject body = new JSONObject();
         body.put("model", model);
@@ -218,8 +217,7 @@ public class VideoGenerationServiceImpl implements IVideoGenerationService {
     public VideoTaskResultVo queryTask(String taskId) {
         AiChatConfig.ModelConfig config = aiChatConfig.getAiModelVideo();
         String apiKey = config.getApiKey();
-        String apiHost = config.getApiHost();
-        String baseUrl = apiHost.endsWith("/") ? apiHost.substring(0, apiHost.length() - 1) : apiHost;
+        String baseUrl = getVideoApiBaseUrl(config);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -486,14 +484,24 @@ public class VideoGenerationServiceImpl implements IVideoGenerationService {
         return outputPath;
     }
 
+	/**
+	 * 获取视频模型 API 基础地址并校验配置。
+	 */
+	private String getVideoApiBaseUrl(AiChatConfig.ModelConfig config) {
+		String apiHost = config.getApiHost();
+		if (apiHost == null || apiHost.isBlank()) {
+			throw new IllegalStateException("视频模型 api-host 未配置，请检查 jeecg.ai-chat.ai-model-video.api-host");
+		}
+		return apiHost.endsWith("/") ? apiHost.substring(0, apiHost.length() - 1) : apiHost;
+	}
+
     /**
      * 调用智谱GLM生成旁白文案
      */
     private String generateNarration(String videoPrompt) throws IOException, InterruptedException {
         AiChatConfig.ModelConfig config = aiChatConfig.getAiModelVideo();
         String apiKey = config.getApiKey();
-        String apiHost = config.getApiHost();
-        String baseUrl = apiHost.endsWith("/") ? apiHost.substring(0, apiHost.length() - 1) : apiHost;
+        String baseUrl = getVideoApiBaseUrl(config);
 
         JSONObject body = new JSONObject();
         body.put("model", "glm-4-flash");

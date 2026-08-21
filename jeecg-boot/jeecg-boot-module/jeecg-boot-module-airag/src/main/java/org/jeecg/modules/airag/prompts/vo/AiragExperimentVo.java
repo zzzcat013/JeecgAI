@@ -16,7 +16,7 @@ import java.util.Map;
 public class AiragExperimentVo implements Serializable {
     private static final long serialVersionUID = 1L;
     /**
-     * 提示词
+     * 提示词Id
      */
     private String promptKey;
     /**

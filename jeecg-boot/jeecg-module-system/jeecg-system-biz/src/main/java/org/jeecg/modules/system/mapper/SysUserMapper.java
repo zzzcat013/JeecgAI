@@ -290,5 +290,5 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 	 * @param realname
 	 * @return
 	 */
-    IPage<SysUser> getUserByUgroupId(Page page, @Param("groupId") String groupId, @Param("username") String username, @Param("realname") String realname);
+    IPage<SysUser> getUserByUgroupId(Page page, @Param("groupId") String groupId, @Param("username") String username, @Param("realname") String realname, @Param("status") Integer status);
 }

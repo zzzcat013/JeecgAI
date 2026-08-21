@@ -63,7 +63,7 @@
 	<select id="getUserByRoleId" resultType="org.jeecg.modules.system.entity.SysUser">
 		select * from sys_user where del_flag = 0 and id in (select user_id from sys_user_role where role_id=#{roleId})
 		<if test="username!=null and username!=''">
-			and username = #{username}
+			and username LIKE concat(concat('%',#{username}),'%')
 		</if>
 		<if test="realname!=null and realname!=''">
 			and realname LIKE concat(concat('%',#{realname}),'%')
@@ -72,7 +72,11 @@
 
 	<!-- 根据用户组Id查询 -->
 	<select id="getUserByUgroupId" resultType="org.jeecg.modules.system.entity.SysUser">
-		select * from sys_user where del_flag = 0 and id in (select user_id from sys_ugroup_user where group_id=#{groupId})
+		select * from sys_user where del_flag = 0 and id in (select user_id from sys_ugroup_user where group_id=#{groupId})		
+		<!-- update by lvdandan 20260818【LHZP-864】【流程】指定下一步处理人，没有排除已经冻结的账号  -->                         
+		<if test="status!=null and status!=''">
+			and status = #{status}
+		</if>
 		<if test="username!=null and username!=''">
 			and username LIKE concat(concat('%',#{username}),'%')
 		</if>
@@ -410,8 +414,14 @@
         <if test="orgCode != null">
             <bind name="bindOrgCode" value="orgCode+'%'"/>
         </if>
+		
         su.del_flag = 0 AND sd.org_code LIKE #{bindOrgCode}
+    
         <if test="userParams != null">
+			<!-- update by lvdandan 20260818【LHZP-864】【流程】指定下一步处理人，没有排除已经冻结的账号  -->
+			<if test="userParams.status != null and userParams.status!= ''">
+				AND su.status = #{userParams.status}
+			</if>
             <if test="userParams.realname != null and userParams.realname != ''">
                 <bind name="bindRealname" value="'%'+ userParams.realname +'%'"/>
                 AND su.realname LIKE #{bindRealname}
@@ -443,7 +453,7 @@
             su.status, su.del_flag, su.telephone, su.activiti_sync, su.user_identity, su.depart_ids, su.main_dep_post_id,
             su.sort,su.iz_hide_contact,su.position_type,su.work_no
             FROM sys_user su join sys_user_dep_post sudp on su.id = sudp.user_id
-            join sys_depart sd on sd.id = sudp.dep_id 
+            join sys_depart sd on sd.id = sudp.dep_id
             <include refid="queryDepartPostUserByOrgCodeSql"/>
         ) su
         order by su.sort,su.create_time desc
@@ -451,27 +461,29 @@
     
     <!--查询部门下的用户包括子部门下的用户-->
 	<select id="queryDepartUserByOrgCode" resultType="org.jeecg.modules.system.model.SysUserSysDepPostModel">
-        SELECT DISTINCT su.id, su.realname, su.avatar, su.sex, su.birthday, su.telephone, su.email, su.phone, su.main_dep_post_id, su.iz_hide_contact, su.sort, su.create_time
-        FROM sys_user su join sys_user_depart sud on su.id = sud.user_id
-        join sys_depart sd on sud.dep_id = sd.id
-        where
-        su.status = 1
-        and su.del_flag = 0
-        and su.username <![CDATA[ != ]]> '_reserve_user_external'
-        <if test="orgCode == null">
-            <bind name="bindOrgCode" value="'%'"/>
-        </if>
-        <if test="orgCode != null">
-            <bind name="bindOrgCode" value="orgCode+'%'"/>
-        </if>
-        and sd.del_flag = 0 and sd.org_code LIKE #{bindOrgCode}
-        <if test="userParams != null">
-            <if test="userParams.realname != null and userParams.realname != ''">
-                <bind name="bindRealname" value="'%'+ userParams.realname +'%'"/>
-                and su.realname like #{bindRealname}
-            </if>
-        </if>
-        order by su.sort,su.create_time desc
+		SELECT user_info.* FROM (
+			SELECT DISTINCT su.id, su.realname, su.avatar, su.sex, su.birthday, su.telephone, su.email, su.phone, su.main_dep_post_id, su.iz_hide_contact, su.sort, su.create_time
+			FROM sys_user su join sys_user_depart sud on su.id = sud.user_id
+			join sys_depart sd on sud.dep_id = sd.id
+			where
+			su.status = 1
+			and su.del_flag = 0
+			and su.username <![CDATA[ != ]]> '_reserve_user_external'
+			<if test="orgCode == null">
+				<bind name="bindOrgCode" value="'%'"/>
+			</if>
+			<if test="orgCode != null">
+				<bind name="bindOrgCode" value="orgCode+'%'"/>
+			</if>
+			and sd.del_flag = 0 and sd.org_code LIKE #{bindOrgCode}
+			<if test="userParams != null">
+				<if test="userParams.realname != null and userParams.realname != ''">
+					<bind name="bindRealname" value="'%'+ userParams.realname +'%'"/>
+					and su.realname like #{bindRealname}
+				</if>
+			</if>
+		) user_info
+		order by user_info.sort,user_info.create_time desc
     </select>
 
 		<!-- 根据用户名查询用户的主部门信息 -->
@@ -482,7 +494,7 @@
 				INNER JOIN sys_user su ON su.main_dep_post_id = sd.id
 				WHERE su.username = #{username}
 					AND sd.parent_id = sdp.id
-			);
+			)
 		</select>
 
 </mapper>

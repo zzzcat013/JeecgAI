@@ -9,7 +9,7 @@ package org.jeecg.common.constant;
 public interface PasswordConstant {
 
     /**
-     * 导入用户默认密码
+     * 导入用户默认密码 (重置密码)
      */
     String DEFAULT_PASSWORD = "123456";
 }

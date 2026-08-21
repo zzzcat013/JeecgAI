@@ -51,16 +51,16 @@ public class SysTenantPack implements Serializable {
     @Schema(description = "创建人")
     private String createBy;
 	/**创建时间*/
-	@JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd")
-    @DateTimeFormat(pattern="yyyy-MM-dd")
+	@JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd HH:mm:ss")
+    @DateTimeFormat(pattern="yyyy-MM-dd HH:mm:ss")
     @Schema(description = "创建时间")
     private Date createTime;
 	/**更新人*/
     @Schema(description = "更新人")
     private String updateBy;
 	/**更新时间*/
-	@JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd")
-    @DateTimeFormat(pattern="yyyy-MM-dd")
+	@JsonFormat(timezone = "GMT+8",pattern = "yyyy-MM-dd HH:mm:ss")
+    @DateTimeFormat(pattern="yyyy-MM-dd HH:mm:ss")
     @Schema(description = "更新时间")
     private Date updateTime;
     /**产品包类型(default 默认产品包 custom 自定义产品包)*/

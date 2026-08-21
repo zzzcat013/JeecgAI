@@ -30,7 +30,7 @@ export const columns: BasicColumn[] = [
       return text;
       </#if>
     },
-    <#elseif po.fieldDbType=='Blob'>
+    <#elseif po.fieldDbType=='Blob' && po.classType!='image'>
     dataIndex: '${po.fieldName}String'
     <#elseif po.classType=='umeditor'>
     dataIndex: '${po.fieldName}',
@@ -39,7 +39,7 @@ export const columns: BasicColumn[] = [
    <#elseif po.classType=='file'>
     dataIndex: '${po.fieldName}',
    <#elseif po.classType=='image'>
-    dataIndex: '${po.fieldName}',
+    dataIndex: ${autoStringSuffix(po)},
     customRender:render.renderImage,
    <#elseif po.classType=='switch'>
     dataIndex: '${po.fieldName}',
@@ -57,7 +57,7 @@ export const columns: BasicColumn[] = [
     customRender:({text}) => {
       return render.renderSwitch(text, [{text:'是',value:'${switch_extend_arr1}'},{text:'否',value:'${switch_extend_arr2}'}])
     },
-   <#elseif po.classType == 'sel_tree' || po.classType=='list' || po.classType=='list_multi' || po.classType=='sel_search' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='sel_depart' || po.classType=='sel_user' || po.classType=='popup_dict'>
+   <#elseif po.classType == 'sel_tree' || po.classType=='list' || po.classType=='list_multi' || po.classType=='sel_search' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='sel_depart' || po.classType=='sel_user' || po.classType=='popup_dict'  || po.classType=='link_table'>
     dataIndex: '${po.fieldName}_dictText'
    <#elseif po.classType=='cat_tree'>
     dataIndex: '${po.fieldName}',
@@ -94,7 +94,7 @@ export const ${sub.entityName?uncap_first}Columns: BasicColumn[] = [
     customRender:({text}) =>{
       return !text?"":(text.length>10?text.substr(0,10):text)
     },
-    <#elseif po.fieldDbType=='Blob'>
+    <#elseif po.fieldDbType=='Blob' && po.classType!='image'>
     dataIndex: '${po.fieldName}String'
     <#elseif po.classType=='umeditor'>
     dataIndex: '${po.fieldName}',
@@ -103,7 +103,7 @@ export const ${sub.entityName?uncap_first}Columns: BasicColumn[] = [
    <#elseif po.classType=='file'>
     dataIndex: '${po.fieldName}',
    <#elseif po.classType=='image'>
-    dataIndex: '${po.fieldName}',
+    dataIndex: ${autoStringSuffix(po)},
     customRender:render.renderImage,
    <#elseif po.classType=='switch'>
     dataIndex: '${po.fieldName}',
@@ -121,7 +121,7 @@ export const ${sub.entityName?uncap_first}Columns: BasicColumn[] = [
     customRender:({text}) => {
       return  render.renderSwitch(text, [{text:'是',value:'${switch_extend_arr1}'},{text:'否',value:'${switch_extend_arr2}'}])
     },
-   <#elseif po.classType == 'sel_tree' || po.classType=='list' || po.classType=='list_multi' || po.classType=='sel_search' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='sel_depart' || po.classType=='sel_user' || po.classType=='popup_dict'>
+   <#elseif po.classType == 'sel_tree' || po.classType=='list' || po.classType=='list_multi' || po.classType=='sel_search' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='sel_depart' || po.classType=='sel_user' || po.classType=='popup_dict' || po.classType=='link_table'>
     dataIndex: '${po.fieldName}_dictText'
    <#elseif po.classType=='cat_tree'>
     dataIndex: '${po.fieldName}',

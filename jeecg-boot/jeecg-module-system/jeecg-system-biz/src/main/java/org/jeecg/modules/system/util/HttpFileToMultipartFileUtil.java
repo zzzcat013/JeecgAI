@@ -3,6 +3,7 @@ package org.jeecg.modules.system.util;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.jeecg.common.util.FileDownloadUtils;
 import org.jeecg.common.util.MyCommonsMultipartFile;
 import org.jeecg.common.util.filter.SsrfFileTypeFilter;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,8 +28,12 @@ public class HttpFileToMultipartFileUtil {
      * @throws Exception
      */
     public static MultipartFile httpFileToMultipartFile(String fileUrl, String filename) throws Exception {
-        SsrfFileTypeFilter.checkSsrfHttpUrl(fileUrl);
-        byte[] bytes = downloadImageData(fileUrl);
+        //update-begin---author:liusq ---date:2026-06-29  for：【issues/9725】修复SSRF重定向绕过漏洞(CWE-918)，改用禁止自动跳转并逐跳SSRF校验的安全下载-----------
+        // 原实现仅在下载前对 fileUrl 做一次 SSRF 校验，而 HttpURLConnection 默认自动跟随 3xx 重定向且不再复检，
+        // 攻击者可用 302 跳转到 127.0.0.1 / 169.254.169.254 等内网或云元数据地址绕过校验。
+        // 改用 FileDownloadUtils.download2BytesFromNet，其内部禁止自动跳转并对初始URL及每一跳重定向目标都做SSRF校验。
+        byte[] bytes = FileDownloadUtils.download2BytesFromNet(fileUrl);
+        //update-end---author:liusq ---date:2026-06-29  for：【issues/9725】修复SSRF重定向绕过漏洞(CWE-918)，改用禁止自动跳转并逐跳SSRF校验的安全下载-----------
         return convertByteToMultipartFile(bytes, filename);
     }
 

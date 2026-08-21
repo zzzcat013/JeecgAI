@@ -23,6 +23,7 @@ import org.jeecg.modules.system.entity.SysThirdAppConfig;
 import org.jeecg.modules.system.service.ISysThirdAccountService;
 import org.jeecg.modules.system.service.ISysThirdAppConfigService;
 import org.jeecg.modules.system.service.impl.ThirdAppDingtalkServiceImpl;
+import org.jeecg.modules.system.service.impl.ThirdAppFeishuServiceImpl;
 import org.jeecg.modules.system.service.impl.ThirdAppWechatEnterpriseServiceImpl;
 import org.jeecg.modules.system.vo.thirdapp.JwSysUserDepartVo;
 import org.jeecg.modules.system.vo.thirdapp.JwUserDepartVo;
@@ -49,6 +50,8 @@ public class ThirdAppController {
     ThirdAppWechatEnterpriseServiceImpl wechatEnterpriseService;
     @Autowired
     ThirdAppDingtalkServiceImpl dingtalkService;
+    @Autowired
+    ThirdAppFeishuServiceImpl feishuService;
 
     @Autowired
     private ISysThirdAppConfigService appConfigService;
@@ -75,6 +78,8 @@ public class ThirdAppController {
         boolean dingConfig = false;
         //企业微信是否已配置
         boolean qywxConfig = false;
+        //飞书是否已配置
+        boolean feishuConfig = false;
         if(null != list && list.size()>0){
             for (SysThirdAppConfig config:list) {
                 if(MessageTypeEnum.DD.getType().equals(config.getThirdType())){
@@ -85,10 +90,15 @@ public class ThirdAppController {
                     qywxConfig = true;
                     continue;
                 }
+                if(MessageTypeEnum.FS.getType().equals(config.getThirdType())){
+                    feishuConfig = true;
+                    continue;
+                }
             }
         }
         enabledMap.put("wechatEnterprise", qywxConfig);
         enabledMap.put("dingtalk", dingConfig);
+        enabledMap.put("feishu", feishuConfig);
         return Result.OK(enabledMap);
     }
 
@@ -311,6 +321,15 @@ public class ThirdAppController {
             }
             return Result.error("钉钉尚未配置,请配置钉钉");
         }
+        String feishuType = MessageTypeEnum.FS.getType();
+        if (feishuType.toUpperCase().equals(app) || CommonConstant.FEISHU.equals(app)) {
+            SysThirdAppConfig config = appConfigService.getThirdConfigByThirdType(tenantId, feishuType);
+            if (null != config) {
+                boolean success = feishuService.sendMessage(message, false);
+                return success ? Result.OK("飞书消息发送成功") : Result.error("飞书消息发送失败，请检查接收者是否已绑定飞书账号");
+            }
+            return Result.error("飞书尚未配置，请配置飞书应用");
+        }
         return Result.error("不识别的第三方APP");
     }
 
@@ -493,6 +512,27 @@ public class ThirdAppController {
         }
         return Result.error("钉钉尚未配置,请配置钉钉");
     }
+    //update-begin---author:liusq ---date:2026-05-13  for：【QQYUN-12767】飞书集成-同步飞书部门和用户到本地-----------
+    /**
+     * 同步【飞书】通讯录（部门 + 用户）到本地
+     * 飞书应用需开通权限：contact:department:read、contact:user.base:readonly
+     */
+    @GetMapping("/sync/feishu/departAndUser/toLocal")
+    public Result<SyncInfoVo> syncFeishuDepartAndUserToLocal(HttpServletRequest request) {
+        int tenantId = oConvertUtils.getInt(TokenUtils.getTenantIdByRequest(request), 0);
+        SysThirdAppConfig config = appConfigService.getThirdConfigByThirdType(tenantId, MessageTypeEnum.FS.getType());
+        if (null != config) {
+            SyncInfoVo syncInfo = feishuService.syncFeishuDeptAndUserToLocal(tenantId);
+            if (syncInfo.getFailInfo().isEmpty()) {
+                return Result.OK("同步成功", syncInfo);
+            } else {
+                return Result.error("同步完成（含失败项，请查看详情）", syncInfo);
+            }
+        }
+        return Result.error("飞书尚未配置，请配置飞书应用");
+    }
+    //update-end---author:liusq ---date:2026-05-13  for：【QQYUN-12767】飞书集成-同步飞书部门和用户到本地-----------
+
     //========================end 应用低代码钉钉/企业微信同步用户部门专用 ========================
 
 

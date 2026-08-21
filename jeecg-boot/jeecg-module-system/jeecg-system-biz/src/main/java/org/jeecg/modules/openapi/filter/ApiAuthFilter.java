@@ -2,6 +2,7 @@ package org.jeecg.modules.openapi.filter;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.util.IpUtils;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,38 +41,154 @@ public class ApiAuthFilter implements Filter {
         long startTime = System.currentTimeMillis();
         Date callTime = new Date();
 
-        HttpServletRequest request = (HttpServletRequest)servletRequest;
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        HttpServletResponse response = (HttpServletResponse) servletResponse;
+
+        // OPTIONS 预检请求直接放行，由 CorsFilter 负责写入 CORS 响应头
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(servletRequest, servletResponse);
+            return;
+        }
+
         String ip = IpUtils.getIpAddr(request);
 
         String appkey = request.getHeader("appkey");
         String signature = request.getHeader("signature");
         String timestamp = request.getHeader("timestamp");
+        String requestPath = request.getRequestURI();
+        String requestMethod = request.getMethod();
+        String requestParams = buildParamsSummary(request);
+        //update-begin---author:jeecg ---date:2026-05-27  for：【增加header日志记录】采集请求Header信息-----------
+        String requestHeaders = buildHeadersSummary(request);
+        //update-end---author:jeecg ---date:2026-05-27  for：【增加header日志记录】采集请求Header信息-----------
 
-        OpenApi openApi = findOpenApi(request);
+        OpenApi openApi = null;
+        OpenApiAuth openApiAuth = null;
+        int responseCode = HttpServletResponse.SC_OK;
+        String errorMsg = null;
 
-        // IP 白名单核验
-        checkWhiteList(openApi, ip);
+        try {
+            openApi = findOpenApi(request);
+            // IP 白名单核验
+            checkWhiteList(openApi, ip);
+            // 签名核验
+            checkSignValid(appkey, signature, timestamp);
+            openApiAuth = openApiAuthService.getByAppkey(appkey);
+            // 认证信息核验
+            checkSignature(appkey, signature, timestamp, openApiAuth);
+            // 业务核验
+            checkPermission(openApi, openApiAuth);
 
-        // 签名核验
-        checkSignValid(appkey, signature, timestamp);
-
-        OpenApiAuth openApiAuth = openApiAuthService.getByAppkey(appkey);
-        // 认证信息核验
-        checkSignature(appkey, signature, timestamp, openApiAuth);
-        // 业务核验
-        checkPermission(openApi, openApiAuth);
-
-        filterChain.doFilter(servletRequest, servletResponse);
-        long endTime = System.currentTimeMillis();
-
-        OpenApiLog openApiLog = new OpenApiLog();
-        openApiLog.setApiId(openApi.getId());
-        openApiLog.setCallAuthId(openApiAuth.getId());
-        openApiLog.setCallTime(callTime);
-        openApiLog.setUsedTime(endTime - startTime);
-        openApiLog.setResponseTime(new Date());
-        openApiLogService.save(openApiLog);
+            filterChain.doFilter(servletRequest, servletResponse);
+            responseCode = response.getStatus();
+        } catch (JeecgBootException e) {
+            responseCode = HttpServletResponse.SC_UNAUTHORIZED;
+            errorMsg = e.getMessage();
+            writeErrorResponse(response, request.getHeader("Origin"), responseCode, errorMsg);
+        } catch (Exception e) {
+            responseCode = HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
+            errorMsg = e.getMessage();
+            writeErrorResponse(response, request.getHeader("Origin"), responseCode, "服务器内部错误");
+        } finally {
+            long endTime = System.currentTimeMillis();
+            //update-begin---author:jeecg ---date:2026-05-27  for：【增加header日志记录】传入requestHeaders参数-----------
+            saveLog(openApi, openApiAuth, appkey, requestPath, requestMethod, ip, requestParams,
+                    requestHeaders, responseCode, errorMsg, callTime, endTime - startTime);
+            //update-end---author:jeecg ---date:2026-05-27  for：【增加header日志记录】传入requestHeaders参数-----------
+        }
     }
+
+    /**
+     * 保存调用记录
+     * @param openApi
+     * @param openApiAuth
+     * @param callerAk
+     * @param requestPath
+     * @param requestMethod
+     * @param sourceIp
+     * @param requestParams
+     * @param responseCode
+     * @param errorMsg
+     * @param callTime
+     * @param usedTime
+     */
+    //update-begin---author:jeecg ---date:2026-05-27  for：【增加header日志记录】saveLog方法新增requestHeaders参数-----------
+    private void saveLog(OpenApi openApi, OpenApiAuth openApiAuth, String callerAk,
+                         String requestPath, String requestMethod, String sourceIp,
+                         String requestParams, String requestHeaders, int responseCode, String errorMsg,
+                         Date callTime, long usedTime) {
+        try {
+            OpenApiLog openApiLog = new OpenApiLog();
+            openApiLog.setApiId(openApi != null ? openApi.getId() : null);
+            openApiLog.setCallAuthId(openApiAuth != null ? openApiAuth.getId() : null);
+            openApiLog.setCallerAk(callerAk);
+            openApiLog.setRequestPath(requestPath);
+            openApiLog.setRequestMethod(requestMethod);
+            openApiLog.setIp(sourceIp);
+            openApiLog.setRequestParams(requestParams);
+            openApiLog.setRequestHeaders(requestHeaders);
+            openApiLog.setResponseCode(responseCode);
+            openApiLog.setErrorMsg(errorMsg);
+            openApiLog.setCallTime(callTime);
+            openApiLog.setUsedTime(usedTime);
+            openApiLog.setResponseTime(new Date());
+            openApiLogService.save(openApiLog);
+        } catch (Exception e) {
+            log.error("保存OpenAPI调用日志失败:{}",e.getMessage(), e);
+        }
+    }
+    //update-end---author:jeecg ---date:2026-05-27  for：【增加header日志记录】saveLog方法新增requestHeaders参数-----------
+
+    /**
+     * 向响应写入 JSON 错误体，并携带 CORS 头（确保跨域调用方如 Swagger UI 能读取错误信息）
+     */
+    private void writeErrorResponse(HttpServletResponse response, String origin, int status, String message) {
+        try {
+            if (StringUtils.hasText(origin)) {
+                response.setHeader("Access-Control-Allow-Origin", origin);
+                response.setHeader("Access-Control-Allow-Credentials", "true");
+            }
+            response.setStatus(status);
+            response.setContentType("application/json;charset=UTF-8");
+            // 转义双引号，防止 message 中含有引号破坏 JSON
+            String safeMsg = message != null ? message.replace("\"", "\\\"") : "";
+            response.getWriter().write("{\"success\":false,\"code\":" + status + ",\"message\":\"" + safeMsg + "\"}");
+        } catch (IOException ex) {
+            log.error("写入OpenAPI错误响应失败", ex);
+        }
+    }
+
+    private String buildParamsSummary(HttpServletRequest request) {
+        String queryString = request.getQueryString();
+        if (StringUtils.hasText(queryString)) {
+            return queryString.length() > 500 ? queryString.substring(0, 500) + "..." : queryString;
+        }
+        return null;
+    }
+
+    //update-begin---author:jeecg ---date:2026-05-27  for：【增加header日志记录】构建请求Header摘要（JSON格式，最多2000字符）-----------
+    private String buildHeadersSummary(HttpServletRequest request) {
+        StringBuilder sb = new StringBuilder("{");
+        Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames != null) {
+            boolean first = true;
+            while (headerNames.hasMoreElements()) {
+                String name = headerNames.nextElement();
+                String value = request.getHeader(name);
+                if (!first) {
+                    sb.append(", ");
+                }
+                sb.append("\"").append(name).append("\": \"")
+                  .append(value != null ? value.replace("\\", "\\\\").replace("\"", "\\\"") : "")
+                  .append("\"");
+                first = false;
+            }
+        }
+        sb.append("}");
+        String result = sb.toString();
+        return result.length() > 2000 ? result.substring(0, 2000) + "...}" : result;
+    }
+    //update-end---author:jeecg ---date:2026-05-27  for：【增加header日志记录】构建请求Header摘要（JSON格式，最多2000字符）-----------
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {

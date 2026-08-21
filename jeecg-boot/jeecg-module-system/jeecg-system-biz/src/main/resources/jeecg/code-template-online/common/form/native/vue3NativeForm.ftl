@@ -44,7 +44,7 @@
 									:multi="${po.extendParams.popupMulti?c}" <#if po.readonly=='Y'>disabled</#if> />
 					<#elseif po.classType =='sel_depart'>
 								<#assign need_dept = true>
-								<j-select-dept v-model:value="formData.${po.fieldName}"  <#if po.extendParams?exists && po.extendParams.text?exists>labelKey="${po.extendParams.text}"</#if> <#if po.extendParams?exists && po.extendParams.store?exists>rowKey="${po.extendParams.store}"</#if>   <#if po.readonly=='Y'>disabled</#if> :multiple="${po.extendParams.multi?default('true')}" checkStrictly <#if po.readonly=='Y'>disabled</#if> allow-clear />
+								<j-select-dept v-model:value="formData.${po.fieldName}"  <#if po.extendParams?exists && po.extendParams.text?exists>labelKey="${po.extendParams.text}"</#if> <#if po.extendParams?exists && po.extendParams.store?exists>rowKey="${po.extendParams.store}"</#if> :multiple="${po.extendParams.multi?default('true')}" checkStrictly <#if po.readonly=='Y'>disabled</#if> allow-clear />
 					<#elseif po.classType =='switch'>
 								<#assign need_switch = true>
 								<j-switch v-model:value="formData.${po.fieldName}" <#if po.dictField != 'is_open'>:options="${po.dictField}"</#if> <#if po.readonly=='Y'>disabled</#if>></j-switch>
@@ -75,6 +75,21 @@
 					 <#elseif po.classType=='checkbox'>
 								<#assign need_checkbox = true>
 								<j-checkbox type="${po.classType}" v-model:value="formData.${po.fieldName}" dictCode="${form_field_dictCode}" placeholder="请选择${po.filedComment}" <#if po.readonly=='Y'>disabled</#if> allow-clear />
+					<#-- update-begin---author:liusq ---date:20250601  for：[QQYUN-14906]代码生成器，支持新版关联记录生成（表模式）---------- -->
+					<#elseif po.classType=='link_table'>
+								<#assign need_link_table = true>
+								<j-link-table-card
+									placeholder="请选择${po.filedComment}"
+									v-model:value="formData.${po.fieldName}"
+									tableName="${po.dictTable}"
+									valueField="${po.dictField}"
+									textField="${po.dictText}"
+									queryMode="table"
+									<#if po.extendParams?exists && po.extendParams.imageField?exists>
+									imageFielde="${po.extendParams.imageField}"
+									</#if>
+									:multi="${((po.queryMode!"") == "multi")?string('true','false')}" <#if po.readonly=='Y'>disabled</#if> />
+					<#-- update-end---author:liusq ---date:20250601  for：[QQYUN-14906]代码生成器，支持新版关联记录生成（表模式）---------- -->
 					<#elseif po.classType=='sel_search'>
 								<#assign need_search = true>
 								<j-search-select v-model:value="formData.${po.fieldName}" dict="${form_field_dictCode}" <#if po.readonly=='Y'>disabled</#if> allow-clear />
@@ -88,7 +103,7 @@
 								<j-upload v-model:value="formData.${po.fieldName}"  <#if po.readonly=='Y'>disabled</#if> <#if po.uploadnum??>:maxCount=${po.uploadnum}</#if>></j-upload>
 					<#elseif po.classType=='image'>
 								<#assign need_image_upload = true>
-								<j-image-upload <#if po.uploadnum??>:fileMax=${po.uploadnum}<#else>:fileMax="0"</#if> v-model:value="formData.${po.fieldName}" <#if po.readonly=='Y'>disabled</#if>></j-image-upload>
+								<j-image-upload <#if po.uploadnum??>:fileMax=${po.uploadnum}<#else>:fileMax="0"</#if> v-model:value="formData.${autoStringSuffixForModel(po)}" <#if po.readonly=='Y'>disabled</#if>></j-image-upload>
 					<#elseif po.classType=='umeditor'>
 								<#assign need_editor = true>
 								<j-editor v-model:value="formData.${autoStringSuffixForModel(po)}" <#if po.readonly=='Y'>disabled</#if> :autoFocus="false"/>

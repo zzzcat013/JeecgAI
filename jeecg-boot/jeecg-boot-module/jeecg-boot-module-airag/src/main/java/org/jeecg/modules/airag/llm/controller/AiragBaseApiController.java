@@ -29,6 +29,21 @@ public class AiragBaseApiController implements IAiragBaseApi {
         return airagBaseApi.knowledgeWriteTextDocument(knowledgeId, title, content, segmentConfig);
     }
 
+    @PostMapping("/airag/api/knowledgeWriteFileDocument")
+    public String knowledgeWriteFileDocument(
+            @RequestParam("knowledgeId") String knowledgeId,
+            @RequestParam("title") String title,
+            @RequestParam("filePath") String filePath,
+            @RequestParam(value = "segmentConfig", required = false) String segmentConfig
+    ) {
+        return airagBaseApi.knowledgeWriteFileDocument(knowledgeId, title, filePath, segmentConfig);
+    }
+
+    @PostMapping("/airag/api/checkKnowledgeDocsVectorizeStatus")
+    public String checkKnowledgeDocsVectorizeStatus(@RequestParam("documentIds") String documentIds) {
+        return airagBaseApi.checkKnowledgeDocsVectorizeStatus(documentIds);
+    }
+
     @PostMapping("/airag/api/getChatVariable")
     public String getChatVariable(
             @RequestParam("appId") String appId,

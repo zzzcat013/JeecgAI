@@ -2,7 +2,6 @@ server:
   port: 8080
   tomcat:
     max-swallow-size: -1
-    basedir: ..
   servlet:
     context-path: /jeecg-boot
   compression:
@@ -35,6 +34,9 @@ spring:
     username: jeecgos@163.com
     password: ??
     properties:
+      mail.smtp.timeout: 10000  # 连接超时（毫秒）
+      mail.smtp.connectiontimeout: 10000  # 连接超时（毫秒）
+      mail.smtp.writetimeout: 10000  # 写入超时（毫秒）
       mail.smtp.auth: true
       smtp.ssl.enable: true
       mail.debug: true  # 启用调试模式(查看详细日志)
@@ -106,6 +108,7 @@ spring:
       stat-view-servlet:
         enabled: true
         loginUsername: admin
+        # 默认弱口令，部署前务必修改为强口令
         loginPassword: 123456
         allow:
       web-stat-filter:
@@ -233,8 +236,8 @@ jeecg:
       timeout: 60
   # AIRag向量库
   ai-rag:
-    # AI流程敏感节点(stdio=命令行节点, sql=SQL节点)
-    allow-sensitive-nodes: sql,stdio
+    # AI流程敏感节点(stdio=命令行节点, sql=SQL节点, code=代码节点/脚本执行,高危存在RCE风险默认禁用)
+    allow-sensitive-nodes: sql,stdio,code
     embed-store:
       host: 127.0.0.1
       port: 5432
@@ -259,11 +262,13 @@ jeecg:
     lowCodeMode: dev
     # 是否允许同一账号多地同时登录 （为 true 时允许一起登录, 为 false 时新登录挤掉旧登录）
     is-concurrent: true
+    # 是否开启三级等保强密码校验（true 开启强密码模式，false 使用简单密码规则）
+    enableStrongPwd: false
   # 签名密钥串(前后端要一致，正式发布请自行修改)
   signatureSecret: dd05f1c54d63749eda95f9fa6d49v442a
   #签名拦截接口
   signUrls: /sys/dict/getDictItems/*,/sys/dict/loadDict/*,/sys/dict/loadDictOrderByValue/*,/sys/dict/loadDictItem/*,/sys/dict/loadTreeData,/sys/api/queryTableDictItemsByCode,/sys/api/queryFilterTableDictInfo,/sys/api/queryTableDictByKeys,/sys/api/translateDictFromTable,/sys/api/translateDictFromTableByKeys,/sys/sendChangePwdSms,/sys/user/sendChangePhoneSms,/sys/sms,/desform/api/sendVerifyCode
-  # local\minio\alioss
+  # 上传类型：local（本地存储）| minio（MinIO对象存储）| alioss（阿里云OSS）
   uploadType: local
   # 前端访问地址
   domainUrl:

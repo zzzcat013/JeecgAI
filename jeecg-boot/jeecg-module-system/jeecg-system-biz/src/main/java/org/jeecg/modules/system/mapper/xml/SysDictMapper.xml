@@ -6,7 +6,7 @@
 	<select id="queryDictItemsByCode" parameterType="String"  resultType="org.jeecg.common.system.vo.DictModel">
 		   select s.item_value as "value",s.item_text as "text",s.item_color as color from sys_dict_item s
 		   where dict_id = (select id from sys_dict where dict_code = #{code})
-		   order by s.sort_order asc, s.create_time DESC;
+		   order by s.sort_order asc, s.create_time DESC
 	</select>
 
 	<!-- 通过字典code获取有效的字典数据项 -->
@@ -14,7 +14,7 @@
 		   select s.item_value as "value",s.item_text as "text", s.item_color as "color" from sys_dict_item s
 		   where dict_id = (select id from sys_dict where dict_code = #{code})
 		   and s.status = 1
-		   order by s.sort_order asc, s.create_time DESC;
+		   order by s.sort_order asc, s.create_time DESC
 	</select>
 
 	<!-- 通过多个字典code获取字典数据 -->
@@ -206,6 +206,22 @@
 		)
 		<if test="filterSql != null and filterSql != ''">
 			and ${filterSql}
+		</if>
+	</select>
+
+	<!-- 关联记录专用：多字段分页查询任意表数据【已加入SQL注入check】 -->
+	<select id="queryPageTableWithFields" resultType="java.util.Map">
+		SELECT ${fields} FROM ${table}
+		<if test="filterSql != null and filterSql != ''">
+			WHERE ${filterSql}
+		</if>
+	</select>
+
+	<!-- 关联记录专用：统计满足条件的记录总数 -->
+	<select id="countTableWithFields" resultType="long">
+		SELECT COUNT(*) FROM ${table}
+		<if test="filterSql != null and filterSql != ''">
+			WHERE ${filterSql}
 		</if>
 	</select>
 

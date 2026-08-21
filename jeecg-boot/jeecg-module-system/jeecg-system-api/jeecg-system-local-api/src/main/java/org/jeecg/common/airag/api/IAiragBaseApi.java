@@ -20,6 +20,25 @@ public interface IAiragBaseApi {
     String knowledgeWriteTextDocument(String knowledgeId, String title, String content, String segmentConfig);
 
     /**
+     * 知识库写入文件文档（支持自定义分段策略）
+     *
+     * @param knowledgeId   知识库ID
+     * @param title         文档标题
+     * @param filePath      文件URL（与知识库文档功能 metadata.filePath 字段含义一致）
+     * @param segmentConfig 【可选】分段策略配置JSON
+     * @return 新增的文档ID
+     */
+    String knowledgeWriteFileDocument(String knowledgeId, String title, String filePath, String segmentConfig);
+
+    /**
+     * 批量查询知识库文档向量化状态
+     *
+     * @param documentIds 文档ID列表（英文逗号拼接字符串）
+     * @return 状态码：COMPLETED / COMPLETED_WITH_FAIL / PROCESSING / PROCESSING_WITH_FAIL
+     */
+    String checkKnowledgeDocsVectorizeStatus(String documentIds);
+
+    /**
      * 读取会话变量
      *
      * @param appId    应用ID

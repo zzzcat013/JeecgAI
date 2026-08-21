@@ -43,6 +43,9 @@ public class oConvertUtils {
 		if ("".equals(object)) {
 			return (true);
 		}
+		if ("null".equals(object)) {
+			return (true);
+		}
 		if (CommonConstant.STRING_NULL.equals(object)) {
 			return (true);
 		}

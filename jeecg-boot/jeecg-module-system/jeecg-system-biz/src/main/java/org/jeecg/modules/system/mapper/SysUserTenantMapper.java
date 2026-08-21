@@ -1,6 +1,9 @@
 package org.jeecg.modules.system.mapper;
 
 import java.util.List;
+import java.util.Map;
+
+import org.jeecg.modules.system.vo.SysUserTenantIdVo;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Delete;
@@ -174,4 +177,13 @@ public interface SysUserTenantMapper extends BaseMapper<SysUserTenant> {
      * @return
      */
     List<Integer> getTenantIdsByUserIds(@Param("userIds") List<String> userIds);
+
+    /**
+     * 批量查询多个用户的租户IDs（含用户ID映射，跨数据库兼容，消除N+1查询）
+     * @author scott
+     * @since 2026-07-01 listAll接口N+1查询改造
+     * @param userIds 用户ID列表
+     * @return 每条含 userId 和 tenantId
+     */
+    List<SysUserTenantIdVo> getTenantIdVosByUserIds(@Param("userIds") List<String> userIds);
 }

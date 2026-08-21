@@ -7,6 +7,7 @@ import org.jeecgframework.codegenerate.database.CodegenDatasourceConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * @Description: 代码生成器,自定义DB配置
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Configuration;
  *  @ConditionalOnMissingClass("org.jeecg.config.init.CodeGenerateDbConfig")
  */
 @Slf4j
+@Lazy(false)
 @Configuration
 public class CodeGenerateDbConfig {
     @Value("${spring.datasource.dynamic.datasource.master.url:}")

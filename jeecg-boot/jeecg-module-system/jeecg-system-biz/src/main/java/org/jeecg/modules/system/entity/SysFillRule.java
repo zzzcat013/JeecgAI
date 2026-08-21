@@ -58,7 +58,7 @@ public class SysFillRule {
     /**
      * 修改人
      */
-    @Excel(name = "修改人", width = 15)
+    @Excel(name = "修改人", width = 15,dictTable = "sys_user",dicCode = "username",dicText = "realname")
     @Schema(description = "修改人")
     private java.lang.String updateBy;
     /**
@@ -72,7 +72,7 @@ public class SysFillRule {
     /**
      * 创建人
      */
-    @Excel(name = "创建人", width = 15)
+    @Excel(name = "创建人", width = 15,dictTable = "sys_user",dicCode = "username",dicText = "realname")
     @Schema(description = "创建人")
     private java.lang.String createBy;
     /**

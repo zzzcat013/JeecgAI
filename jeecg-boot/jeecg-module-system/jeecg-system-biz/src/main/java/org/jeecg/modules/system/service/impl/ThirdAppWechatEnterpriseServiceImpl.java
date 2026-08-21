@@ -942,7 +942,7 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         }
         Text text = new Text();
         text.setMsgtype("text");
-        text.setTouser(this.getTouser(message.getToUser(), message.getToAll()));
+        text.setTouser(this.getTouser(message.getToUser(), Boolean.TRUE.equals(message.getToAll())));
         TextEntity entity = new TextEntity();
         entity.setContent(message.getContent());
         text.setText(entity);
@@ -960,7 +960,7 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
             return null;
         }
         Markdown markdown = new Markdown();
-        markdown.setTouser(this.getTouser(message.getToUser(), message.getToAll()));
+        markdown.setTouser(this.getTouser(message.getToUser(), Boolean.TRUE.equals(message.getToAll())));
         MarkdownEntity entity = new MarkdownEntity();
         entity.setContent(message.getContent());
         markdown.setMarkdown(entity);
@@ -1038,7 +1038,8 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
         try {
             baseUrl = RestUtil.getBaseUrl();
         } catch (Exception e) {
-            log.warn(e.getMessage());
+            //非Web请求上下文（如定时任务线程）无法从request获取baseUrl，降级使用 jeecg.domainUrl.pc 配置
+            log.debug("当前线程无请求上下文，获取baseUrl失败，降级使用 jeecg.domainUrl.pc 配置: {}", e.getMessage());
             baseUrl =  jeecgBaseConfig.getDomainUrl().getPc();
             //e.printStackTrace();
         }
@@ -1086,10 +1087,14 @@ public class ThirdAppWechatEnterpriseServiceImpl implements IThirdAppService {
      * OAuth2登录，成功返回登录的SysUser，失败返回null
      */
     public SysUser oauth2Login(String code,Integer tenantId) {
-        Long count = tenantMapper.tenantIzExist(tenantId);
-        if(ObjectUtil.isEmpty(count) || 0 == count){
-            throw new JeecgBootException("租户不存在！");
+        //update-begin---author:jeecg ---date:2026-05-06  for：【#9588】企业微信OAuth2登录回调方法中租户有误-----------
+        if(MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL){
+            Long count = tenantMapper.tenantIzExist(tenantId);
+            if(ObjectUtil.isEmpty(count) || 0 == count){
+                throw new JeecgBootException("租户不存在！");
+            }
         }
+        //update-end---author:jeecg ---date:2026-05-06  for：【#9588】企业微信OAuth2登录回调方法中租户有误-----------
         // 代码逻辑说明: [QQYUN-3440]新建企业微信和钉钉配置表，通过租户模式隔离------------
         SysThirdAppConfig config = configMapper.getThirdConfigByThirdType(tenantId, MessageTypeEnum.QYWX.getType());
         String accessToken = this.getAppAccessToken(config);

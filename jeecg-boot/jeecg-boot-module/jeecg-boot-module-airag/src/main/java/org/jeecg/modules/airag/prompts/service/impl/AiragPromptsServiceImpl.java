@@ -4,6 +4,8 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -60,6 +62,23 @@ public class AiragPromptsServiceImpl extends ServiceImpl<AiragPromptsMapper, Air
             new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略
     );
 
+    //update-begin---author:chenrui ---date:2026-04-07  for：【QQYUN-14643】实现回收站取回和彻底删除-----------
+    @Override
+    public IPage<AiragPrompts> recycleBinPage(Page<AiragPrompts> page) {
+        return this.baseMapper.selectRecycleBinPage(page);
+    }
+
+    @Override
+    public void revertRecycleBin(List<String> ids) {
+        this.baseMapper.revertRecycleBin(ids);
+    }
+
+    @Override
+    public void deleteRecycleBin(List<String> ids) {
+        this.baseMapper.deleteRecycleBin(ids);
+    }
+    //update-end---author:chenrui ---date:2026-04-07  for：【QQYUN-14643】实现回收站取回和彻底删除-----------
+
     /**
      * 提示词实验
      * @param experimentVo
@@ -80,7 +99,7 @@ public class AiragPromptsServiceImpl extends ServiceImpl<AiragPromptsMapper, Air
 
         try {
             //1.查询提示词
-            AiragPrompts airagPrompts = this.baseMapper.selectOne(new LambdaQueryWrapper<AiragPrompts>().eq(AiragPrompts::getPromptKey, promptKey));
+            AiragPrompts airagPrompts = this.baseMapper.selectOne(new LambdaQueryWrapper<AiragPrompts>().eq(AiragPrompts::getId, promptKey));
             AssertUtils.assertNotEmpty("未找到指定的提示词", airagPrompts);
             String modelParam = airagPrompts.getModelParam();
              // 过滤提示词变量

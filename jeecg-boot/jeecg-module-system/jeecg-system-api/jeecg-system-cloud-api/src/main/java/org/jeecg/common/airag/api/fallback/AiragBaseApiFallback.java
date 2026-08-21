@@ -14,6 +14,16 @@ public class AiragBaseApiFallback implements IAiragBaseApi {
     }
 
     @Override
+    public String knowledgeWriteFileDocument(String knowledgeId, String title, String filePath, String segmentConfig) {
+        return null;
+    }
+
+    @Override
+    public String checkKnowledgeDocsVectorizeStatus(String documentIds) {
+        return null;
+    }
+
+    @Override
     public String getChatVariable(String appId, String username, String name) {
         return null;
     }

@@ -1,5 +1,11 @@
 <#list subTables as sub>
 #segment#${sub.entityName}List.vue
+<#assign list_has_popup_dict = false>
+<#list sub.originalColumns as po>
+  <#if po.classType=='popup_dict'>
+    <#assign list_has_popup_dict = true>
+  </#if>
+</#list>
 <template>
  <div>
      <!--引用表格-->
@@ -62,6 +68,10 @@
   import {isEmpty} from "/@/utils/is";
   import {useMessage} from '/@/hooks/web/useMessage';
   import {downloadFile} from '/@/utils/common/renderUtils';
+<#if list_has_popup_dict>
+  import {getPopDictByCode} from '@/utils/dict';
+  import {filterMultiDictText} from '@/utils/dict/JDictSelectUtil';
+</#if>
 
     //接收主表id
     const mainId = inject('mainId') || '';
@@ -81,6 +91,9 @@
                 width: 180,
                 fixed:'right'
             },
+<#if list_has_popup_dict>
+            afterFetch: afterFetch,
+</#if>
             pagination:{
                 current: 1,
                 pageSize: 5,
@@ -166,6 +179,26 @@
     function handleSuccess() {
         (selectedRowKeys.value = []) && reload();
     }
+
+<#if list_has_popup_dict>
+    /**
+     * 翻译Popup字典配置
+     */
+    async function afterFetch(records) {
+    <#list sub.originalColumns as po>
+      <#if po.classType=='popup_dict' && (po.isQuery=='Y' || po.isShowList=='Y')>
+        const ${po.fieldName}Keys = [...new Set(records.map((item) => item['${po.fieldName}']).flatMap((item) => item && item.split(',')))];
+        if (${po.fieldName}Keys.length) {
+            const dictOptions = await getPopDictByCode(${po.fieldName}Keys.join(','), '${po.dictTable},${po.dictField},${po.dictText}');
+            records.forEach((item) => {
+                item['${po.fieldName}_dictText'] = filterMultiDictText(dictOptions, item['${po.fieldName}']);
+            });
+        }
+      </#if>
+    </#list>
+        return records;
+    }
+</#if>
 
     /**
      * 操作栏

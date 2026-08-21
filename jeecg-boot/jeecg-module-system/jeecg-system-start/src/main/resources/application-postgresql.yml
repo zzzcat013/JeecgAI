@@ -2,7 +2,6 @@ server:
   port: 8080
   tomcat:
     max-swallow-size: -1
-    basedir: ..
   servlet:
     context-path: /jeecg-boot
   compression:
@@ -112,6 +111,7 @@ spring:
       stat-view-servlet:
         enabled: true
         loginUsername: admin
+        # 默认弱口令，部署前务必修改
         loginPassword: 123456
         allow:
       web-stat-filter:
@@ -210,7 +210,7 @@ jeecg:
       apiKey: sk-??
       apiHost: https://dashscope.aliyuncs.com/api/v1/
       timeout: 60
-    # AI语音
+    # AI语音 目前只支持智普 glm-tts
     ai-model-voice:
       provider: ZHIPU
       model: glm-tts
@@ -221,12 +221,12 @@ jeecg:
       voice: tongtong
       speed: 1.0
       volume: 0.0
-    # AI视频
+    # AI视频目前只支持智普 支持模型 cogvideox-3（支持自动生成语音）;viduq1-text、vidu2-reference(不支持自动生成语音，还贵)
     ai-model-video:
       provider: ZHIPU
-      model: ??
+      model: cogvideox-3
       apiKey: sk-??
-      apiHost: https://api.deepseek.com/v1
+      apiHost: https://open.bigmodel.cn/api/paas/v4
       timeout: 60
       ffmpeg-path:
       edge-tts-path:
@@ -252,17 +252,30 @@ jeecg:
       endpoint: https://api.search.brave.com/res/v1/web/search
       count: 10
       timeout: 15
+  airag:
+    # AI聊天助手访问限流配置
+    rate-limit:
+      # 单 session 每分钟上限
+      send-per-session-per-minute: 10
+      # 单 IP 每分钟上限
+      send-per-ip-per-minute: 20
+      # 单 session 每小时上限
+      upload-per-session-per-hour: 20
   # 平台上线安全配置
   firewall:
     # 数据源安全 (开启后，Online报表和图表的数据源为必填)
     dataSourceSafe: false
     # 低代码模式（dev:开发模式，prod:发布模式——关闭所有在线开发配置能力）
     lowCodeMode: dev
+    # 登录是否启用验证码
+    enableLoginCaptcha: false
+    # 是否开启三级等保强密码校验（true 开启强密码模式，false 使用简单密码规则）
+    enableStrongPwd: false
   # 签名密钥串(前后端要一致，正式发布请自行修改)
   signatureSecret: dd05f1c54d63749eda95f9fa6d49v442a
   #签名拦截接口
   signUrls: /sys/dict/getDictItems/*,/sys/dict/loadDict/*,/sys/dict/loadDictOrderByValue/*,/sys/dict/loadDictItem/*,/sys/dict/loadTreeData,/sys/api/queryTableDictItemsByCode,/sys/api/queryFilterTableDictInfo,/sys/api/queryTableDictByKeys,/sys/api/translateDictFromTable,/sys/api/translateDictFromTableByKeys,/sys/sendChangePwdSms,/sys/user/sendChangePhoneSms,/sys/sms,/desform/api/sendVerifyCode
-  # 本地：local、Minio：minio、阿里云：alioss
+  # 上传类型：local（本地存储）| minio（MinIO对象存储）| alioss（阿里云OSS）
   uploadType: local
   # 前端访问地址
   domainUrl:
@@ -303,15 +316,36 @@ jeecg:
     bucketName: otatest
   #大屏报表参数设置
   jmreport:
-    #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离) (v1.6.2+ 新增)
+    #多租户模式，默认值为空(created:按照创建人隔离、tenant:按照租户隔离)
     saasMode:
-    # 平台上线安全配置(v1.6.2+ 新增)
+    # 签名密钥串(前后端要一致，正式发布请自行修改)
+    signatureSecret: dd05f1c54d63749eda95f9fa6d49v442a
+    ai:
+      # OpenAI 兼容 base 地址（必填）
+      base-url: https://api.deepseek.com
+      # API Key（必填，留空则 AI 不可用）
+      api-key:
+      # 模型名
+      model: deepseek-v4-pro
+      #确定性输出，默认temperature=0
+      temperature: 0
+      # 单次生成最大 token 数(传给大模型的 max_tokens)，DeepSeek 合法范围[1,393216]
+      max-tokens: 393216
+      # AI自动建表功（安全警告: 此功能会直接操作数据库DDL/DML，生产环境请勿启用）
+      autoTableEnabled: true
+    # 平台上线安全配置
     firewall:
       # 数据源安全 (开启后，不允许使用平台数据源、SQL解析加签并且不允许查询数据库)
       dataSourceSafe: false
-      # 低代码开发模式（dev:开发模式，prod:发布模式—关闭在线报表设计功能，分配角色admin、lowdeveloper可以放开限制）
+      # SQL解析安全 false: 数据库解析(默认,稳定性好) true: jsqlparser解析(不走数据库,安全级别高) v2.2.1+新增
+      sqlParseSafe: true
+      # 低代码开发模式（dev:开发模式，prod:发布模式—关闭在线报表设计功能，分配角色admin、lowdeveloper可放开限制）
       lowCodeMode: dev
-    # 高德地图Api配置(v2.1.3+ BI新增高德地图)
+      # sql注入检查级别（strict:严格, basic:简单校验, none:不校验）
+      sqlInjectionLevel: basic
+      # 数据源重试连接的次数，默认10，空或者0不限制次数(2.3.1+)
+      numberOfRetries: 10
+    # 高德地图Api配置
     gao-de-api:
       # 应用key
       api-key: ??
@@ -379,6 +413,10 @@ justauth:
       client-id: ??
       client-secret: ??
       redirect-uri: http://sso.test.com:8080/jeecg-boot/sys/thirdLogin/wechat_open/callback
+    FEISHU:
+      client-id: ??
+      client-secret: ??
+      redirect-uri: http://sso.test.com:8080/jeecg-boot/sys/thirdLogin/feishu/callback
   cache:
     type: default
     prefix: 'demo::'

@@ -124,7 +124,10 @@ public class SqlInjectionUtil {
 		checkSqlAnnotation(value);
 		// 转为小写进行后续比较
 		value = value.toLowerCase().trim();
-		
+		//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+		value = value.replaceAll("\\s+", " ");
+		//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+
 		// 二、SQL注入检测存在绕过风险 (普通文本校验)
 		//https://gitee.com/jeecg/jeecg-boot/issues/I4NZGE
 		String[] xssArr = XSS_STR.split("\\|");
@@ -149,7 +152,9 @@ public class SqlInjectionUtil {
 
 		// 四、SQL注入检测存在绕过风险 (正则校验)
 		for (String regularOriginal : XSS_REGULAR_STR_ARRAY) {
-			String regular = ".*" + regularOriginal + ".*";
+			//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
+			String regular = "(?s).*" + regularOriginal + ".*";
+			//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
 			if (Pattern.matches(regular, value)) {
 				log.error(SqlInjectionUtil.SQL_INJECTION_KEYWORD_TIP, regularOriginal);
 				log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);
@@ -274,7 +279,10 @@ public class SqlInjectionUtil {
 		// 一、校验sql注释 不允许有sql注释
 		checkSqlAnnotation(value);
 		value = value.toLowerCase().trim();
-		
+		//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+		value = value.replaceAll("\\s+", " ");
+		//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+
 		// 二、SQL注入检测存在绕过风险 (普通文本校验)
 		for (int i = 0; i < xssArr.length; i++) {
 			if (isExistSqlInjectKeyword(value, xssArr[i])) {
@@ -294,7 +302,9 @@ public class SqlInjectionUtil {
 
 		// 三、SQL注入检测存在绕过风险 (正则校验)
 		for (String regularOriginal : XSS_REGULAR_STR_ARRAY) {
-			String regular = ".*" + regularOriginal + ".*";
+			//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
+			String regular = "(?s).*" + regularOriginal + ".*";
+			//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
 			if (Pattern.matches(regular, value)) {
 				log.error(SqlInjectionUtil.SQL_INJECTION_KEYWORD_TIP, regularOriginal);
 				log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);
@@ -318,7 +328,10 @@ public class SqlInjectionUtil {
 		// 一、校验sql注释 不允许有sql注释
 		checkSqlAnnotation(value);
 		value = value.toLowerCase().trim();
-		
+		//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+		value = value.replaceAll("\\s+", " ");
+		//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+
 		// 二、SQL注入检测存在绕过风险 (普通文本校验)
 		for (int i = 0; i < xssArr.length; i++) {
 			if (isExistSqlInjectKeyword(value, xssArr[i])) {
@@ -338,7 +351,9 @@ public class SqlInjectionUtil {
 
 		// 三、SQL注入检测存在绕过风险 (正则校验)
 		for (String regularOriginal : XSS_REGULAR_STR_ARRAY) {
-			String regular = ".*" + regularOriginal + ".*";
+			//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
+			String regular = "(?s).*" + regularOriginal + ".*";
+			//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
 			if (Pattern.matches(regular, value)) {
 				log.error(SqlInjectionUtil.SQL_INJECTION_KEYWORD_TIP, regularOriginal);
 				log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);

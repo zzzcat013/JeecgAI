@@ -43,6 +43,14 @@ public class ChatSendParams {
     private String appId;
 
     /**
+     * 分享令牌（匿名访问必填）
+     *
+     * @author scott
+     * @since 2026-07-21 【issues/9787】匿名发送携带分享令牌
+     */
+    private String shareToken;
+
+    /**
      * 图片列表
      */
     private List<String> images;

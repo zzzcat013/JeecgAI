@@ -44,7 +44,7 @@ import org.apache.shiro.authz.annotation.RequiresPermissions;
 <#if po.fieldDbName=='bpm_status'>
   <#assign bpm_flag=true>
 </#if>
-<#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox')>
+<#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='popup_dict' || po.classType=='sel_user' || po.classType=='sel_depart')>
    <#assign has_multi_query_field=true>
 </#if>
 </#list>
@@ -97,7 +97,7 @@ public class ${entityName}Controller extends JeecgController<${entityName}, I${e
         Map<String, QueryRuleEnum> customeRuleMap = new HashMap<>();
         // 自定义多选的查询规则为：LIKE_WITH_OR
     <#list originalColumns as po>
-        <#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox')>
+        <#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='popup_dict' || po.classType=='sel_user' || po.classType=='sel_depart')>
         customeRuleMap.put("${po.fieldName}", QueryRuleEnum.LIKE_WITH_OR);
         </#if>
     </#list>

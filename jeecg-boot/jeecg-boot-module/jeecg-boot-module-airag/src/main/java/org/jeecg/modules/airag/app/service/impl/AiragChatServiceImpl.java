@@ -13,6 +13,7 @@ import dev.langchain4j.model.output.FinishReason;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.tool.ToolExecutor;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.tika.parser.AutoDetectParser;
@@ -25,6 +26,7 @@ import org.jeecg.common.system.api.ISysBaseAPI;
 import org.jeecg.common.system.util.JwtUtil;
 import org.jeecg.common.util.*;
 import org.jeecg.common.util.filter.SsrfFileTypeFilter;
+import org.jeecg.common.util.oss.OssBootUtil;
 import org.jeecg.config.AiChatConfig;
 import org.jeecg.config.AiRagConfigBean;
 import org.jeecg.config.JeecgBaseConfig;
@@ -53,14 +55,17 @@ import org.jeecg.modules.airag.flow.helper.JeecgTagHelper;
 import org.jeecg.modules.airag.flow.service.IAiragFlowService;
 import org.jeecg.modules.airag.flow.vo.api.FlowRunParams;
 import org.jeecg.modules.airag.flow.vo.tool.ToolExecutionVo;
+import org.jeecg.modules.airag.llm.consts.FlowPluginContent;
 import org.jeecg.modules.airag.llm.consts.LLMConsts;
 import org.jeecg.modules.airag.llm.document.TikaDocumentParser;
+import org.jeecg.modules.airag.llm.entity.AiragKnowledgeDoc;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
 import org.jeecg.modules.airag.flow.handler.BraveSearchToolBuilder;
 import org.jeecg.modules.airag.llm.handler.AIChatHandler;
 import org.jeecg.modules.airag.llm.handler.JeecgToolsProvider;
 import org.jeecg.modules.airag.llm.mapper.AiragModelMapper;
 import org.jeecg.modules.airag.llm.service.IAiragFlowPluginService;
+import org.jeecg.modules.airag.llm.service.IAiragKnowledgeDocService;
 import org.jeecg.modules.airag.llm.service.IAiragKnowledgeService;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +83,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -89,7 +95,11 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class AiragChatServiceImpl implements IAiragChatService {
+
+    private final ImageGenerationToolBuilder imageGenerationToolBuilder;
+    private final ImageGenerationContentAssembler imageGenerationContentAssembler;
 
     @Autowired
     IAIChatHandler aiChatHandler;
@@ -151,6 +161,10 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (oConvertUtils.isNotEmpty(chatSendParams.getAppId())) {
             app = airagAppMapper.getByIdIgnoreTenant(chatSendParams.getAppId());
         }
+        //update-begin---author:scott ---date:20260721  for：【issues/9787】AI聊天匿名接口安全加固：匿名必须指定已发布应用+分享令牌，禁止回退默认应用-----------
+        // 匿名访问校验：必须指定已发布的应用并携带分享令牌，禁止回退默认应用（issues/9787）
+        checkAnonymousShareAccess(app, oConvertUtils.isNotEmpty(chatSendParams.getAppId()), chatSendParams.getShareToken());
+        //update-end---author:scott ---date:20260721  for：【issues/9787】AI聊天匿名接口安全加固：匿名必须指定已发布应用+分享令牌，禁止回退默认应用-----------
         //update-begin---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
         ChatConversation chatConversation = getOrCreateChatConversation(app, conversationId, chatSendParams.getSessionType());
         //update-end---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
@@ -184,7 +198,10 @@ public class AiragChatServiceImpl implements IAiragChatService {
         // 获取会话信息
         String topicId = oConvertUtils.getString(appDebugParams.getTopicId(), UUIDGenerator.generate());
         AiragApp app = appDebugParams.getApp();
-        app.setId("__DEBUG_APP");
+		//update-begin---author:scott ---date:20260811  for：【LHZP-1619】应用预览与流程调试共用真实应用变量-----------
+		app.setId(resolveDebugAppId(app.getId()));
+		saveVariables(app);
+		//update-end---author:scott ---date:20260811  for：【LHZP-1619】应用预览与流程调试共用真实应用变量-----------
         //update-begin---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
         ChatConversation chatConversation = getOrCreateChatConversation(app, topicId, "");
         //update-end---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
@@ -203,6 +220,15 @@ public class AiragChatServiceImpl implements IAiragChatService {
         return emitter;
     }
 
+	/**
+	 * 已保存应用调试时保留真实应用id，未保存应用使用调试应用id。
+	 *
+	 * @author scott
+	 * @since 2026-08-11 【LHZP-1619】应用预览与流程调试共用真实应用变量
+	 */
+	static String resolveDebugAppId(String appId) {
+		return oConvertUtils.isEmpty(appId) ? AiAppConsts.DEBUG_APP_ID : appId;
+	}
 
     @Override
     public Result<?> stop(String requestId) {
@@ -343,7 +369,8 @@ public class AiragChatServiceImpl implements IAiragChatService {
         // 合并工具调用相关的消息
         List<MessageHistory> messages = chatConversation.getMessages();
         if (oConvertUtils.isObjectNotEmpty(messages)) {
-            messages = mergeToolMessages(messages, showToolProcess);
+            Map<String, String> toolDisplayNames = showToolProcess ? getFlowToolDisplayNames(chatApp) : Collections.emptyMap();
+            messages = mergeToolMessages(messages, showToolProcess, toolDisplayNames);
         }
         result.put("messages", messages);
         result.put("flowInputs", chatConversation.getFlowInputs());
@@ -362,9 +389,10 @@ public class AiragChatServiceImpl implements IAiragChatService {
      *
      * @param histories 历史消息列表
      * @param showToolProcess 是否显示工具调用过程
+     * @param toolDisplayNames 工具展示名称
      * @return 合并后的历史消息列表
      */
-    private List<MessageHistory> mergeToolMessages(List<MessageHistory> histories, boolean showToolProcess) {
+    private List<MessageHistory> mergeToolMessages(List<MessageHistory> histories, boolean showToolProcess, Map<String, String> toolDisplayNames) {
         List<MessageHistory> mergedMessages = new ArrayList<>();
         if (oConvertUtils.isObjectEmpty(histories)) {
             return mergedMessages;
@@ -443,6 +471,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 }
                 String toolResult = message.getToolExecutionResult();
                 ToolExecutionVo vo = ToolExecutionVo.build(toolId, request.getName(), request.getArguments(), toolResult);
+                fillToolDisplayName(vo, toolDisplayNames);
                 String execTag = JeecgTagHelper.createTag(JeecgTagHelper.TAG_JEECG_TOOL_EXEC, JSON.toJSONString(vo));
                 mergeMsg.accept(currentAiMsg, execTag);
             }
@@ -453,6 +482,45 @@ public class AiragChatServiceImpl implements IAiragChatService {
         }
         return mergedMessages;
     }
+
+    /**
+     * 获取应用流程工具的展示名称
+     *
+     * @param app AI应用
+     * @return 工具名与流程名映射
+     * @author scott
+     * @since 2026-08-04 LHZP-1610
+     */
+    private Map<String, String> getFlowToolDisplayNames(AiragApp app) {
+		if (app == null || oConvertUtils.isEmpty(app.getFlowId())) {
+			return Collections.emptyMap();
+		}
+		List<String> flowIds = Arrays.asList(app.getFlowId().split(SymbolConstant.COMMA));
+		List<AiragFlow> flows = airagFlowService.listByIds(flowIds);
+		if (CollectionUtils.isEmpty(flows)) {
+			return Collections.emptyMap();
+		}
+		return flows.stream().collect(Collectors.toMap(
+				flow -> FlowPluginContent.FLOW_TOOL_NAME_PREFIX + flow.getId(),
+				AiragFlow::getName,
+				(first, _second) -> first
+		));
+	}
+
+    /**
+     * 补充工具展示名称
+     *
+     * @param vo 工具执行记录
+     * @param toolDisplayNames 工具展示名称
+     * @author scott
+     * @since 2026-08-04 LHZP-1610
+     */
+    private void fillToolDisplayName(ToolExecutionVo vo, Map<String, String> toolDisplayNames) {
+		if (vo == null || toolDisplayNames == null || toolDisplayNames.isEmpty()) {
+			return;
+		}
+		vo.setDisplayName(toolDisplayNames.get(vo.getName()));
+	}
 
     @Override
     public Result<?> clearMessage(String conversationId, String sessionType) {
@@ -474,8 +542,11 @@ public class AiragChatServiceImpl implements IAiragChatService {
     }
 
     @Override
-    public Result<?> initChat(String appId) {
+    public Result<AiragAppShareInfoVO> initChat(String appId, String shareToken) {
         AiragApp app = airagAppMapper.getByIdIgnoreTenant(appId);
+        //update-begin---author:scott ---date:20260721  for：【issues/9787】init匿名访问校验：应用必须已发布且令牌匹配，同时防止app为空导致空指针-----------
+        checkAnonymousShareAccess(app, true, shareToken);
+        //update-end---author:scott ---date:20260721  for：【issues/9787】init匿名访问校验：应用必须已发布且令牌匹配，同时防止app为空导致空指针-----------
         //update-begin---author:chenrui ---date:20251106  for：[issues/8545]新建AI应用的时候只能选择没有自定义参数的AI流程------------
         if(AiAppConsts.APP_TYPE_CHAT_FLOW.equalsIgnoreCase(app.getType())) {
             AiragFlow flow = airagFlowService.getById(app.getFlowId());
@@ -521,7 +592,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
         }
         //update-end---author:chenrui ---date:202501XX  for：在initChat接口中返回模型供应商信息，避免前端多次调用模型查询接口------------
         
-        return Result.ok(app);
+        return Result.ok(buildShareInfoVO(app));
     }
 
     @Override
@@ -566,7 +637,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
                             break;
                         } else {
                             // 主线程未结束, 未超时, 休眠一会再查
-                            log.warn("[AI应用]继续接收-等待消息更新: {}", requestId);
+                            log.debug("[AI应用]继续接收-等待消息更新: {}", requestId);
                             Thread.sleep(500);
                         }
                     }
@@ -996,10 +1067,12 @@ public class AiragChatServiceImpl implements IAiragChatService {
             //update-begin---author:wangshuai---date:2026-01-09---for:【QQYUN-14261】【AI】AI助手，支持多模态能力- 文档---
             appendMessage(messages, userMessage, chatConversation, topicId, sendParams.getFiles(), sendParams.getContent());
             //update-end---author:wangshuai---date:2026-01-09---for:【QQYUN-14261】【AI】AI助手，支持多模态能力- 文档---
-            // 绘画AI逻辑：当开启生成绘画时调用
-            if (oConvertUtils.isObjectNotEmpty(sendParams.getEnableDraw()) && sendParams.getEnableDraw()) {
+            //update-begin---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+            // 手动开启时强制纯生图；未开启时由应用聊天模型通过生图工具自动判断并支持图文混排
+            if (Boolean.TRUE.equals(sendParams.getEnableDraw())) {
                 return genImageChat(emitter,sendParams,requestId,messages,chatConversation,topicId);
             }
+            //update-end---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
             /* 这里应该是有几种情况:
              * 1. 非ai应用:获取默认模型->开始聊天
              * 2. AI应用-聊天助手(ChatAssistant):从应用信息组装模型和提示词->开始聊天
@@ -1332,6 +1405,28 @@ public class AiragChatServiceImpl implements IAiragChatService {
             airagVariableService.addUpdateVariableTool(aiApp,username,aiChatParams);
         }
 
+        //update-begin---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+        Function<String, List<String>> generatedImageGenerator = null;
+		//update-begin---author:scott ---date:20260810  for：图片类插件与应用内置绘画能力互斥---
+		boolean imageRelatedPluginEnabled = imageGenerationToolBuilder.hasImageRelatedPlugin(aiChatParams);
+		if (imageRelatedPluginEnabled) {
+			log.info("[AI-CHAT]应用已启用图片类插件，跳过内置绘画模型注册, appId:{}", aiApp.getId());
+		} else if (imageGenerationToolBuilder.hasExplicitImageRequest(aiApp, sendParams.getContent())) {
+		//update-end---author:scott ---date:20260810  for：图片类插件与应用内置绘画能力互斥---
+            appendMessage(messages, SystemMessage.from(imageGenerationToolBuilder.buildPlacementInstruction(sendParams.getContent())), chatConversation, topicId);
+            generatedImageGenerator = articleContent -> imageGenerationToolBuilder.generateForRequest(
+                    aiApp, sendParams.getContent(), articleContent, this::uploadImage);
+        } else {
+            Map<ToolSpecification, ToolExecutor> imageTools = imageGenerationToolBuilder.buildTools(aiApp, this::uploadImage);
+            if (!imageTools.isEmpty()) {
+                if (aiChatParams.getTools() == null) {
+                    aiChatParams.setTools(new HashMap<>());
+                }
+                aiChatParams.getTools().putAll(imageTools);
+            }
+        }
+        //update-end---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+
         //update-begin---author:wangshuai---date:2026-03-18---for:【QQYUN-14935】Langchain4j 新版支持 Agent Skills，重新定义 Java AI 应用的能力边界---
         // 封装skills及上下文信息
         fillSkillsParams(aiChatParams);
@@ -1341,7 +1436,9 @@ public class AiragChatServiceImpl implements IAiragChatService {
         printChatDuration(requestId, "构造应用自定义参数完成");
         // 发消息
         //update-begin---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
-        sendWithDefault(requestId, chatConversation, topicId, modelId, messages, aiChatParams, sendParams.getSessionType());
+        //update-begin---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+        sendWithDefault(requestId, chatConversation, topicId, modelId, messages, aiChatParams, sendParams.getSessionType(), generatedImageGenerator);
+        //update-end---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
         //update-end---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
     }
 
@@ -1428,6 +1525,18 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @date 2025/2/25 19:24
      */
     private void sendWithDefault(String requestId, ChatConversation chatConversation, String topicId, String modelId, List<ChatMessage> messages, AIChatParams aiChatParams, String sessionType) {
+        //update-begin---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+        sendWithDefault(requestId, chatConversation, topicId, modelId, messages, aiChatParams, sessionType, null);
+        //update-end---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+    }
+
+    /**
+     * 处理可延迟合并图片的流式聊天响应。
+     *
+     * @author scott
+     * @since 2026-08-10 AI应用支持智能识别和图文混合生成
+     */
+    private void sendWithDefault(String requestId, ChatConversation chatConversation, String topicId, String modelId, List<ChatMessage> messages, AIChatParams aiChatParams, String sessionType, Function<String, List<String>> generatedImageGenerator) {
         // 调用ai聊天
         if (null == aiChatParams) {
             aiChatParams = new AIChatParams();
@@ -1524,11 +1633,17 @@ public class AiragChatServiceImpl implements IAiragChatService {
             }
         }
         final boolean finalShowToolProcess = showToolProcess;
+        final Map<String, String> toolDisplayNames = finalShowToolProcess ? getFlowToolDisplayNames(chatConversation.getApp()) : Collections.emptyMap();
+
+        //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型单轮只调用变量工具时兜底写入记忆库-----------
+        Set<String> executedToolNames = ConcurrentHashMap.newKeySet();
+        //update-end---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型单轮只调用变量工具时兜底写入记忆库-----------
 
         /**
          * 是否正在思考
          */
         AtomicBoolean isThinking = new AtomicBoolean(false);
+        boolean deferTextResponse = generatedImageGenerator != null;
         // ai聊天响应逻辑
         chatStream.onPartialResponse((String resMessage) -> {
             //update-begin---author:wangshuai---date:2025-11-07---for:[issues/8506]/[issues/8260]/[issues/8166]新增推理模型的支持---
@@ -1538,15 +1653,23 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 isThinking.set(false);
             }
             //update-end---author:wangshuai---date:2025-11-07---for:[issues/8506]/[issues/8260]/[issues/8166]新增推理模型的支持---
-            send2Client.accept(resMessage, EventData.EVENT_MESSAGE);
+            //update-begin---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+            if (!deferTextResponse) {
+                send2Client.accept(resMessage, EventData.EVENT_MESSAGE);
+            }
+            //update-end---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
         }).beforeToolExecution(beforeToolExecution -> {
             // 监听工具执行请求（根据配置决定是否发送给前端）
             if (finalShowToolProcess) {
                 ToolExecutionVo vo = ToolExecutionVo.build(beforeToolExecution);
+                fillToolDisplayName(vo, toolDisplayNames);
                 String execTag = JeecgTagHelper.createTag(JeecgTagHelper.TAG_JEECG_TOOL_EXEC, JSON.toJSONString(vo));
                 send2Client.accept(execTag, EventData.EVENT_TOOL_EXEC_BEFORE);
             }
         }).onToolExecuted((toolExecution) -> {
+            //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型单轮只调用变量工具时兜底写入记忆库-----------
+            executedToolNames.add(toolExecution.request().name());
+            //update-end---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型单轮只调用变量工具时兜底写入记忆库-----------
             // 打印工具执行结果
             log.debug("[AI应用]工具执行结果: toolName={}, toolId={}, result={}",
                     toolExecution.request().name(),
@@ -1561,9 +1684,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
             // 根据配置决定是否将工具调用过程发送给前端
             if (finalShowToolProcess) {
                 ToolExecutionVo vo = ToolExecutionVo.build(toolExecution);
+                fillToolDisplayName(vo, toolDisplayNames);
                 String execTag = JeecgTagHelper.createTag(JeecgTagHelper.TAG_JEECG_TOOL_EXEC, JSON.toJSONString(vo));
                 send2Client.accept(execTag, EventData.EVENT_TOOL_EXEC_DONE);
-                send2Client.accept(execTag, EventData.EVENT_MESSAGE);
+                //update-begin---author:scott ---date:20260810  for：AI应用思考过程隐藏工具执行原始数据-----------
+                if (!isThinking.get()) {
+                    send2Client.accept(execTag, EventData.EVENT_MESSAGE);
+                }
+                //update-end---author:scott ---date:20260810  for：AI应用思考过程隐藏工具执行原始数据-----------
             }
         }).onIntermediateResponse((chatResponse) -> {
             // 中间响应：包含tool_calls的AI消息
@@ -1598,6 +1726,9 @@ public class AiragChatServiceImpl implements IAiragChatService {
         }).onCompleteResponse((responseMessage) -> {
             // 打印流程耗时日志
             printChatDuration(requestId, "LLM输出消息完成");
+            //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型单轮只调用变量工具时兜底写入记忆库-----------
+            saveMemoryAfterVariableUpdate(chatConversation.getApp(), messages, executedToolNames);
+            //update-end---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型单轮只调用变量工具时兜底写入记忆库-----------
             AiragLocalCache.remove(AiragConsts.CACHE_TYPE_SSE_SEND_TIME, requestId);
             // for [QQYUN-9234] MCP服务连接关闭 - 聊天完成时关闭MCP连接
             finalAiChatParams.closeMcpConnections();
@@ -1614,6 +1745,14 @@ public class AiragChatServiceImpl implements IAiragChatService {
             if (FinishReason.STOP.equals(finishReason) || null == finishReason) {
                 // 正常结束
                 EventData eventData = new EventData(requestId, null, EventData.EVENT_MESSAGE_END, chatConversation.getId(), topicId);
+                //update-begin---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
+                if (deferTextResponse) {
+                    String sanitizedText = imageGenerationContentAssembler.removeGeneratedImageMarkdown(aiMessage == null ? null : aiMessage.text());
+                    String mixedContent = imageGenerationContentAssembler.mergeGeneratedImages(sanitizedText, generatedImageGenerator.apply(sanitizedText));
+                    send2Client.accept(mixedContent, EventData.EVENT_MESSAGE);
+                    aiMessage = imageGenerationContentAssembler.replaceAiMessageContent(aiMessage, mixedContent);
+                }
+                //update-end---author:scott ---date:20260810  for：AI应用支持智能识别和图文混合生成-----------
                 appendMessage(messages, aiMessage, chatConversation, topicId);
                 // 保存会话
                 //update-begin---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
@@ -1805,6 +1944,140 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 //update-end---author:wangshuai---date:2025-12-10---for:【QQYUN-14127】【AI】AI应用门户---
             }
         });
+    }
+
+    /**
+     * 智普模型仅调用变量工具时，将本轮用户信息兜底写入记忆库。
+     *
+     * @param aiApp            AI应用
+     * @param messages         本轮消息
+     * @param executedToolNames 已执行工具名称
+     * @author wangshuai
+     * @since 2026-08-04 LHZP-1591
+     */
+    private void saveMemoryAfterVariableUpdate(AiragApp aiApp, List<ChatMessage> messages, Set<String> executedToolNames) {
+        if (aiApp == null || oConvertUtils.isEmpty(aiApp.getMemoryId())
+                || (!AiAppConsts.IZ_OPEN_MEMORY.equals(aiApp.getIzOpenMemory()) && aiApp.getIzOpenMemory() != null)
+                || !executedToolNames.contains("update_variable") || executedToolNames.contains("add_memory")) {
+            return;
+        }
+        String userContent = messages.stream()
+                .filter(UserMessage.class::isInstance)
+                .map(UserMessage.class::cast)
+                .reduce((first, second) -> second)
+                .map(userMessage -> userMessage.contents().stream()
+                        .filter(TextContent.class::isInstance)
+                        .map(TextContent.class::cast)
+                        .map(TextContent::text)
+                        .collect(Collectors.joining("\n")))
+                .orElse("");
+        if (oConvertUtils.isEmpty(userContent)) {
+            return;
+        }
+        try {
+            AiragKnowledgeDoc memoryDoc = new AiragKnowledgeDoc();
+            memoryDoc.setKnowledgeId(aiApp.getMemoryId());
+            memoryDoc.setTitle(userContent.length() > 20 ? userContent.substring(0, 20) : userContent);
+            memoryDoc.setContent(userContent);
+            memoryDoc.setType(LLMConsts.KNOWLEDGE_DOC_TYPE_TEXT);
+            IAiragKnowledgeDocService knowledgeDocService = SpringContextUtils.getBean(IAiragKnowledgeDocService.class);
+            knowledgeDocService.editDocument(memoryDoc);
+            log.info("[AI应用][LHZP-1591] 变量更新后兜底写入记忆库成功, memoryId={}", aiApp.getMemoryId());
+        } catch (Exception e) {
+            log.error("[AI应用][LHZP-1591] 变量更新后兜底写入记忆库失败, memoryId={}", aiApp.getMemoryId(), e);
+        }
+    }
+
+    /**
+     * 匿名访问安全校验（issues/9787）
+     * 匿名用户必须指定一个"已发布"的AI应用并携带正确的分享令牌，禁止回退默认应用、禁止访问未发布/不存在的应用；
+     * 登录用户不受任何影响。
+     *
+     * @param app        按appId查询到的应用（可能为空）
+     * @param hasAppId   请求是否携带了appId
+     * @param shareToken 分享令牌
+     * @author scott
+     * @since 2026-07-21 【issues/9787】AI聊天匿名接口安全加固
+     */
+    private void checkAnonymousShareAccess(AiragApp app, boolean hasAppId, String shareToken) {
+        // 登录用户走原有逻辑，直接放行
+        if (oConvertUtils.isNotEmpty(getUsername(null))) {
+            return;
+        }
+        // 匿名：必须携带appId，禁止回退默认应用刷默认模型额度
+        if (!hasAppId) {
+            throw new JeecgBootException("请通过分享链接访问");
+        }
+        // 匿名：必须携带分享令牌
+        if (oConvertUtils.isEmpty(shareToken)) {
+            throw new JeecgBootException("请通过分享链接访问");
+        }
+        // 匿名：应用必须存在、已发布且令牌匹配（统一文案，不区分具体原因，防止探测）
+        if (app == null
+                || !AiAppConsts.STATUS_RELEASE.equals(app.getStatus())
+                || !shareToken.equals(app.getShareToken())) {
+            throw new JeecgBootException("分享链接无效或已取消发布");
+        }
+    }
+
+    @Override
+    public void validateAnonymousShareAccess(String appId, String shareToken) {
+        AiragApp app = null;
+        if (oConvertUtils.isNotEmpty(appId)) {
+            app = airagAppMapper.getByIdIgnoreTenant(appId);
+        }
+        checkAnonymousShareAccess(app, oConvertUtils.isNotEmpty(appId), shareToken);
+    }
+
+    /**
+     * 元数据白名单key：聊天页仅需这些配置（issues/9787）
+     */
+    private static final Set<String> SHARE_METADATA_KEYS = new HashSet<>(Arrays.asList(
+            AiAppConsts.APP_METADATA_FLOW_INPUTS, "multiSession", "izDraw", "defaultSelect", "drawModelId", "modelInfo"));
+
+    /**
+     * 构建分享视图对象：只保留前端聊天页必需字段（issues/9787）
+     *
+     * @param app 应用实体
+     * @return 分享视图对象
+     * @author scott
+     * @since 2026-07-21 【issues/9787】init接口返回最小化VO
+     */
+    private AiragAppShareInfoVO buildShareInfoVO(AiragApp app) {
+        AiragAppShareInfoVO vo = new AiragAppShareInfoVO();
+        vo.setId(app.getId());
+        vo.setShareToken(app.getShareToken());
+        vo.setName(app.getName());
+        vo.setDescr(app.getDescr());
+        vo.setIcon(app.getIcon());
+        vo.setType(app.getType());
+        vo.setPrologue(app.getPrologue());
+        vo.setPresetQuestion(app.getPresetQuestion());
+        vo.setQuickCommand(app.getQuickCommand());
+        vo.setMetadata(filterShareMetadata(app.getMetadata()));
+        return vo;
+    }
+
+    /**
+     * 元数据按白名单key过滤重组，不原样透传（issues/9787）
+     *
+     * @param metadata 原元数据JSON串
+     * @return 过滤后的元数据JSON串
+     * @author scott
+     * @since 2026-07-21 【issues/9787】init接口返回最小化VO
+     */
+    private String filterShareMetadata(String metadata) {
+        if (oConvertUtils.isEmpty(metadata)) {
+            return null;
+        }
+        JSONObject source = JSONObject.parseObject(metadata);
+        JSONObject target = new JSONObject();
+        for (String key : SHARE_METADATA_KEYS) {
+            if (source.containsKey(key)) {
+                target.put(key, source.get(key));
+            }
+        }
+        return target.toJSONString();
     }
 
     /**
@@ -2167,6 +2440,17 @@ public class AiragChatServiceImpl implements IAiragChatService {
     private File ensureLocalFile(String fileRef, String fileName) {
         String uploadpath = jeecgBaseConfig.getPath().getUpload();
         if (LLMConsts.WEB_PATTERN.matcher(fileRef).matches()) {
+            //update-begin---author:wangshuai ---date:2026-06-16  for：【issues/9672】匿名请求禁止远程URL文件引用，防止SSRF攻击-----------
+            String currentUser = null;
+            try {
+                HttpServletRequest req = SpringContextUtils.getHttpServletRequest();
+                currentUser = JwtUtil.getUserNameByToken(req);
+            } catch (Exception ignored) {
+            }
+            if (currentUser == null) {
+                checkAnonymousFileRef(fileRef);
+            }
+            //update-end---author:wangshuai ---date:2026-06-16  for：【issues/9672】匿名请求禁止远程URL文件引用，防止SSRF攻击-----------
             //update-begin---author:wangshuai ---date:2026-04-13  for：【issues/9519】AI附件处理路径遍历漏洞：下载文件名做安全过滤，临时目录隔离---
             // 远程下载：使用 FilenameUtils.getName 剥离任何路径分隔符，再次校验防止 ..
             String safeFileName = FilenameUtils.getName(fileName);
@@ -2255,4 +2539,53 @@ public class AiragChatServiceImpl implements IAiragChatService {
         sendWithFlow(requestId, AiAppConsts.ARTICLE_WRITER_FLOW_ID, chatConversation, topicId, new ArrayList<>(), sendParams);
         return emitter;
     }
+
+    //update-begin---author:wangshuai ---date:2026-06-16  for：【issues/9672】匿名请求文件引用安全校验-----------
+    /**
+     * 匿名请求文件引用校验：只允许访问已配置存储中 airag/ 目录下的文件
+     */
+    private void checkAnonymousFileRef(String fileRef) {
+        String airag = "airag/";
+        String relativePath = extractStorageRelativePath(fileRef);
+        if (relativePath == null || !relativePath.startsWith(airag)) {
+            log.warn("匿名请求文件路径不在允许范围内: {}", fileRef);
+            throw new JeecgBootException("匿名聊天不支持远程文件引用，请直接上传文件");
+        }
+    }
+
+    /**
+     * 从完整URL中提取存储服务的相对路径，非已配置存储的URL返回null
+     */
+    private String extractStorageRelativePath(String url) {
+        if (oConvertUtils.isEmpty(url)) {
+            return null;
+        }
+        // 匹配 OSS staticDomain（如 https://jeecgdev.oss-cn-beijing.aliyuncs.com）
+        String ossDomain = OssBootUtil.getStaticDomain();
+        if (oConvertUtils.isNotEmpty(ossDomain) && url.toLowerCase().startsWith(ossDomain.toLowerCase())) {
+            String path = url.substring(ossDomain.length());
+            return path.startsWith("/") ? path.substring(1) : path;
+        }
+        // 匹配 OSS endpoint（如 oss-cn-beijing.aliyuncs.com）
+        String ossEndpoint = OssBootUtil.getEndPoint();
+        if (oConvertUtils.isNotEmpty(ossEndpoint) && url.toLowerCase().contains(ossEndpoint.toLowerCase())) {
+            int idx = url.indexOf(ossEndpoint);
+            String afterEndpoint = url.substring(idx + ossEndpoint.length());
+            int slashIdx = afterEndpoint.indexOf('/');
+            return slashIdx >= 0 ? afterEndpoint.substring(slashIdx + 1) : null;
+        }
+        // 匹配 MinIO URL（如 http://192.168.1.100:9000/）
+        String minioUrl = MinioUtil.getMinioUrl();
+        if (oConvertUtils.isNotEmpty(minioUrl) && url.toLowerCase().startsWith(minioUrl.toLowerCase())) {
+            String path = url.substring(minioUrl.length());
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            // 跳过 bucket 名称
+            int slashIdx = path.indexOf('/');
+            return slashIdx >= 0 ? path.substring(slashIdx + 1) : null;
+        }
+        return null;
+    }
+    //update-end---author:wangshuai ---date:2026-06-16  for：【issues/9672】匿名请求文件引用安全校验-----------
 }

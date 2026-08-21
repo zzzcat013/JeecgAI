@@ -138,6 +138,9 @@ public class ShiroConfig {
 
         filterChainDefinitionMap.put("/sys/annountCement/show/**", "anon");
 
+        //Chat2BI分享页（页面自带独立登录）
+        filterChainDefinitionMap.put("/jimu/chat2bi/chat", "anon");
+
         //积木报表排除
         filterChainDefinitionMap.put("/jmreport/**", "anon");
         filterChainDefinitionMap.put("/**/*.js.map", "anon");
@@ -225,6 +228,7 @@ public class ShiroConfig {
         registration.addUrlPatterns("/test/ai/chat/send");
         registration.addUrlPatterns("/airag/flow/run");
         registration.addUrlPatterns("/airag/flow/debug");
+        registration.addUrlPatterns("/airag/flow/code/generate");
         registration.addUrlPatterns("/airag/chat/send");
         registration.addUrlPatterns("/airag/app/debug");
         registration.addUrlPatterns("/airag/app/prompt/generate");
@@ -326,7 +330,6 @@ public class ShiroConfig {
     public IRedisManager redisManager() {
         log.info("===============(2)创建RedisManager,连接Redis..");
         IRedisManager manager;
-        //update-begin---author:scott ---date:2026-07-07  for：【Spring Boot 4.0 升级】恢复 Sentinel 哨兵模式支持，API 兼容-----------
         // sentinel cluster redis（【issues/5569】shiro集成 redis 不支持 sentinel 方式部署的redis集群 #5569）
         if (Objects.nonNull(redisProperties)
                 && Objects.nonNull(redisProperties.getSentinel())
@@ -339,7 +342,6 @@ public class ShiroConfig {
 
             return sentinelManager;
         }
-        //update-end---author:scott ---date:2026-07-07  for：【Spring Boot 4.0 升级】恢复 Sentinel 哨兵模式支持，API 兼容-----------
         
         // redis 单机支持，在集群为空，或者集群无机器时候使用 add by jzyadmin@163.com
         if (lettuceConnectionFactory.getClusterConfiguration() == null || lettuceConnectionFactory.getClusterConfiguration().getClusterNodes().isEmpty()) {

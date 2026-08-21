@@ -342,14 +342,27 @@ public class SysTenantPackServiceImpl extends ServiceImpl<SysTenantPackMapper, S
         }
         // 预取当前租户用户列表，避免在循环中重复查询
         List<String> userIds = sysUserTenantMapper.getUserIdsByTenantId(tenantId);
-        // 计算需要同步的默认套餐包列表
-        List<SysTenantPack> packsToSync = sysDefaultTenantPacks.stream()
-                .filter(p -> !currentTenantPackMap.containsKey(p.getPackName()))
-                .collect(Collectors.toList());
-
-        // 并行同步缺失的套餐包
-        packsToSync.parallelStream().forEach(defaultPacks -> {
-            syncDefaultPack2CurrentTenant(tenantId, defaultPacks, userIds);
+        //update-begin---wangshuai---date:20260807  for：【LHZP-1369】默认套餐在授权页面 授权之后，在多租户里面点击初始化同步套餐，权限没有同步过来------------
+        // 同步默认套餐包，已存在的套餐也需要刷新权限
+        sysDefaultTenantPacks.parallelStream().forEach(defaultPack -> {
+            SysTenantPack currentPack = currentTenantPackMap.get(defaultPack.getPackName());
+            if (currentPack == null) {
+                syncDefaultPack2CurrentTenant(tenantId, defaultPack, userIds);
+            } else {
+                List<String> permissionsByPackId = sysPackPermissionMapper.getPermissionsByPackId(defaultPack.getId());
+                this.deletePackPermission(currentPack.getId(), null);
+                List<SysPackPermission> permissionList = new ArrayList<>();
+                for (String permission:permissionsByPackId) {
+                    SysPackPermission packPermission = new SysPackPermission();
+                    packPermission.setPackId(currentPack.getId());
+                    packPermission.setPermissionId(permission);
+                    permissionList.add(packPermission);
+                }
+                if(CollectionUtil.isNotEmpty(permissionList)){
+                    sysPackPermissionMapper.insert(permissionList);
+                }
+            }
+            //update-end---author:wangshuai ---date:20260807  for：【LHZP-1369】默认套餐在授权页面 授权之后，在多租户里面点击初始化同步套餐，权限没有同步过来------------
         });
     }
 

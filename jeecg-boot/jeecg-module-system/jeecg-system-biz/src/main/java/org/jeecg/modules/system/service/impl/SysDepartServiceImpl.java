@@ -432,6 +432,21 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
 	 */
 	@Override
 	public List<SysDepartTreeModel> searchByKeyWord(String keyWord, String myDeptSearch, String departIds, String orgCategory, String depIds) {
+		return searchByKeyWord(keyWord, myDeptSearch, departIds, orgCategory, depIds, false);
+	}
+
+	@Override
+	public List<SysDepartTreeModel> searchByKeyWordForDepartManage(String keyWord, String orgCategory) {
+		return searchByKeyWord(keyWord, null, null, orgCategory, null, true);
+	}
+
+	/**
+	 * 根据关键字搜索组织机构。
+	 *
+	 * @param departManageSearch 是否为部门管理页面搜索
+	 */
+	private List<SysDepartTreeModel> searchByKeyWord(String keyWord, String myDeptSearch, String departIds,
+											  String orgCategory, String depIds, boolean departManageSearch) {
 		LambdaQueryWrapper<SysDepart> query = new LambdaQueryWrapper<SysDepart>();
 		List<SysDepartTreeModel> newList = new ArrayList<>();
 		//myDeptSearch不为空时为我的部门搜索，只搜索所负责部门
@@ -471,8 +486,31 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
             }
         }
         // 代码逻辑说明: [bugfree号]组织机构搜索回显优化--------------------
-		SysDepartTreeModel model = new SysDepartTreeModel();
 		List<SysDepart> departList = this.list(query);
+        // update-begin--author:wangshuai---date:20260813---for：【LHZP-1075】【系统管理】部门 搜索后 如果是公司或部门 不能展开下级
+		if(CollectionUtil.isNotEmpty(departList) && departManageSearch) {
+			// 搜索结果按ID去重；父级和子级同时命中时仅保留父级，避免展开后子级重复展示。
+			Map<String, SysDepart> departMap = departList.stream().collect(Collectors.toMap(
+					SysDepart::getId, depart -> depart, (first, second) -> first, LinkedHashMap::new));
+			List<SysDepart> distinctDepartList = new ArrayList<>(departMap.values());
+			for (SysDepart depart : distinctDepartList) {
+				String orgCode = depart.getOrgCode();
+				boolean hasMatchedParent = distinctDepartList.stream().anyMatch(parent ->
+						!parent.getId().equals(depart.getId())
+								&& oConvertUtils.isNotEmpty(parent.getOrgCode())
+								&& oConvertUtils.isNotEmpty(orgCode)
+								&& parent.getOrgCode().length() < orgCode.length()
+								&& orgCode.startsWith(parent.getOrgCode()));
+				if (!hasMatchedParent) {
+					// 保留izLeaf计算出的叶子状态，非叶子节点仍可通过前端懒加载展开下级。
+					newList.add(new SysDepartTreeModel(depart));
+				}
+                
+            }
+			return newList;
+		}
+        // update-end--author:wangshuai---date:20260813---for：【LHZP-1075】【系统管理】部门 搜索后 如果是公司或部门 不能展开下级
+        SysDepartTreeModel model = new SysDepartTreeModel();
 		if(departList.size() > 0) {
 			for(SysDepart depart : departList) {
 				model = new SysDepartTreeModel(depart);
@@ -1445,14 +1483,18 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
 		Collections.sort(listSysDeparts, new Comparator<SysDepartExportVo>() {
 			@Override
 			public int compare(SysDepartExportVo o1, SysDepartExportVo o2) {
-				if(oConvertUtils.isNotEmpty(o1.getDepartNameUrl()) && oConvertUtils.isNotEmpty(o2.getDepartNameUrl())){
-					int oldLength = o1.getDepartNameUrl().split(SymbolConstant.SINGLE_SLASH).length;
-					int newLength = o2.getDepartNameUrl().split(SymbolConstant.SINGLE_SLASH).length;
-					return oldLength - newLength;
-				}else{
-					return 0;
-				}
-			}
+                //update-begin---wangshuai---date:20260803  for：【LHZP-1134】部门管理 导入部门时 部门编码需要按顺序排，否则导入失败------------
+				int oldLength = oConvertUtils.isEmpty(o1.getDepartNameUrl()) ? Integer.MAX_VALUE : o1.getDepartNameUrl().split(SymbolConstant.SINGLE_SLASH).length;
+                int newLength = oConvertUtils.isEmpty(o2.getDepartNameUrl()) ? Integer.MAX_VALUE : o2.getDepartNameUrl().split(SymbolConstant.SINGLE_SLASH).length;
+                int levelCompare = Integer.compare(oldLength, newLength);
+                if (levelCompare != 0) {
+                    return levelCompare;
+                }
+                String oldOrgCode = oConvertUtils.isEmpty(o1.getOrgCode()) ? null : o1.getOrgCode();
+                String newOrgCode = oConvertUtils.isEmpty(o2.getOrgCode()) ? null : o2.getOrgCode();
+                return Comparator.nullsLast(String::compareTo).compare(oldOrgCode, newOrgCode);
+                //update-end---author:wangshuai ---date:20260803  for：【LHZP-1134】部门管理 导入部门时 部门编码需要按顺序排，否则导入失败------------
+            }
 		});
 		//存放部门数据的map
 		Map<String,SysDepart> departMap = new HashMap<>();
@@ -1506,6 +1548,7 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
 					sysDepart.setOrgType(sysDepart.getOrgCode().length()/codeLength+"");
 				}
 				sysDepart.setDelFlag(CommonConstant.DEL_FLAG_0.toString());
+				sysDepart.setIzLeaf(CommonConstant.IS_LEAF);
 				sysDepart.setDepartNameEn(departExportVo.getDepartNameEn());
 				sysDepart.setDepartOrder(departExportVo.getDepartOrder());
 				sysDepart.setOrgCategory(oConvertUtils.getString(departExportVo.getOrgCategory(),"1"));
@@ -1697,6 +1740,14 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
      */
     private List<SysPositionSelectTreeVo> getDepartPosition(SysDepart sysDepart, Integer postLevel, String id, List<String> existCodeList) {
         //step1 获取部门下的所有部门
+        //update-begin---wangshuai---date:20260805  for：【LHZP-1118】部门管理 在惠东科技下添加下级岗位 选择上级岗位时 出现了萌新科技------------
+        // 公司直属岗位只允许选择本公司直属的上级岗位，不查询下级部门岗位
+        if (DepartCategoryEnum.DEPART_CATEGORY_COMPANY.getValue().equals(sysDepart.getOrgCategory())
+                || DepartCategoryEnum.DEPART_CATEGORY_SUB_COMPANY.getValue().equals(sysDepart.getOrgCategory())) {
+            List<SysDepart> companyPositionList = baseMapper.getDepartPositionByParentId(sysDepart.getId(), postLevel, id);
+            return sysDepartToTreeModel(companyPositionList);
+        }
+        //update-end---author:wangshuai ---date:20260805  for：【LHZP-1118】部门管理 在惠东科技下添加下级岗位 选择上级岗位时 出现了萌新科技------------
         String parentId = sysDepart.getParentId();
         List<SysDepart> departList = baseMapper.getDepartByParentId(parentId);
         List<SysPositionSelectTreeVo> treeModels = new ArrayList<>();
@@ -1704,7 +1755,7 @@ public class SysDepartServiceImpl extends ServiceImpl<SysDepartMapper, SysDepart
             SysDepart depart = departList.get(i);
             existCodeList.add(depart.getOrgCode());
             //如果是叶子节点说明没有岗位直接跳出循环
-            if (depart.getIzLeaf() == 1) {
+            if (oConvertUtils.isEmpty(depart.getIzLeaf()) || depart.getIzLeaf() == 1) {
                 if (DepartCategoryEnum.DEPART_CATEGORY_POST.getValue().equals(depart.getOrgCategory())) {
                     SysPositionSelectTreeVo sysDepartTreeModel = new SysPositionSelectTreeVo(depart);
                     treeModels.add(sysDepartTreeModel);

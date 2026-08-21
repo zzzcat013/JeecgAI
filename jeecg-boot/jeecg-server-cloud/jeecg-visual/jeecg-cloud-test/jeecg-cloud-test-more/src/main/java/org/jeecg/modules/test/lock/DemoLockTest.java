@@ -31,7 +31,7 @@ public class DemoLockTest {
      *
      * 测试分布式锁【注解方式】
      */
-    @Scheduled(cron = "0/5 * * * * ?")
+//    @Scheduled(cron = "0/5 * * * * ?")
     @JLock(lockKey = CloudConstant.REDISSON_DEMO_LOCK_KEY1)
     public void execute() throws InterruptedException {
         log.info("执行execute任务开始，休眠十秒开始，当前系统时间戳（秒）："+ System.currentTimeMillis()/1000);

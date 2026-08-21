@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.*;
+import java.util.function.BooleanSupplier;
 
 /**
  * 插件工具构建器
@@ -34,6 +35,8 @@ import java.util.*;
 @Slf4j
 public class PluginToolBuilder {
 
+	private static final String PLUGIN_UNAVAILABLE_MESSAGE = "插件已禁用或删除，本次不再调用该工具。请继续完成剩余任务。";
+
     /**
      * 从插件配置构建工具Map
      *
@@ -41,6 +44,21 @@ public class PluginToolBuilder {
      * @return Map<ToolSpecification, ToolExecutor>
      */
     public static Map<ToolSpecification, ToolExecutor> buildTools(AiragMcp airagMcp, HttpServletRequest currentHttpRequest) {
+		return buildTools(airagMcp, currentHttpRequest, null);
+	}
+
+	/**
+	 * 从插件配置构建工具Map，并在执行HTTP请求前检查插件是否仍可用。
+	 *
+	 * @param airagMcp 插件配置
+	 * @param currentHttpRequest 当前请求
+	 * @param availableChecker 插件实时可用状态检查器，为空时不检查
+	 * @return Map&lt;ToolSpecification, ToolExecutor&gt;
+	 * @author scott
+	 * @since 2026-08-10 插件禁用后立即阻止已加载会话继续调用
+	 */
+	public static Map<ToolSpecification, ToolExecutor> buildTools(AiragMcp airagMcp, HttpServletRequest currentHttpRequest,
+			BooleanSupplier availableChecker) {
         Map<ToolSpecification, ToolExecutor> tools = new HashMap<>();
         if (airagMcp == null || oConvertUtils.isEmpty(airagMcp.getTools())) {
             return tools;
@@ -79,10 +97,9 @@ public class PluginToolBuilder {
                 if (toolConfig == null) {
                     continue;
                 }
-
                 try {
                     ToolSpecification spec = buildToolSpecification(toolConfig);
-                    ToolExecutor executor = buildToolExecutor(toolConfig, baseUrl, headersMap, isNeedSign);
+                    ToolExecutor executor = buildToolExecutor(toolConfig, baseUrl, headersMap, isNeedSign, airagMcp.getName(), availableChecker);
                     if (spec != null && executor != null) {
                         tools.put(spec, executor);
                     }
@@ -150,6 +167,12 @@ public class PluginToolBuilder {
                 if (param == null) {
                     continue;
                 }
+                //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型无法将AI应用信息写入记忆库-----------
+                // 服务端固定参数不暴露给模型，由工具执行器按 defaultValue 自动注入
+                if (Boolean.TRUE.equals(param.getBoolean("hidden"))) {
+                    continue;
+                }
+                //update-end---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型无法将AI应用信息写入记忆库-----------
                 String paramName = param.getString("name");
                 String paramDesc = param.getString("description");
                 String paramType = param.getString("type");
@@ -193,9 +216,11 @@ public class PluginToolBuilder {
     /**
      * 构建ToolExecutor
      */
-    private static ToolExecutor buildToolExecutor(JSONObject toolConfig, String baseUrl, Map<String, String> defaultHeaders, boolean isNeedSign) {
+    private static ToolExecutor buildToolExecutor(JSONObject toolConfig, String baseUrl, Map<String, String> defaultHeaders, boolean isNeedSign,
+			String pluginName, BooleanSupplier availableChecker) {
         String path = toolConfig.getString("path");
         String method = toolConfig.getString("method");
+        String toolName = toolConfig.getString("name");
         JSONArray parameters = toolConfig.getJSONArray("parameters");
 
         if (oConvertUtils.isEmpty(path) || oConvertUtils.isEmpty(method)) {
@@ -205,6 +230,12 @@ public class PluginToolBuilder {
 
         return (toolExecutionRequest, memoryId) -> {
             try {
+				//update-begin---author:scott ---date:20260810  for：插件禁用后立即阻止已加载会话继续调用---
+				if (availableChecker != null && !availableChecker.getAsBoolean()) {
+					log.warn("插件[{}]已禁用或删除，终止工具[{}]调用", pluginName, toolName);
+					return PLUGIN_UNAVAILABLE_MESSAGE;
+				}
+				//update-end---author:scott ---date:20260810  for：插件禁用后立即阻止已加载会话继续调用---
                 // 解析AI传入的参数
                 JSONObject args = JSONObject.parseObject(toolExecutionRequest.arguments());
 

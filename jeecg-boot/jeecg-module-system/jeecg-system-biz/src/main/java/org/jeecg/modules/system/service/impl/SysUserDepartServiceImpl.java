@@ -129,12 +129,12 @@ public class SysUserDepartServiceImpl extends ServiceImpl<SysUserDepartMapper, S
 	 * 根据部门code，查询当前部门和下级部门的 用户信息
 	 */
 	@Override
-	public List<SysUser> queryUserByDepCode(String depCode,String realname) {
+	public List<SysUser> queryUserByDepCode(String depCode,String realname,Integer status) {
 		// 代码逻辑说明: 根据部门选择用户接口代码优化
 		if(oConvertUtils.isNotEmpty(realname)){
 			realname = realname.trim();
 		}
-		List<SysUser> userList = this.baseMapper.queryDepartUserList(depCode, realname);
+		List<SysUser> userList = this.baseMapper.queryDepartUserList(depCode, realname, status);
 		Map<String, SysUser> map = new LinkedHashMap(5);
 		for (SysUser sysUser : userList) {
 			// 返回的用户数据去掉密码信息

@@ -368,8 +368,14 @@ public class CommonUtils {
         //1.【兼容】兼容微服务下的 base path-------
         String xGatewayBasePath = request.getHeader(ServiceNameConstants.X_GATEWAY_BASE_PATH);
         if(oConvertUtils.isNotEmpty(xGatewayBasePath)){
-            log.info("x_gateway_base_path = "+ xGatewayBasePath);
-            return  xGatewayBasePath;
+            //update-begin---author:wangshuai ---date:20260616  for：【issues/9695】校验X_GATEWAY_BASE_PATH防止SSRF header注入-----------
+            String validated = validateGatewayBasePath(xGatewayBasePath);
+            if(validated != null){
+                log.info("x_gateway_base_path = {}", validated);
+                return validated;
+            }
+            log.warn("X_GATEWAY_BASE_PATH header 校验失败，已忽略: {}", xGatewayBasePath);
+            //update-end---author:wangshuai ---date:20260616  for：【issues/9695】校验X_GATEWAY_BASE_PATH防止SSRF header注入-----------
         }
         //2.【兼容】SSL认证之后，request.getScheme()获取不到https的问题
         // https://blog.csdn.net/weixin_34376986/article/details/89767950
@@ -397,6 +403,72 @@ public class CommonUtils {
         log.debug("-----获取当前服务 BaseUrl----- : " + baseDomainPath);
         return baseDomainPath;
     }
+
+    //update-begin---author:wangshuai ---date:20260616  for：【issues/9695】校验X_GATEWAY_BASE_PATH防止SSRF header注入-----------
+    /**
+     * 校验 X_GATEWAY_BASE_PATH 请求头：仅允许 http/https 协议，不允许 userInfo，
+     * 从解析后的 URI 组件重新拼接，防止注入特殊字符绕过。
+     * @return 校验通过返回安全的 baseUrl，否则返回 null
+     */
+    public static String validateGatewayBasePathForDomain(String headerValue) {
+        return validateGatewayBasePath(headerValue);
+    }
+
+    private static String validateGatewayBasePath(String headerValue) {
+        if (oConvertUtils.isEmpty(headerValue)) {
+            return null;
+        }
+        try {
+            java.net.URI uri = new java.net.URI(headerValue.trim());
+            String scheme = uri.getScheme();
+            if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                return null;
+            }
+            if (uri.getUserInfo() != null) {
+                return null;
+            }
+            String host = uri.getHost();
+            if (oConvertUtils.isEmpty(host)) {
+                return null;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append(scheme.toLowerCase()).append("://").append(host);
+            if (uri.getPort() != -1) {
+                sb.append(":").append(uri.getPort());
+            }
+            if (uri.getPath() != null && !uri.getPath().isEmpty()) {
+                sb.append(uri.getPath());
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * 校验 URL 的 host 是否为内网地址（回环 / 局域网 / 链路本地），
+     * 用于 OpenAPI 转发等服务端发起请求的场景，防止 SSRF 到公网。
+     * 校验失败抛出 JeecgBootException。
+     */
+    public static void checkInternalUrl(String url) {
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String host = uri.getHost();
+            if (oConvertUtils.isEmpty(host)) {
+                throw new JeecgBootException("URL host 为空: " + url);
+            }
+            java.net.InetAddress addr = java.net.InetAddress.getByName(host);
+            if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress()) {
+                return;
+            }
+            throw new JeecgBootException("OpenAPI baseUrl 仅允许内网地址，当前解析到外部地址: " + host + " -> " + addr.getHostAddress());
+        } catch (JeecgBootException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new JeecgBootException("OpenAPI baseUrl 校验失败: " + e.getMessage());
+        }
+    }
+    //update-end---author:wangshuai ---date:20260616  for：【issues/9695】校验X_GATEWAY_BASE_PATH防止SSRF header注入-----------
 
     /**
      * 递归合并 fastJSON 对象

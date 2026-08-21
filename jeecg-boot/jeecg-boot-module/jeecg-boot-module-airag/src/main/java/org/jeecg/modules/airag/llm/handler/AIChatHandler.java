@@ -16,7 +16,6 @@ import org.jeecg.common.util.AssertUtils;
 import org.jeecg.common.util.filter.SsrfFileTypeFilter;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.config.AiChatConfig;
-import org.jeecg.config.AiRagConfigBean;
 import org.jeecg.modules.airag.common.consts.AiragConsts;
 import org.jeecg.modules.airag.common.handler.AIChatParams;
 import org.jeecg.modules.airag.common.handler.IAIChatHandler;
@@ -26,6 +25,7 @@ import org.jeecg.modules.airag.llm.entity.AiragMcp;
 import org.jeecg.modules.airag.llm.entity.AiragModel;
 import org.jeecg.modules.airag.llm.mapper.AiragMcpMapper;
 import org.jeecg.modules.airag.llm.mapper.AiragModelMapper;
+import org.jeecg.config.AiRagConfigBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -297,7 +297,7 @@ public class AIChatHandler implements IAIChatHandler {
             params = new AIChatParams();
         }
 
-        params.setProvider(airagModel.getProvider());
+		params.setProvider(LLMConsts.normalizeLlmProvider(airagModel.getProvider()));
         params.setModelName(airagModel.getModelName());
         params.setBaseUrl(airagModel.getBaseUrl());
         if (oConvertUtils.isObjectNotEmpty(airagModel.getCredential())) {
@@ -359,10 +359,30 @@ public class AIChatHandler implements IAIChatHandler {
 
         //deepseek-reasoner 推理模型不支持插件tool
         String modelName = airagModel.getModelName();
-        if(!LLMConsts.DEEPSEEK_REASONER.equals(modelName)){
+        //update-begin---author:wangshuai ---date:2026-06-29  for：【issues/9727】不支持Tool Calling的模型（如Ollama的deepseek-r1系列）发送工具调用时报错-----------
+        // modelName为空时从系统默认配置获取
+        if(oConvertUtils.isEmpty(modelName) && oConvertUtils.isNotEmpty(aiChatConfig.getModel())){
+            modelName = aiChatConfig.getModel();
+        }
+        //update-begin---author:claude ---date:2026-08-07  for：Kimi k3 等模型采样参数需固定，覆盖用户配置避免 400 报错 "invalid temperature: only 1 is allowed for this model"-----------
+        if (LLMConsts.isFixedSamplingParamModel(modelName)) {
+            log.info("[AI-CHAT] mergeParams modelName={} 采样参数固定，覆盖用户配置 temperature={}→1, topP={}→0.95, presencePenalty={}→0, frequencyPenalty={}→0",
+                    modelName, params.getTemperature(), params.getTopP(), params.getPresencePenalty(), params.getFrequencyPenalty());
+            params.setTemperature(1.0);
+            params.setTopP(0.95);
+            params.setPresencePenalty(0.0);
+            params.setFrequencyPenalty(0.0);
+        }
+        //update-end---author:claude ---date:2026-08-07  for：Kimi k3 等模型采样参数需固定，覆盖用户配置避免 400 报错 "invalid temperature: only 1 is allowed for this model"-----------
+        if(!LLMConsts.isToolCallingUnsupported(modelName)){
             // 插件/MCP处理
             buildPlugins(params);
+        } else {
+            // 不支持Tool Calling的模型，清除上游已注入的默认工具，兼容旧版Ollama
+            params.setTools(null);
+            params.setPluginIds(null);
         }
+        //update-end---author:wangshuai ---date:2026-06-29  for：【issues/9727】不支持Tool Calling的模型（如Ollama的deepseek-r1系列）发送工具调用时报错-----------
 
         //update-begin---author:scott ---date:20260429  for：[issues/9585]DeepSeek大模型切换为新发布deepseek-v4-flash，流程中调用出现异常------------
         // 仅对 DeepSeek 推理模型(deepseek-reasoner/deepseek-v4-flash 等)开启思考过程的捕获与回传，
@@ -409,6 +429,12 @@ public class AIChatHandler implements IAIChatHandler {
                 if (airagMcp == null) {
                     continue;
                 }
+                //update-begin---author:scott ---date:20260803  for：【LHZP-1497】插件禁用后仍可被AI调用：禁用插件不构建工具，防止LLM调用禁用插件---
+                if (LLMConsts.STATUS_DISABLE.equals(airagMcp.getStatus())) {
+                    log.warn("插件[{}]已禁用，跳过工具构建", airagMcp.getName());
+                    continue;
+                }
+                //update-end---author:scott ---date:20260803  for：【LHZP-1497】插件禁用后仍可被AI调用：禁用插件不构建工具，防止LLM调用禁用插件---
 
                 String category = airagMcp.getCategory();
                 if (oConvertUtils.isEmpty(category)) {
@@ -419,20 +445,30 @@ public class AIChatHandler implements IAIChatHandler {
                 if ("mcp".equalsIgnoreCase(category)) {
                     // MCP类型：构建McpToolProviderWrapper（包含连接引用用于后续关闭）
                     // for [QQYUN-9234] MCP服务连接关闭
-                    McpToolProviderWrapper wrapper = buildMcpToolProviderWrapper(
-                            airagMcp.getName(),
-                            airagMcp.getType(),
-                            airagMcp.getEndpoint(),
-                            airagMcp.getHeaders(),
-                            aiRagConfigBean.getAllowSensitiveNodes()
-                    );
-                    if (wrapper != null) {
-                        mcpToolProviders.add(wrapper.getMcpToolProvider());
-                        mcpToolProviderWrappers.add(wrapper);
+                    //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1501】配置的MCP报错，导致的右侧的会话直接调用大模型失败了---
+                    try {
+                        McpToolProviderWrapper wrapper = buildMcpToolProviderWrapper(
+                                airagMcp.getName(),
+                                airagMcp.getType(),
+                                airagMcp.getEndpoint(),
+                                airagMcp.getHeaders(),
+                                aiRagConfigBean.getAllowSensitiveNodes()
+                        );
+                        if (wrapper != null) {
+                            mcpToolProviders.add(wrapper.getMcpToolProvider());
+                            mcpToolProviderWrappers.add(wrapper);
+                        }
+                    } catch (Exception e) {
+                        log.warn("MCP插件[{}]初始化失败，已跳过该插件，不影响本次聊天。endpoint={}",
+                                airagMcp.getName(), airagMcp.getEndpoint(), e);
                     }
+                    //update-end---author:wangshuai ---date:20260804  for：【LHZP-1501】配置的MCP报错，导致的右侧的会话直接调用大模型失败了---
                 } else if ("plugin".equalsIgnoreCase(category)) {
                     // 插件类型：构建ToolSpecification和ToolExecutor
-                    Map<ToolSpecification, ToolExecutor> tools = PluginToolBuilder.buildTools(airagMcp, params.getCurrentHttpRequest());
+					//update-begin---author:scott ---date:20260810  for：插件禁用后立即阻止已加载会话继续调用---
+					Map<ToolSpecification, ToolExecutor> tools = PluginToolBuilder.buildTools(airagMcp, params.getCurrentHttpRequest(),
+							() -> isPluginAvailable(pluginId));
+					//update-end---author:scott ---date:20260810  for：插件禁用后立即阻止已加载会话继续调用---
                     if (tools != null && !tools.isEmpty()) {
                         pluginTools.putAll(tools);
                     }
@@ -459,6 +495,19 @@ public class AIChatHandler implements IAIChatHandler {
             }
         }
     }
+
+	/**
+	 * 查询插件执行时的最新状态，已删除或已禁用均视为不可用。
+	 *
+	 * @param pluginId 插件ID
+	 * @return 是否允许继续执行
+	 * @author scott
+	 * @since 2026-08-10 插件禁用后立即阻止已加载会话继续调用
+	 */
+	private boolean isPluginAvailable(String pluginId) {
+		AiragMcp latestPlugin = airagMcpMapper.selectById(pluginId);
+		return latestPlugin != null && !LLMConsts.STATUS_DISABLE.equals(latestPlugin.getStatus());
+	}
 
     @Override
     public UserMessage buildUserMessage(String content, List<String> images) {
@@ -602,6 +651,9 @@ public class AIChatHandler implements IAIChatHandler {
                     byte[] fileContent;
                     if (matcher.matches()) {
                         // 来源于网络
+                        //update-begin---author:zhangdaihao ---date:2026-08-06  for：【issues/9805】AI图生图imageUrl未校验导致SSRF，增加URL安全校验-----------
+                        SsrfFileTypeFilter.checkSsrfHttpUrl(imageUrl);
+                        //update-end---author:zhangdaihao ---date:2026-08-06  for：【issues/9805】AI图生图imageUrl未校验导致SSRF，增加URL安全校验-----------
                         java.net.URL url = new java.net.URL(imageUrl);
                         java.net.URLConnection conn = url.openConnection();
                         conn.setConnectTimeout(5000);
@@ -633,7 +685,7 @@ public class AIChatHandler implements IAIChatHandler {
                     originalImageBase64List.add(Base64.getEncoder().encodeToString(fileContent));
                 } catch (Exception e) {
                     log.error("图片读取失败: {}", imageUrl, e);
-                    throw new JeecgBootException("图片读取失败: " + imageUrl);
+                    throw new JeecgBootException("图片读取失败: " + imageUrl, e);
                 }
             }
         }
@@ -664,7 +716,9 @@ public class AIChatHandler implements IAIChatHandler {
 
         if (oConvertUtils.isNotEmpty(exceptionMsg)) {
             // 1.工具调用消息序列不完整
-            if (exceptionMsg.contains("messages with role 'tool' must be a response to a preceeding message with 'tool_calls'")) {
+            //update-begin---author:scott ---date:20260810  for：修正匹配串拼写与大小写（原"preceeding"为拼写错误，且DeepSeek实际返回以"Messages"开头），该友好提示此前永不命中-----------
+            if (exceptionMsg.toLowerCase().contains("must be a response to a preceding message with 'tool_calls'")) {
+            //update-end---author:scott ---date:20260810  for：修正匹配串拼写与大小写，该友好提示此前永不命中-----------
                 errMsg = "消息序列不完整，可能是因为历史消息数量设置过小导致工具调用上下文丢失。建议增加历史消息数量后重试。";
                 log.error("AI模型调用异常: 工具调用消息序列不完整，建议增加历史消息数量。异常详情: {}", exceptionMsg, e);
                 return new JeecgBootException(errMsg);

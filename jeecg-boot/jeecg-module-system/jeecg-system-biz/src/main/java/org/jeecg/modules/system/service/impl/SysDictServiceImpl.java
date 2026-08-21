@@ -73,6 +73,10 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 	@Autowired
 	private RedisUtil redisUtil;
 
+	@Lazy
+	@Autowired
+	private org.jeecg.modules.system.service.ISysDataSourceService sysDataSourceService;
+
 	@Override
 	public boolean duplicateCheckData(DuplicateCheckVo duplicateCheckVo) {
 		Long count = null;
@@ -99,13 +103,28 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 			if(DbTypeUtils.dbTypeIsPostgre(CommonUtils.getDatabaseTypeEnum())){
 				duplicateCheckVo.setFieldName("CAST("+duplicateCheckVo.getFieldName()+" as text)");
 			}
-			if (StringUtils.isNotBlank(duplicateCheckVo.getDataId())) {
-				// [1].编辑页面校验
-				count = sysDictMapper.duplicateCheckCountSql(duplicateCheckVo);
-			} else {
-				// [2].添加页面校验
-				count = sysDictMapper.duplicateCheckCountSqlNoDataId(duplicateCheckVo);
+			//update-begin---author:jeecg ---date:20260513  for：【QQYUN-15337】online表单多数据源：如果该表属于配置了 db_source 的 online 表单，则把唯一性校验 count 查询切到该数据源执行，避免在主库上找不到表-----------
+			String onlineDbSource = resolveOnlineFormDbSource(table);
+			boolean dbSourcePushed = false;
+			if (StringUtils.isNotBlank(onlineDbSource)) {
+				sysDataSourceService.ensureRegistered(onlineDbSource);
+				DynamicDataSourceContextHolder.push(onlineDbSource);
+				dbSourcePushed = true;
 			}
+			try {
+				if (StringUtils.isNotBlank(duplicateCheckVo.getDataId())) {
+					// [1].编辑页面校验
+					count = sysDictMapper.duplicateCheckCountSql(duplicateCheckVo);
+				} else {
+					// [2].添加页面校验
+					count = sysDictMapper.duplicateCheckCountSqlNoDataId(duplicateCheckVo);
+				}
+			} finally {
+				if (dbSourcePushed) {
+					DynamicDataSourceContextHolder.poll();
+				}
+			}
+			//update-end---author:jeecg ---date:20260513  for：【QQYUN-15337】online表单多数据源：如果该表属于配置了 db_source 的 online 表单，则把唯一性校验 count 查询切到该数据源执行-----------
 		}catch(MyBatisSystemException e){
 			log.error(e.getMessage(), e);
 			String errorCause = "查询异常,请检查唯一校验的配置！";
@@ -122,6 +141,30 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 			return false;
 		}
 	}
+
+	//update-begin---author:jeecg ---date:20260513  for：【QQYUN-15337】online表单多数据源：按表名查 onl_cgform_head 上该表所属表单配置的 db_source-----------
+	/**
+	 * 查询指定物理表是否属于一个配置了 db_source 的 online 表单，是则返回该数据源编码；否则返回 null。
+	 * 注意：附表 / 复制表/视图 的 db_source 是否会被填上，取决于主表/原始表是否被重新保存触发过传播（{@code OnlCgformHeadServiceImpl.propagateDbSourceToSubTables}）；
+	 * 边界场景查不到时落回主库，与原逻辑一致。
+	 * 异常一律吞掉返回 null（如运行环境不含 online 模块、{@code onl_cgform_head} 表不存在）。
+	 */
+	private String resolveOnlineFormDbSource(String tableName) {
+		if (StringUtils.isBlank(tableName)) {
+			return null;
+		}
+		try {
+			List<String> list = sysDictMapper.findOnlineFormDbSourceByTableName(tableName);
+			if (list == null || list.isEmpty()) {
+				return null;
+			}
+			return list.get(0);
+		} catch (Exception e) {
+			log.debug("resolveOnlineFormDbSource 查询失败 [{}]: {}", tableName, e.getMessage());
+			return null;
+		}
+	}
+	//update-end---author:jeecg ---date:20260513  for：【QQYUN-15337】online表单多数据源：按表名查 onl_cgform_head 上该表所属表单配置的 db_source-----------
 
 
 	/**
@@ -811,6 +854,104 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 			// 字典Code格式不正确
 			return null;
 		}
+	}
+
+	/**
+	 * 关联记录专用：多字段分页查询任意数据库表数据
+	 *
+	 * @param tableName    表名
+	 * @param showFields   展示字段，逗号分隔，如 realname,username,avater
+	 * @param valueField   值字段，如 id
+	 * @param keyword      关键词搜索（可为 null）
+	 * @param keyValues    按 valueField 精确查找的值，逗号分隔（用于回显，可为 null）
+	 * @param pageNo       页码
+	 * @param pageSize     每页大小
+	 */
+	@Override
+	//update-begin---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
+	public Map<String, Object> queryTableDataForLinkRecord(String tableName, String showFields, String valueField,
+			String keyword, String keyValues, Integer pageNo, Integer pageSize) {
+	//update-end---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
+
+		// ---------- 1. 安全校验 ----------
+		// 1.1 表名 + 所有字段的白名单检查
+		List<String> allFieldList = new ArrayList<>();
+		allFieldList.add(valueField.trim());
+		for (String f : showFields.split(",")) {
+			if (oConvertUtils.isNotEmpty(f.trim())) {
+				allFieldList.add(f.trim());
+			}
+		}
+		sysBaseAPI.dictTableWhiteListCheckByDict(tableName, allFieldList.toArray(new String[0]));
+
+		// 1.2 SQL 注入基础检查
+		SqlInjectionUtil.specialFilterContentForDictSql(tableName);
+
+		// ---------- 2. 转义表名与字段 ----------
+		String safeTable = SqlInjectionUtil.getSqlInjectTableName(tableName.trim());
+		String safeValueField = SqlInjectionUtil.getSqlInjectField(valueField.trim());
+
+		// 构造 SELECT 字段列表：valueField + showFields（去重）
+		LinkedHashSet<String> fieldSet = new LinkedHashSet<>();
+		fieldSet.add(safeValueField);
+		for (String f : showFields.split(",")) {
+			f = f.trim();
+			if (oConvertUtils.isNotEmpty(f)) {
+				fieldSet.add(SqlInjectionUtil.getSqlInjectField(f));
+			}
+		}
+		String selectFields = String.join(", ", fieldSet);
+
+		// ---------- 3. 构造 WHERE 条件 ----------
+		List<String> conditionParts = new ArrayList<>();
+
+		//update-begin---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
+		// 3.1 按 keyValues 精确查询（回显用）
+		if (oConvertUtils.isNotEmpty(keyValues)) {
+			keyValues = keyValues.replace("'", "''");
+			String inValues = "'" + String.join("','", keyValues.split(",")) + "'";
+			conditionParts.add(safeValueField + " IN (" + inValues + ")");
+		}
+		//update-end---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
+
+		// 3.2 关键词模糊搜索
+		if (oConvertUtils.isNotEmpty(keyword)) {
+			keyword = keyword.replace("'", "''");
+			String[] searchArr = showFields.split(",");
+			List<String> likeParts = new ArrayList<>();
+			for (String sf : searchArr) {
+				sf = sf.trim();
+				if (oConvertUtils.isNotEmpty(sf)) {
+					String safeSf = SqlInjectionUtil.getSqlInjectField(sf);
+					likeParts.add(safeSf + " like '%" + keyword + "%'");
+				}
+			}
+			if (!likeParts.isEmpty()) {
+				conditionParts.add("(" + String.join(" or ", likeParts) + ")");
+			}
+		}
+
+		String filterSql = conditionParts.isEmpty() ? "" : String.join(" and ", conditionParts);
+		if (oConvertUtils.isNotEmpty(filterSql)) {
+			SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+		}
+
+		// ---------- 4. 分页查询 ----------
+		int current = oConvertUtils.getInt(pageNo, 1);
+		int size = oConvertUtils.getInt(pageSize, 10);
+		Page<Map<String, Object>> page = new Page<>(current, size);
+		page.setSearchCount(false); // 手动 count，避免 MyBatis Plus 自动 count 与 ${} 语法冲突
+
+		IPage<Map<String, Object>> pageResult = baseMapper.queryPageTableWithFields(page, safeTable, selectFields, filterSql);
+		long total = baseMapper.countTableWithFields(safeTable, filterSql);
+
+		// ---------- 5. 组装返回值 ----------
+		Map<String, Object> result = new HashMap<>(4);
+		result.put("records", pageResult.getRecords());
+		result.put("total", total);
+		result.put("size", size);
+		result.put("current", current);
+		return result;
 	}
 
 	@Override

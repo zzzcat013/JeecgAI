@@ -14,7 +14,6 @@ import org.jeecg.common.util.filter.SsrfFileTypeFilter;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -122,6 +121,79 @@ public class FileDownloadUtils {
         }
     }
 
+    //update-begin---author:wangshuai ---date:2026-06-17  for：【issues/9681】修复SSRF重定向绕过漏洞(CWE-918)，禁止自动跳转并逐跳校验-----------
+    /**
+     * 安全地打开 HTTP(S) 连接：禁止自动重定向，对初始 URL 及每一跳重定向目标都做 SSRF 校验，
+     * 返回最终已连接（且校验通过）的连接对象。
+     *
+     * @param fileUrl 文件URL
+     * @return 已连接的 HttpURLConnection
+     * @throws IOException 连接异常
+     */
+    private static HttpURLConnection openSafeConnection(String fileUrl) throws IOException {
+        int maxRedirects = 5;
+        String currentUrl = fileUrl;
+        for (int i = 0; i <= maxRedirects; i++) {
+            // 每一跳（含初始 URL）都重新做 SSRF 校验，拦截 loopback / link-local / 云元数据地址
+            SsrfFileTypeFilter.checkSsrfHttpUrl(currentUrl);
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(currentUrl).openConnection();
+            // 关键：禁止 JDK 自动跟随重定向，否则会绕过上面的校验
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(5 * 1000);
+            conn.setReadTimeout(30 * 1000);
+            // 防止屏蔽程序
+            conn.setRequestProperty("User-Agent", "Mozilla/4.0 (compatible; MSIE 5.0; Windows NT; DigExt)");
+            conn.connect();
+
+            int code = conn.getResponseCode();
+            if (code >= 300 && code < 400) {
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                if (oConvertUtils.isEmpty(location)) {
+                    throw new JeecgBootException("非法重定向：Location 为空");
+                }
+                // 处理相对路径跳转，解析为绝对地址后回到循环顶部再次校验
+                currentUrl = new URL(new URL(currentUrl), location).toString();
+                continue;
+            }
+            return conn;
+        }
+        throw new JeecgBootException("非法URL：重定向次数过多");
+    }
+    //update-end---author:wangshuai ---date:2026-06-17  for：【issues/9681】修复SSRF重定向绕过漏洞(CWE-918)，禁止自动跳转并逐跳校验-----------
+
+    //update-begin---author:liusq ---date:2026-06-29  for：【issues/9725】uploadImgByHttp 复用安全连接，修复SSRF重定向绕过漏洞(CWE-918)-----------
+    /**
+     * 安全地从网络下载资源为字节数组：内部复用 {@link #openSafeConnection(String)}，
+     * 禁止自动跟随重定向，并对初始 URL 及每一跳重定向目标都做 SSRF 校验。
+     *
+     * @param fileUrl 文件URL
+     * @return 文件字节数组
+     * @throws IOException 连接或读取异常
+     */
+    public static byte[] download2BytesFromNet(String fileUrl) throws IOException {
+        HttpURLConnection conn = openSafeConnection(fileUrl);
+        try {
+            int responseCode = conn.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("HTTP请求失败，响应码: " + responseCode);
+            }
+            try (InputStream inputStream = conn.getInputStream();
+                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                return outputStream.toByteArray();
+            }
+        } finally {
+            conn.disconnect();
+        }
+    }
+    //update-end---author:liusq ---date:2026-06-29  for：【issues/9725】uploadImgByHttp 复用安全连接，修复SSRF重定向绕过漏洞(CWE-918)-----------
+
     /**
      * 下载网络资源到磁盘
      *
@@ -148,12 +220,10 @@ public class FileDownloadUtils {
         SsrfFileTypeFilter.checkSsrfHttpUrl(fileUrl);
         //update-end---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】下载网络资源前增加SSRF校验-----------
         try {
-            URL url = new URL(fileUrl);
-            URLConnection conn = url.openConnection();
-            // 设置超时间为3秒
-            conn.setConnectTimeout(3 * 1000);
-            // 防止屏蔽程序
-            conn.setRequestProperty("User-Agent", "Mozilla/4.0 (compatible; MSIE 5.0; Windows NT; DigExt)");
+            //update-begin---author:wangshuai ---date:2026-06-17  for：【issues/9681】修复SSRF重定向绕过漏洞，改用禁止自动跳转并逐跳校验的安全连接-----------
+            // 安全打开连接：内部已对初始 URL 及每一跳重定向目标做 SSRF 校验，并禁止自动跟随重定向
+            HttpURLConnection conn = openSafeConnection(fileUrl);
+            //update-end---author:wangshuai ---date:2026-06-17  for：【issues/9681】修复SSRF重定向绕过漏洞，改用禁止自动跳转并逐跳校验的安全连接-----------
             // 确保目录存在
             File file = ensureDestFileDir(storePath);
             try (InputStream inStream = conn.getInputStream();
@@ -279,10 +349,10 @@ public class FileDownloadUtils {
                 //update-begin---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】修复二次SSRF漏洞，对HTTP下载URL进行安全校验-----------
                 SsrfFileTypeFilter.checkSsrfHttpUrl(fileUrl);
                 //update-end---author:zhangdaihao ---date:2026-04-15  for：【issues/9553】修复二次SSRF漏洞，对HTTP下载URL进行安全校验-----------
-                URL url = new URL(fileUrl);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setConnectTimeout(5000); // 连接超时5秒
-                connection.setReadTimeout(30000);  // 读取超时30秒
+                //update-begin---author:wangshuai ---date:2026-06-17  for：【issues/9681】修复SSRF重定向绕过漏洞，改用禁止自动跳转并逐跳校验的安全连接-----------
+                // 安全打开连接：内部已对初始 URL 及每一跳重定向目标做 SSRF 校验，并禁止自动跟随重定向
+                HttpURLConnection connection = openSafeConnection(fileUrl);
+                //update-end---author:wangshuai ---date:2026-06-17  for：【issues/9681】修复SSRF重定向绕过漏洞，改用禁止自动跳转并逐跳校验的安全连接-----------
                 return connection.getInputStream();
             } else {
                 // 处理本地文件：直接读取文件系统

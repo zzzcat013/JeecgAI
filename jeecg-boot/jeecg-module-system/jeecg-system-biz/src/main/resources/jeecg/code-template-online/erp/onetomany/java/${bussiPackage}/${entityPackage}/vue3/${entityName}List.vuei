@@ -191,6 +191,8 @@
                fixed:'right'
            },
            beforeFetch: (params) => {
+              // 主表重新查询时清空选中项，避免子表继续展示旧主表的数据
+              selectedRowKeys.value = [];
               if (params && fieldPickers) {
                 for (let key in fieldPickers) {
                   if (params[key]) {

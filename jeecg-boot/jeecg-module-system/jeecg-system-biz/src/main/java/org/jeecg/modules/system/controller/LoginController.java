@@ -67,6 +67,8 @@ public class LoginController {
     private ISysDepartService sysDepartService;
 	@Autowired
     private ISysDictService sysDictService;
+	@Autowired
+	private ISysUserTenantService sysUserTenantService;
 	@Resource
 	private BaseCommonService baseCommonService;
 	@Autowired
@@ -164,7 +166,13 @@ public class LoginController {
 			obj.put("userInfo",sysUser);
 			obj.put("sysAllDictItems", sysDictService.queryAllDictItems());
 			log.debug("3 获取用户信息耗时 (字典数据)" + (System.currentTimeMillis() - start) + "毫秒");
-			
+
+			//update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度开关，返回给前端-----------
+			boolean enableStrongPwd = jeecgBaseConfig.getFirewall() != null
+					&& Boolean.TRUE.equals(jeecgBaseConfig.getFirewall().getEnableStrongPwd());
+			obj.put("enableStrongPwd", enableStrongPwd);
+			//update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度开关，返回给前端-----------
+
 			result.setResult(obj);
 			result.success("");
 		}
@@ -287,16 +295,38 @@ public class LoginController {
 	@RequestMapping(value = "/selectDepart", method = RequestMethod.PUT)
 	public Result<JSONObject> selectDepart(@RequestBody SysUser user) {
 		Result<JSONObject> result = new Result<JSONObject>();
-		String username = user.getUsername();
-		if(oConvertUtils.isEmpty(username)) {
-			LoginUser sysUser = (LoginUser)SecurityUtils.getSubject().getPrincipal();
-			username = sysUser.getUsername();
+		//update-begin---author:zhangdaihao ---date:20260506  for：【issue/9597】selectDepart越权漏洞修复：强制使用当前登录用户，校验orgCode/loginTenantId归属-----------
+		LoginUser loginUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+		if (loginUser == null) {
+			return Result.error("用户未登录");
 		}
-		
+		// 强制使用当前登录用户的username，忽略请求体传入的username，防止越权修改他人当前部门/租户
+		String username = loginUser.getUsername();
+
 		//获取登录部门
-		String orgCode= user.getOrgCode();
+		String orgCode = user.getOrgCode();
 		//获取登录租户
 		Integer tenantId = user.getLoginTenantId();
+
+		// 校验 orgCode 必须属于当前用户所在部门
+		if (oConvertUtils.isNotEmpty(orgCode)) {
+			List<SysDepart> userDeparts = sysDepartService.queryUserDeparts(loginUser.getId());
+			boolean orgOwned = userDeparts != null && userDeparts.stream()
+					.anyMatch(d -> orgCode.equals(d.getOrgCode()));
+			if (!orgOwned) {
+				return Result.error("无权切换到非本人所属的部门");
+			}
+		}
+
+		// 校验 loginTenantId 必须属于当前用户所属租户
+		if (tenantId != null && tenantId != 0) {
+			List<Integer> userTenantIds = sysUserTenantService.getTenantIdsByUserId(loginUser.getId());
+			if (userTenantIds == null || !userTenantIds.contains(tenantId)) {
+				return Result.error("无权切换到非本人所属的租户");
+			}
+		}
+		//update-end---author:zhangdaihao ---date:20260506  for：【issue/9597】selectDepart越权漏洞修复：强制使用当前登录用户，校验orgCode/loginTenantId归属-----------
+
 		//设置用户登录部门和登录租户
 		this.sysUserService.updateUserDepart(username, orgCode,tenantId);
 		SysUser sysUser = sysUserService.getUserByName(username);

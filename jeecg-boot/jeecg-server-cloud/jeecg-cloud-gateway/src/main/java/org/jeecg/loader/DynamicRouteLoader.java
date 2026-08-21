@@ -80,12 +80,17 @@ public class DynamicRouteLoader implements ApplicationEventPublisherAware {
 
 
     public void init(BaseMap baseMap) {
-        log.info("初始化路由模式，dataType："+ gatewayRoutersConfig.getDataType());
-        if (RouterDataType.nacos.toString().endsWith(gatewayRoutersConfig.getDataType())) {
+        String dataType = gatewayRoutersConfig.getDataType();
+        log.info("初始化路由模式，dataType：" + dataType);
+        if (dataType == null) {
+            log.warn("路由配置dataType为null，跳过初始化");
+            return;
+        }
+        if (RouterDataType.nacos.toString().endsWith(dataType)) {
             loadRoutesByNacos();
         }
         //从数据库加载路由
-        if (RouterDataType.database.toString().endsWith(gatewayRoutersConfig.getDataType())) {
+        if (RouterDataType.database.toString().endsWith(dataType)) {
             loadRoutesByRedis(baseMap);
         }
     }
@@ -95,8 +100,9 @@ public class DynamicRouteLoader implements ApplicationEventPublisherAware {
      * @return
      */
     public Mono<Void> refresh(BaseMap baseMap) {
-        log.info("初始化路由模式，dataType："+ gatewayRoutersConfig.getDataType());
-        if (!RouterDataType.yml.toString().endsWith(gatewayRoutersConfig.getDataType())) {
+        String dataType = gatewayRoutersConfig.getDataType();
+        log.info("初始化路由模式，dataType：" + dataType);
+        if (dataType != null && !RouterDataType.yml.toString().endsWith(dataType)) {
             this.init(baseMap);
         }
         return Mono.empty();

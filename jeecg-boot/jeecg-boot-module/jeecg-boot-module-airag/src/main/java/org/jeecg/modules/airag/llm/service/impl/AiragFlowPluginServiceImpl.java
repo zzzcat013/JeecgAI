@@ -55,7 +55,7 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
         log.info("开始构建流程插件");
         // 1. 查询所有启用的流程
         LambdaQueryWrapper<AiragFlow> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(AiragFlow::getStatus, FlowConsts.FLOW_STATUS_ENABLE);
+        queryWrapper.in(AiragFlow::getStatus, FlowConsts.FLOW_STATUS_ENABLE, FlowConsts.FLOW_STATUS_RELEASE);
         queryWrapper.in(AiragFlow::getId, Arrays.asList(flowIds.split(SymbolConstant.COMMA)));
         List<AiragFlow> flows = airagFlowService.list(queryWrapper);
         HttpServletRequest httpServletRequest = SpringContextUtils.getHttpServletRequest();
@@ -84,13 +84,13 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
         for (AiragFlow flow : flows) {
             try {
 
-                SubFlowResult subFlow = new SubFlowResult(flow);
+                SubFlowResult flowVo = new SubFlowResult(flow);
                 // 获取入参参数
-                JSONArray parameter = getInputParameter(flow, subFlow);
+                JSONArray parameter = getInputParameter(flow, flowVo);
                 // 获取出参参数
-                JSONArray outParams = getOutputParameter(flow, subFlow);
+                JSONArray outParams = getOutputParameter(flow, flowVo);
                 // name必须符合 ^[a-zA-Z0-9_-]+$
-                String validToolName = "flow_" + flow.getId();
+                String validToolName = FlowPluginContent.FLOW_TOOL_NAME_PREFIX + flow.getId();
                 // 将原始名称拼接到描述中
                 String description = flow.getName();
                 if (oConvertUtils.isNotEmpty(flow.getDescr())) {
@@ -195,10 +195,11 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
      * 获取参数
      *
      * @param flow
-     * @param subFlow
+     * @param flowVo
      */
-    private JSONArray getInputParameter(AiragFlow flow, SubFlowResult subFlow) {
+    private JSONArray getInputParameter(AiragFlow flow, SubFlowResult flowVo) {
         JSONArray parameters = new JSONArray();
+/*
         String metadata = flow.getMetadata();
         if (oConvertUtils.isNotEmpty(metadata)) {
             JSONObject jsonObject = JSONObject.parseObject(metadata);
@@ -213,18 +214,23 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
                 parameters.addAll(jsonArray);
             }
         }
-        //需要获取子流程的参数，子流程的参数是单独封装的，否则在流程执行的时候会报错缺少参数
-        List<FlowNodeConfig.NodeParam> inputParams = subFlow.getInputParams();
+*/
+        // 仅使用开始节点的入参(flowVo.getInputParams())：其 name 取真实字段名(field),可正确作为请求体的key。
+        // 不再叠加 metadata.inputs
+        // 直接作为参数会导致请求体的key错误(取不到字段),且与开始节点入参重复(同一字段出现两次)。
+        List<FlowNodeConfig.NodeParam> inputParams = flowVo.getInputParams();
         if (inputParams != null) {
             for (FlowNodeConfig.NodeParam param : inputParams) {
+                String field = param.getField();
+                // 历史记录、图片由聊天服务在直连流程时自动注入,作为工具入参暴露给模型只会成为噪音且无法被有效填写
+                if (FlowConsts.FLOW_INPUT_PARAM_HISTORY.equals(field) || FlowConsts.FLOW_INPUT_PARAM_IMAGES.equals(field)) {
+                    continue;
+                }
                 JSONObject p = new JSONObject();
                 // 参数名
                 p.put(FlowPluginContent.NAME, param.getField());
-                String paramDesc = param.getName();
-                if (oConvertUtils.isEmpty(paramDesc)) {
-                    paramDesc = param.getField();
-                }
                 // 参数描述
+                String paramDesc = oConvertUtils.getString(param.getName(), param.getField());
                 p.put(FlowPluginContent.DESCRIPTION, paramDesc);
                 // 类型
                 p.put(FlowPluginContent.TYPE, oConvertUtils.getString(param.getType(), FlowPluginContent.TYPE_STRING));
@@ -241,7 +247,7 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
     /**
      * 构建返回值
      */
-    private JSONArray getOutputParameter(AiragFlow flow, SubFlowResult subFlow) {
+    private JSONArray getOutputParameter(AiragFlow flow, SubFlowResult flowVo) {
         JSONArray parameters = new JSONArray();
         String metadata = flow.getMetadata();
         if (oConvertUtils.isNotEmpty(metadata)) {
@@ -251,7 +257,7 @@ public class AiragFlowPluginServiceImpl implements IAiragFlowPluginService {
                 parameters.addAll(jsonArray);
             }
         }
-//        List<FlowNodeConfig.NodeParam> outputParams = subFlow.getOutputParams();
+//        List<FlowNodeConfig.NodeParam> outputParams = flowVo.getOutputParams();
 //        if (outputParams != null) {
 //            for (FlowNodeConfig.NodeParam param : outputParams) {
 //                JSONObject p = new JSONObject();

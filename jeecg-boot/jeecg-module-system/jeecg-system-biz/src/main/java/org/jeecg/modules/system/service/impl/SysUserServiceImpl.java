@@ -197,8 +197,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 		//TODO 外部模拟登陆临时账号，列表不显示
 		queryWrapper.ne("username", "_reserve_user_external");
         // 代码逻辑说明: 【JHHB-765】需要能设置排序---
-        queryWrapper.orderByAsc("sort");
-        queryWrapper.orderByDesc("create_time");
+        // 逐字段判断是否已由 QueryGenerator 追加，避免 ORDER BY 出现重复列（SQL Server 报错 169）
+        String column = req.getParameter("column");
+        if (!"sort".equals(column)) {
+            queryWrapper.orderByAsc("sort");
+        }
+        if (!"create_time".equals(column) && !"createTime".equals(column)) {
+            queryWrapper.orderByDesc("create_time");
+        }
 		Page<SysUser> page = new Page<SysUser>(pageNo, pageSize);
 		IPage<SysUser> pageList = this.page(page, queryWrapper);
 
@@ -208,49 +214,90 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 		List<String> userIds = pageList.getRecords().stream().map(SysUser::getId).collect(Collectors.toList());
 		if (userIds != null && userIds.size() > 0) {
 			Map<String, String> useDepNames = this.getDepNamesByUserIds(userIds);
+
+			//update-begin---author:scott ---date:20260701  for：【性能优化】listAll接口N+1查询改造，批量预加载关联数据消除N+1-----------
+			// 批量查询所属部门IDs（消除N+1：N次queryDepartsByUserId → 1次批量查询）
+			List<SysUserDepartIdVo> departIdVos = sysDepartMapper.queryDepartIdVosByUserIds(userIds);
+			Map<String, List<String>> userDepartIdsMap = new HashMap<>();
+			for (SysUserDepartIdVo vo : departIdVos) {
+				if (vo.getUserId() != null && vo.getDepartId() != null) {
+					userDepartIdsMap.computeIfAbsent(vo.getUserId(), k -> new ArrayList<>()).add(vo.getDepartId());
+				}
+			}
+
+			// 批量查询租户IDs（消除N+1：N次getTenantIdsByUserId → 1次批量查询）
+			List<SysUserTenantIdVo> tenantIdVos = userTenantMapper.getTenantIdVosByUserIds(userIds);
+			Map<String, List<Integer>> userTenantIdsMap = new HashMap<>();
+			for (SysUserTenantIdVo vo : tenantIdVos) {
+				if (vo.getUserId() != null && vo.getTenantId() != null) {
+					userTenantIdsMap.computeIfAbsent(vo.getUserId(), k -> new ArrayList<>()).add(vo.getTenantId());
+				}
+			}
+
+			// 批量查询职位IDs（消除N+1：N次getPositionIdByUserTenantId → 1次批量查询）
+			// 代码逻辑说明: 【QQYUN-7028】用户职务保存后未回显---
+			Integer posTenantId = null;
+			if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+				posTenantId = oConvertUtils.getInt(TenantContext.getTenant(), 0);
+			}
+			List<SysUserPositionVo> positionVos = sysUserPositionMapper.getPositionIdsByUserIds(userIds, posTenantId);
+			Map<String, List<String>> userPositionIdsMap = new HashMap<>();
+			for (SysUserPositionVo vo : positionVos) {
+				if (vo.getUserId() != null && vo.getId() != null) {
+					userPositionIdsMap.computeIfAbsent(vo.getUserId(), k -> new ArrayList<>()).add(vo.getId());
+				}
+			}
+
+			// 批量查询兼职岗位IDs（消除N+1：N次getDepPostByUserId → 1次批量查询）
+			List<SysUserDepPostVo> depPostVos = depPostMapper.getDepPostByUserIds(userIds);
+			Map<String, List<String>> userDepPostIdsMap = new HashMap<>();
+			for (SysUserDepPostVo vo : depPostVos) {
+				if (vo.getUserId() != null && vo.getDepId() != null) {
+					userDepPostIdsMap.computeIfAbsent(vo.getUserId(), k -> new ArrayList<>()).add(vo.getDepId());
+				}
+			}
+
+			// 批量查询钉钉绑定状态（消除N+1：SAAS模式下N次list → 1次批量查询）
+			Map<String, Boolean> userBindThirdMap = new HashMap<>();
+			if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+				LambdaQueryWrapper<SysThirdAccount> thirdQuery = new LambdaQueryWrapper<>();
+				thirdQuery.in(SysThirdAccount::getSysUserId, userIds);
+				thirdQuery.eq(SysThirdAccount::getTenantId, tenantId);
+				thirdQuery.eq(SysThirdAccount::getThirdType, MessageTypeEnum.DD.getType());
+				List<SysThirdAccount> accounts = sysThirdAccountService.list(thirdQuery);
+				for (SysThirdAccount acc : accounts) {
+					userBindThirdMap.put(acc.getSysUserId(), true);
+				}
+			}
+
 			pageList.getRecords().forEach(item -> {
 				item.setOrgCodeTxt(useDepNames.get(item.getId()));
-				//增加所属部门id,前台需要展示
-                List<String> departs = sysDepartMapper.queryDepartsByUserId(item.getId());
-                if(oConvertUtils.isNotEmpty(departs)){
-                    item.setBelongDepIds(String.join(SymbolConstant.COMMA, departs));
-                }
-				//查询用户的租户ids
-				List<Integer> list = userTenantMapper.getTenantIdsByUserId(item.getId());
-				if (oConvertUtils.isNotEmpty(list)) {
-					item.setRelTenantIds(StringUtils.join(list.toArray(), SymbolConstant.COMMA));
+				// 所属部门IDs
+				List<String> departs = userDepartIdsMap.getOrDefault(item.getId(), Collections.emptyList());
+				if (!departs.isEmpty()) {
+					item.setBelongDepIds(String.join(SymbolConstant.COMMA, departs));
+				}
+				// 租户IDs
+				List<Integer> tenants = userTenantIdsMap.getOrDefault(item.getId(), Collections.emptyList());
+				if (!tenants.isEmpty()) {
+					item.setRelTenantIds(StringUtils.join(tenants.toArray(), SymbolConstant.COMMA));
 				} else {
 					item.setRelTenantIds("");
 				}
-				Integer posTenantId = null;
+				// 职位IDs
+				List<String> positions = userPositionIdsMap.getOrDefault(item.getId(), Collections.emptyList());
+				item.setPost(CommonUtils.getSplitText(positions, SymbolConstant.COMMA));
+				// 钉钉绑定状态
 				if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
-					posTenantId = oConvertUtils.getInt(TenantContext.getTenant(), 0);;		
+					item.setIzBindThird(userBindThirdMap.getOrDefault(item.getId(), false));
 				}
-				//查询用户职位关系表(获取租户下面的)
-				// 代码逻辑说明: 【QQYUN-7028】用户职务保存后未回显---
-				List<String> positionList =  sysUserPositionMapper.getPositionIdByUserTenantId(item.getId(),posTenantId);
-				item.setPost(CommonUtils.getSplitText(positionList,SymbolConstant.COMMA));
-				
-				//是否根据租户隔离(敲敲云用户列表专用，用于展示是否同步钉钉)
-				if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
-					//查询账号表是否已同步钉钉
-					LambdaQueryWrapper<SysThirdAccount> query = new LambdaQueryWrapper<>();
-					query.eq(SysThirdAccount::getSysUserId,item.getId());
-					query.eq(SysThirdAccount::getTenantId, tenantId);
-					//目前只有同步钉钉
-					query.eq(SysThirdAccount::getThirdType, MessageTypeEnum.DD.getType());
-					//不为空代表已同步钉钉
-					List<SysThirdAccount> account = sysThirdAccountService.list(query);
-					if(CollectionUtil.isNotEmpty(account)){
-						item.setIzBindThird(true);
-					}
+				// 兼职岗位IDs
+				List<String> depPosts = userDepPostIdsMap.getOrDefault(item.getId(), Collections.emptyList());
+				if (!depPosts.isEmpty()) {
+					item.setOtherDepPostId(StringUtils.join(depPosts.toArray(), SymbolConstant.COMMA));
 				}
-                //查询部门的兼职岗位
-                List<String> depPostList = depPostMapper.getDepPostByUserId(item.getId());
-                if(CollectionUtil.isNotEmpty(depPostList)){
-                    item.setOtherDepPostId(StringUtils.join(depPostList.toArray(), SymbolConstant.COMMA));
-                }
-            });
+			});
+			//update-end---author:scott ---date:20260701  for：【性能优化】listAll接口N+1查询改造，批量预加载关联数据消除N+1-----------
 		}
 
 		result.setSuccess(true);
@@ -544,8 +591,20 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
 	@Override
 	public IPage<SysUser> getUserByDepIds(Page<SysUser> page, List<String> departIds, String username) {
-		return userMapper.getUserByDepIds(page, departIds,username);
-	}
+        //update-begin---author:wangshuai ---date:20260811  for：[LHZP-1141]【系统管理】我的部门编辑用户关联信息未正确回显------------
+        IPage<SysUser> pageList = userMapper.getUserByDepIds(page, departIds,username);
+		List<String> userIds = pageList.getRecords().stream().map(SysUser::getId).collect(Collectors.toList());
+		if (CollectionUtil.isEmpty(userIds)) {
+			return pageList;
+		}
+		pageList.getRecords().forEach(item -> {
+			List<String> depPostList = depPostMapper.getDepPostByUserId(item.getId());
+			item.setOtherDepPostId(CollectionUtil.isNotEmpty(depPostList)
+					? StringUtils.join(depPostList.toArray(), SymbolConstant.COMMA) : "");
+		});
+		return pageList;
+        //update-end---author:wangshuai ---date:20260811  for：[LHZP-1141]【系统管理】我的部门编辑用户关联信息未正确回显------------
+    }
 
 	@Override
 	public Map<String, String> getDepNamesByUserIds(List<String> userIds) {
@@ -2324,6 +2383,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                             if(null == sysUser.getStatus()){
                                 sysUser.setStatus(CommonConstant.STATUS_1_INT);
                             }
+							if(null == sysUser.getSort()){
+								sysUser.setSort(CommonConstant.DEFAULT_USER_SORT);
+							}
+							//update-begin---author:wangshuai---date:20260805---for:【LHZP-1185】导入用户 隐藏联系方式默认应该为否---
+							if (oConvertUtils.isEmpty(sysUser.getIzHideContact())) {
+								sysUser.setIzHideContact(CommonConstant.STATUS_0);
+							}
+							//update-end---author:wangshuai---date:20260805---for:【LHZP-1185】导入用户 隐藏联系方式默认应该为否---
                             this.save(sysUser);
                         }
                         //添加部门
@@ -2457,9 +2524,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                         parentId = sysDepart.getId();
                     } else {
                         //不存在需要去查询
-                        List<SysDepart> departPageByName = sysDepartMapper.getDepartPageByName(page, name, tenantId, parentId);
+						//update-begin---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入复用已有公司和部门---
+						SysDepart importDepart = this.getImportDepartByName(name, tenantId, parentId);
                         //部门为空需要新增部门
-                        if (CollectionUtil.isEmpty(departPageByName)) {
+						if (null == importDepart) {
                             JSONObject formData = new JSONObject();
                             formData.put("parentId", parentId);
                             String[] codeArray = (String[]) FillRuleUtil.executeRule(FillRuleConstant.DEPART, formData);
@@ -2475,8 +2543,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                             sysDepart.setOrgCategory(DepartCategoryEnum.getValueByName(category));
                             sysDepartMapper.insert(sysDepart);
                         } else {
-                            sysDepart = departPageByName.get(0);
+							sysDepart = importDepart;
                         }
+						//update-end---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入复用已有公司和部门---
                         //父级id不为空那么就将父级部门改成不是叶子节点
                         if (oConvertUtils.isNotEmpty(parentId)) {
                             sysDepartMapper.setMainLeaf(parentId, CommonConstant.NOT_LEAF);
@@ -2523,23 +2592,65 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if(mainDepPostName.contains(SymbolConstant.COMMA)){
             mainDepPostName = mainDepPostName.split(SymbolConstant.COMMA)[0];
         }
-        //当前部门下已经存在岗位就不需要再次添加岗位了
-        if (null == postMap || !postMap.containsKey(mainDepPostName + depId)) {
-            //根据父级部门id和职务名称查找岗位id
-            String departId = sysDepartMapper.getDepIdByDepIdAndPostName(depId, postName);
-            //不存在新增岗位
-            if (oConvertUtils.isEmpty(departId) ) {
-                //添加部门岗位信息
-                departId = this.addCommontDepartPost(depId, tenantId, mainDepPostName, postionMap, postName, postMap);
-            }
-            if(oConvertUtils.isNotEmpty(departId)){
-                //更新用户主岗位
-                SysUser user = new SysUser();
-                user.setId(userId);
-                user.setMainDepPostId(departId);
-                userMapper.updateById(user); 
-            }
+        //update-begin---wangshuai---date:20260804  for：[LHZP-1071]1.已有的公司和部门又重新创建了 2.岗位上的职级和上级岗位没配对------------
+        String departId = this.getOrCreateDepartPost(depId, tenantId, mainDepPostName, postName, postMap, postionMap);
+        if(oConvertUtils.isNotEmpty(departId)){
+            //无论岗位是新增还是复用，都要为当前用户设置主岗位
+            SysUser user = new SysUser();
+            user.setId(userId);
+            user.setMainDepPostId(departId);
+            userMapper.updateById(user);
         }
+        //update-end---author:wangshuai ---date:20260804  for：[LHZP-1071]1.已有的公司和部门又重新创建了 2.岗位上的职级和上级岗位没配对------------
+    }
+
+    /**
+     * 获取或创建部门岗位；复用已有岗位时保留其上级岗位关系，并同步职级。
+     */
+    private String getOrCreateDepartPost(String depId, Integer tenantId, String departPostName, String postName, Map<String, String> postMap, Map<String, String> positionMap) {
+        String postMapKey = departPostName + depId;
+        String departPostId = postMap.get(postMapKey);
+        if (oConvertUtils.isEmpty(departPostId)) {
+            //更具部门id和岗位名称查询部门岗位id
+			//update-begin---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入按租户和部门复用已有岗位---
+			departPostId = this.getImportDepartPostId(depId, departPostName, tenantId);
+			//update-end---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入按租户和部门复用已有岗位---
+        }
+        if (oConvertUtils.isEmpty(departPostId)) {
+            //添加部门岗位
+            return this.addCommontDepartPost(depId, tenantId, departPostName, positionMap, postName, postMap);
+        }
+        postMap.put(postMapKey, departPostId);
+        //获取职级并更新
+        String positionId = this.getPositionId(tenantId, postName, positionMap);
+        //更新部门职级
+        if (oConvertUtils.isNotEmpty(positionId)) {
+            SysDepart departPost = new SysDepart();
+            departPost.setId(departPostId);
+            departPost.setPositionId(positionId);
+            sysDepartMapper.updateById(departPost);
+        }
+        return departPostId;
+    }
+
+    /**
+     * 根据职级名称获取职级ID，并缓存本次导入结果。
+     * @param positionMap 存放职级的map
+     * @param postName 岗位名称
+     * @param tenantId 租户id
+     */
+    private String getPositionId(Integer tenantId, String postName, Map<String, String> positionMap) {
+		//update-begin---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入职级名称去除首尾空格---
+		if (oConvertUtils.isEmpty(postName)) {
+			return "";
+		}
+		//update-end---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入职级名称去除首尾空格---
+        if (positionMap.containsKey(postName)) {
+            return positionMap.get(postName);
+        }
+        String positionId = this.getSysPosition(tenantId, postName);
+        positionMap.put(postName, positionId);
+        return positionId;
     }
 
     /**
@@ -2570,15 +2681,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         sysDepart.setStatus(CommonConstant.STATUS_1);
         sysDepart.setOrgCategory(DepartCategoryEnum.DEPART_CATEGORY_POST.getValue());
         //获取职级id
-        String positionId = "";
-        if (postionMap.containsKey(postName)) {
-            positionId = postionMap.get(postName);
-        } else {
-            //根据租户id和职级名称获取职级id
-            positionId = this.getSysPosition(tenantId, postName);
-        }
+        //update-begin---wangshuai---date:20260804  for：[LHZP-1071]1.已有的公司和部门又重新创建了 2.岗位上的职级和上级岗位没配对------------
+        String positionId = this.getPositionId(tenantId, postName, postionMap);
+        //update-end---wangshuai---date:20260804  for：[LHZP-1071]1.已有的公司和部门又重新创建了 2.岗位上的职级和上级岗位没配对------------
         sysDepart.setPositionId(positionId);
-        postionMap.put(postName, positionId);
         sysDepartMapper.insert(sysDepart);
         sysDepartMapper.setMainLeaf(depId, CommonConstant.NOT_LEAF);
         postMap.put(mainDepPostName + depId, sysDepart.getId());
@@ -2600,14 +2706,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private void insertOtherDepartPost(String userId, String depId, String postName, String otherDepPostName, Map<String, String> postMap, Integer tenantId, Map<String, String> positionMap) {
         String[] otherDepPostNames = otherDepPostName.split(SymbolConstant.SEMICOLON);
         for (int i = 0; i < otherDepPostNames.length; i++) {
-            //当前部门下已经存在岗位就不需要再次添加岗位了
-            String departId = "";
-            if (null == postMap || !postMap.containsKey(otherDepPostNames[i] + depId)) {
-                //不存在时新增部门岗位
-                departId = this.addCommontDepartPost(depId, tenantId, otherDepPostNames[i], positionMap, postName, postMap);
-            } else {
-                departId = postMap.get(otherDepPostNames[i] + depId);
-            }
+            //update-begin---wangshuai---date:20260804  for：[LHZP-1071]1.已有的公司和部门又重新创建了 2.岗位上的职级和上级岗位没配对------------
+            String departId = this.getOrCreateDepartPost(depId, tenantId, otherDepPostNames[i], postName, postMap, positionMap);
+            //update-end---wangshuai---date:20260804  for：[LHZP-1071]1.已有的公司和部门又重新创建了 2.岗位上的职级和上级岗位没配对------------
             //插入用岗位第三方中间表
             if (oConvertUtils.isNotEmpty(departId)) {
                 try {
@@ -2628,14 +2729,66 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return
      */
     private String getSysPosition(Integer tenantId, String postName) {
-        tenantId = oConvertUtils.getInt(tenantId,0);
+		//update-begin---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入按租户匹配组织、岗位和职级---
+		Integer normalizedTenantId = oConvertUtils.getInt(tenantId,0);
         Page<SysPosition> page = new Page<>(1, 1);
-        List<String> namePage = sysPositionMapper.getPositionIdByName(postName, tenantId, page);
-        if (CollectionUtil.isNotEmpty(namePage)) {
-            return namePage.get(0);
+		LambdaQueryWrapper<SysPosition> queryWrapper = new LambdaQueryWrapper<>();
+		queryWrapper.eq(SysPosition::getName, postName).orderByDesc(SysPosition::getCreateTime);
+		if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+			queryWrapper.eq(SysPosition::getTenantId, normalizedTenantId);
+		} else {
+			queryWrapper.and(wrapper -> wrapper.eq(SysPosition::getTenantId, normalizedTenantId).or().isNull(SysPosition::getTenantId));
+		}
+		IPage<SysPosition> positionPage = sysPositionMapper.selectPage(page, queryWrapper);
+		if (CollectionUtil.isNotEmpty(positionPage.getRecords())) {
+			return positionPage.getRecords().get(0).getId();
+        //update-end---author:wangshuai---date:20260805---for:【LHZP-1071】系统用户导入按租户匹配组织、岗位和职级---
         }
         return "";
     }
+
+	/**
+	 * 按导入所属租户和完整父子层级匹配已有公司或部门。
+	 */
+	private SysDepart getImportDepartByName(String departName, Integer tenantId, String parentId) {
+		LambdaQueryWrapper<SysDepart> queryWrapper = new LambdaQueryWrapper<>();
+		queryWrapper.eq(SysDepart::getDepartName, departName)
+				.eq(SysDepart::getDelFlag, String.valueOf(CommonConstant.DEL_FLAG_0))
+				.and(wrapper -> wrapper.ne(SysDepart::getOrgCategory, DepartCategoryEnum.DEPART_CATEGORY_POST.getValue()).or().isNull(SysDepart::getOrgCategory))
+				.orderByDesc(SysDepart::getCreateTime);
+		if (oConvertUtils.isNotEmpty(parentId)) {
+			queryWrapper.eq(SysDepart::getParentId, parentId);
+		} else {
+			queryWrapper.and(wrapper -> wrapper.isNull(SysDepart::getParentId).or().eq(SysDepart::getParentId, ""));
+		}
+		if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+			queryWrapper.eq(SysDepart::getTenantId, tenantId);
+		} else {
+			queryWrapper.and(wrapper -> wrapper.eq(SysDepart::getTenantId, tenantId).or().isNull(SysDepart::getTenantId));
+		}
+		IPage<SysDepart> departPage = sysDepartMapper.selectPage(new Page<>(1, 1), queryWrapper);
+		return CollectionUtil.isEmpty(departPage.getRecords()) ? null : departPage.getRecords().get(0);
+	}
+
+	/**
+	 * 按导入所属租户、部门和岗位名称匹配已有岗位。
+	 */
+	private String getImportDepartPostId(String parentId, String postName, Integer tenantId) {
+		LambdaQueryWrapper<SysDepart> queryWrapper = new LambdaQueryWrapper<>();
+		queryWrapper.select(SysDepart::getId)
+				.eq(SysDepart::getParentId, parentId)
+				.eq(SysDepart::getDepartName, postName)
+				.eq(SysDepart::getOrgCategory, DepartCategoryEnum.DEPART_CATEGORY_POST.getValue())
+				.eq(SysDepart::getDelFlag, String.valueOf(CommonConstant.DEL_FLAG_0))
+				.orderByDesc(SysDepart::getCreateTime);
+		if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+			queryWrapper.eq(SysDepart::getTenantId, tenantId);
+		} else {
+			queryWrapper.and(wrapper -> wrapper.eq(SysDepart::getTenantId, tenantId).or().isNull(SysDepart::getTenantId));
+		}
+		IPage<SysDepart> postPage = sysDepartMapper.selectPage(new Page<>(1, 1), queryWrapper);
+		return CollectionUtil.isEmpty(postPage.getRecords()) ? "" : postPage.getRecords().get(0).getId();
+	}
     //================================================================ end 【用户导入】导入时 部门添加层级不对了======================================================================
     
     private void saveChargeDepart(SysUser sysUser, String departIds, Map<String, SysDepart> departMap) {
@@ -3045,8 +3198,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 	 * @return
 	 */
 	@Override
-	public IPage<SysUser> getUserByUgroupId(Page<SysUser> page, String groupId, String username, String realname) {
-		IPage<SysUser> userGroupList = userMapper.getUserByUgroupId(page, groupId, username,realname);
+	public IPage<SysUser> getUserByUgroupId(Page<SysUser> page, String groupId, String username, String realname, Integer status) {
+		IPage<SysUser> userGroupList = userMapper.getUserByUgroupId(page, groupId, username,realname,status);
 		List<SysUser> records = userGroupList.getRecords();
 		if (null != records && records.size() > 0) {
 			List<String> userIds = records.stream().map(SysUser::getId).collect(Collectors.toList());

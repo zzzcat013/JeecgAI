@@ -9,42 +9,49 @@
 
 	<!-- 查询指定部门下的用户 并且支持用户账号模糊查询 -->
 	<select id="queryDepartUserList" resultType="org.jeecg.modules.system.entity.SysUser">
-		select a.* from sys_user a
-		join sys_user_depart b on b.user_id = a.id
-		join sys_depart c on b.dep_id = c.id
-		<bind name="bindOrgCode" value="orgCode+'%'"/>
-		where a.del_flag = 0 and c.org_code like #{bindOrgCode}
-		<if test="realname!=null and realname!=''">
-			<!-- update by sunjianlei 20220119【#3348】SQL injection exists in /sys/user/queryUserByDepId；  -->
-			<bind name="bindRealname" value="'%'+realname+'%'"/>
-			and a.realname like #{bindRealname}
-		</if>
-		ORDER BY
-		a.sort,a.create_time desc
+		SELECT * FROM (
+			select DISTINCT a.* from sys_user a
+			join sys_user_depart b on b.user_id = a.id
+			join sys_depart c on b.dep_id = c.id
+			<bind name="bindOrgCode" value="orgCode+'%'"/>
+			                   
+			where a.del_flag = 0 and c.org_code like #{bindOrgCode}
+			<!-- update by lvdandan 20260818【LHZP-864】【流程】指定下一步处理人，没有排除已经冻结的账号  -->
+			<if test="status!=null and status!=''">
+				and a.status = #{status}
+			</if>
+			<if test="realname!=null and realname!=''">
+				<!-- update by sunjianlei 20220119【#3348】SQL injection exists in /sys/user/queryUserByDepId；  -->
+				<bind name="bindRealname" value="'%'+realname+'%'"/>
+				and a.realname like #{bindRealname}
+			</if>
+		) t
+		ORDER BY t.sort, t.create_time DESC
 	</select>
 
 	<!-- 根据部门查询部门用户 分页 -->
 	<select id="queryDepartUserPageList" resultType="org.jeecg.modules.system.entity.SysUser">
-		<!-- update by wangshuai 2024-07-03【issues/6342】部门人员选择组件出现人员重复-->
-		select DISTINCT a.* from sys_user a
-		left join sys_user_depart b on b.user_id = a.id
-		left join sys_depart c on b.dep_id = c.id
-		<bind name="bindOrgCode" value="orgCode+'%'"/>
-		where a.del_flag = 0 and a.status = 1 and c.org_code like #{bindOrgCode} and a.username!='_reserve_user_external'
-		<if test="username!=null and username!=''">
-			<bind name="bindUsername" value="'%'+username+'%'"/>
-			and a.username like #{bindUsername}
-		</if>
-		<if test="realname!=null and realname!=''">
-		    <bind name="bindRealname" value="'%'+realname+'%'"/>
-			and a.realname like #{bindRealname}
-		</if>
-		ORDER BY
-		a.sort,a.create_time desc
+		SELECT * FROM (
+			select DISTINCT a.* from sys_user a
+			left join sys_user_depart b on b.user_id = a.id
+			left join sys_depart c on b.dep_id = c.id
+			<bind name="bindOrgCode" value="orgCode+'%'"/>
+			where a.del_flag = 0 and a.status = 1 and c.org_code like #{bindOrgCode} and a.username!='_reserve_user_external'
+			<if test="username!=null and username!=''">
+				<bind name="bindUsername" value="'%'+username+'%'"/>
+				and a.username like #{bindUsername}
+			</if>
+			<if test="realname!=null and realname!=''">
+				<bind name="bindRealname" value="'%'+realname+'%'"/>
+				and a.realname like #{bindRealname}
+			</if>
+		) t
+		ORDER BY t.sort, t.create_time DESC
 	</select>
 
     <!--获取用户信息（聊天专用）-->
     <select id="getUserInformation" resultType="org.jeecg.modules.system.entity.SysUser">
+			SELECT * FROM (
         select DISTINCT a.* from sys_user a
         left join sys_user_depart b on b.user_id = a.id
         left join sys_depart c on b.dep_id = c.id
@@ -58,35 +65,38 @@
             <bind name="bindKeyword" value="'%'+keyword+'%'"/>
             and (a.username like #{bindKeyword} or a.realname like #{bindKeyword})
         </if>
+			) t
     </select>
 
 	<!--获取用户信息（简版流程专用）-->
 	<select id="getProcessUserList" resultType="org.jeecg.modules.system.entity.SysUser">
-		select DISTINCT a.* from sys_user a
-		left join sys_user_depart b on b.user_id = a.id
-		left join sys_depart c on b.dep_id = c.id
-		<bind name="bindOrgCode" value="orgCode+'%'"/>
-		where
-		a.del_flag = 0 and a.status = 1
-		and c.org_code like #{bindOrgCode}
-		and a.username!='_reserve_user_external'
-		<if test="keyword!=null and keyword!=''">
-			<bind name="bindKeyword" value="'%'+keyword+'%'"/>
-			and (a.username like #{bindKeyword} or a.realname like #{bindKeyword})
-		</if>
-		<if test="tenantId!=null">
-			and a.id in (
-				select user_id from sys_user_tenant where tenant_id = #{tenantId} and status = '1'
-			)
-		</if>
-		<!--【QQYUN-8239】用户角色，添加用户 返回2页数据，实际只显示一页 需要将不符合的用户id排除--> 
-		<if test="excludeUserIdList!=null and excludeUserIdList.size()>0">
-			and a.id not in
-			<foreach collection="excludeUserIdList" item="userId" open="(" close=")" separator=",">
-				#{userId}
-			</foreach>
-		</if>
-		order by a.sort, a.create_time desc
+		SELECT * FROM (
+			select DISTINCT a.* from sys_user a
+			left join sys_user_depart b on b.user_id = a.id
+			left join sys_depart c on b.dep_id = c.id
+			<bind name="bindOrgCode" value="orgCode+'%'"/>
+			where
+			a.del_flag = 0 and a.status = 1
+			and c.org_code like #{bindOrgCode}
+			and a.username!='_reserve_user_external'
+			<if test="keyword!=null and keyword!=''">
+				<bind name="bindKeyword" value="'%'+keyword+'%'"/>
+				and (a.username like #{bindKeyword} or a.realname like #{bindKeyword})
+			</if>
+			<if test="tenantId!=null">
+				and a.id in (
+					select user_id from sys_user_tenant where tenant_id = #{tenantId} and status = '1'
+				)
+			</if>
+			<!--【QQYUN-8239】用户角色，添加用户 返回2页数据，实际只显示一页 需要将不符合的用户id排除-->
+			<if test="excludeUserIdList!=null and excludeUserIdList.size()>0">
+				and a.id not in
+				<foreach collection="excludeUserIdList" item="userId" open="(" close=")" separator=",">
+					#{userId}
+				</foreach>
+			</if>
+		) t
+		ORDER BY t.sort, t.create_time DESC
 	</select>
 	
 	<!--获取租户下的部门-通过前台传过来的部门id-->

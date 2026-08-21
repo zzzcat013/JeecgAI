@@ -33,6 +33,13 @@ public class Firewall {
      */
     private Boolean enableLoginCaptcha = true;
 
+    //update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度开关-----------
+    /**
+     * 是否开启三级等保强密码校验（true 开启强密码模式，false 使用简单密码规则）
+     */
+    private Boolean enableStrongPwd = false;
+    //update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度开关-----------
+
 //    /**
 //     * 表字典安全模式（white:白名单——配置了白名单的表才能通过表字典方式访问，black:黑名单——配置了黑名单的表不允许表字典方式访问）
 //     */
@@ -86,4 +93,14 @@ public class Firewall {
     public void setIsConcurrent(Boolean isConcurrent) {
         this.isConcurrent = isConcurrent;
     }
+
+    //update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度开关-----------
+    public Boolean getEnableStrongPwd() {
+        return enableStrongPwd;
+    }
+
+    public void setEnableStrongPwd(Boolean enableStrongPwd) {
+        this.enableStrongPwd = enableStrongPwd;
+    }
+    //update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度开关-----------
 }

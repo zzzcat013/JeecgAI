@@ -112,7 +112,6 @@ public class AiragModel implements Serializable {
     /**
      * 凭证信息
      */
-    @Excel(name = "凭证信息", width = 15)
     @Schema(description = "凭证信息")
     private String credential;
     /**

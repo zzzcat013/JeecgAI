@@ -298,4 +298,21 @@ public interface ISysDictService extends IService<SysDict> {
 	 * @param ids
 	 */
 	boolean removeLogicDeleted(List<String> ids);
+
+	/**
+	 * 关联记录专用：多字段分页查询任意数据库表数据（一次请求返回所有指定字段）
+	 *
+	 * @param tableName    表名
+	 * @param showFields   展示字段，逗号分隔，如 realname,username,avater
+	 * @param valueField   值字段，如 id
+	 * @param keyword      关键词搜索（可为 null）
+	 * @param keyValues    按 valueField 精确查找的值，逗号分隔（用于回显，可为 null）
+	 * @param pageNo       页码
+	 * @param pageSize     每页大小
+	 * @return 包含 records（List<Map>）和 total、size、current 的 Map
+	 */
+	//update-begin---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
+	Map<String, Object> queryTableDataForLinkRecord(String tableName, String showFields, String valueField,
+		String keyword, String keyValues, Integer pageNo, Integer pageSize);
+	//update-end---author:liusq ---date:2026-05-27  for：【优化】去掉无用参数searchFields、condition-----------
 }

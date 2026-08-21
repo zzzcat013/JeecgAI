@@ -54,6 +54,7 @@ public class SysPermissionDataRuleImpl extends ServiceImpl<SysPermissionDataRule
 	@Override
 	public List<SysPermissionDataRule> queryPermissionRule(SysPermissionDataRule permRule) {
 		QueryWrapper<SysPermissionDataRule> queryWrapper = QueryGenerator.initQueryWrapper(permRule, null);
+		queryWrapper.lambda().orderByDesc(SysPermissionDataRule::getCreateTime);
 		return this.list(queryWrapper);
 	}
 

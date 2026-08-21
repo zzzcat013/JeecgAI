@@ -2,6 +2,7 @@ package org.jeecg.common.system.query;
 
 import java.beans.PropertyDescriptor;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.net.URLDecoder;
 import java.text.ParseException;
@@ -154,6 +155,11 @@ public class QueryGenerator {
 				if (judgedIsUselessField(name)|| !PropertyUtils.isReadable(searchObj, name)) {
 					continue;
 				}
+				//update-begin---author:liusq ---date:2026-05-25  for：【QQYUN-15535】敏感字段加@QueryConditionIgnore注解后跳过查询条件构建-----------
+				if (isQueryConditionIgnoreField(searchObj.getClass(), name)) {
+					continue;
+				}
+				//update-end---author:liusq ---date:2026-05-25  for：【QQYUN-15535】敏感字段加@QueryConditionIgnore注解后跳过查询条件构建-----------
 
 				Object value = PropertyUtils.getSimpleProperty(searchObj, name);
 				column = ReflectHelper.getTableFieldName(searchObj.getClass(), name);
@@ -581,12 +587,10 @@ public class QueryGenerator {
 			value = val.substring(1);
 			//mysql 模糊查询之特殊字符下划线 （_、\）
 			value = specialStrConvert(value.toString());
-		//update-begin---author:scott ---date:20260416  for：【PR#9322】修复NE规则与LEFT_LIKE共用substring(1)导致ID首位字符丢失-----------
 		} else if (rule == QueryRuleEnum.NE) {
-			if (val.startsWith(QueryRuleEnum.NE.getValue())) {
+			if (val.startsWith(NOT_EQUAL)) {
 				value = val.substring(1);
 			}
-		//update-end---author:scott ---date:20260416  for：【PR#9322】修复NE规则与LEFT_LIKE共用substring(1)导致ID首位字符丢失-----------
 		} else if (rule == QueryRuleEnum.RIGHT_LIKE) {
 			value = val.substring(0, val.length() - 1);
 			//mysql 模糊查询之特殊字符下划线 （_、\）
@@ -804,7 +808,32 @@ public class QueryGenerator {
 				;
 	}
 
-	
+	//update-begin---author:liusq ---date:2026-05-25  for：【QQYUN-15535】检测字段是否标注@QueryConditionIgnore，支持父类字段查找-----------
+	/**
+	 * 判断字段是否标注了 {@link QueryConditionIgnore} 注解，支持查找父类字段。
+	 * 标注此注解的字段（如密码、盐值等敏感字段）将被跳过，不参与查询条件构建。
+	 *
+	 * @param clazz 实体类
+	 * @param fieldName 字段名
+	 * @return true 表示应跳过该字段
+	 */
+	private static boolean isQueryConditionIgnoreField(Class<?> clazz, String fieldName) {
+		Class<?> current = clazz;
+		while (current != null && current != Object.class) {
+			try {
+				Field field = current.getDeclaredField(fieldName);
+				if (field.isAnnotationPresent(QueryConditionIgnore.class)) {
+					return true;
+				}
+			} catch (NoSuchFieldException ignored) {
+				// 当前类没有该字段，继续查找父类
+			}
+			current = current.getSuperclass();
+		}
+		return false;
+	}
+	//update-end---author:liusq ---date:2026-05-25  for：【QQYUN-15535】检测字段是否标注@QueryConditionIgnore，支持父类字段查找-----------
+
 
 	/**
 	 * 获取请求对应的数据权限规则 TODO 相同列权限多个 有问题
@@ -1033,7 +1062,7 @@ public class QueryGenerator {
 	}
 
 	/**
-	 * mysql 模糊查询之特殊字符下划线 （_、\）
+	 * mysql、sqlserver 模糊查询特殊字符转义
 	 *
 	 * @param value:
 	 * @Return: java.lang.String
@@ -1046,6 +1075,10 @@ public class QueryGenerator {
 					value = value.replace(str, "\\" + str);
 				}
 			}
+        // update-begin--author:wangshuai---date:20260820---for：【LHZP-1165】【系统管理】字典 编码查询 输入br_ branch_的也查出来了
+		} else if (DataBaseConstant.DB_TYPE_SQLSERVER.equals(getDbType())) {
+			value = value.replace("[", "[[]").replace("%", "[%]").replace("_", "[_]");
+        // update-end--author:wangshuai---date:20260820---for：【LHZP-1165】【系统管理】字典 编码查询 输入br_ branch_的也查出来了
 		}
 		return value;
 	}

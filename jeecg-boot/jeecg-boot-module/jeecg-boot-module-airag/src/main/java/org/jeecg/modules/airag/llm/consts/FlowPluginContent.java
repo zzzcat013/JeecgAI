@@ -183,6 +183,11 @@ public interface FlowPluginContent {
     String PLUGIN_DESC = "调用工作流";
 
     /**
+     * 流程工具名称前缀
+     */
+    String FLOW_TOOL_NAME_PREFIX = "flow_";
+
+    /**
      * 插件请求地址
      */
     String PLUGIN_REQUEST_URL = "/airag/flow/plugin/run/";

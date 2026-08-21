@@ -108,13 +108,16 @@ public class JeecgBootExceptionHandler {
 
 	/**
 	 * 处理静态资源不存在异常（Spring Boot 3.2+）
-	 * WebSocket路径被当作静态资源请求时会触发此异常，降级为debug日志避免刷屏
+	 * Source Map、WebSocket路径被当作静态资源请求时会触发此异常，降级为debug日志避免刷屏
 	 */
 	@ExceptionHandler(NoResourceFoundException.class)
 	public Result<?> handleNoResourceFoundException(NoResourceFoundException e, HttpServletRequest request) {
 		String uri = request.getRequestURI();
-		// WebSocket路径的非upgrade请求，降级为debug日志
-		if (uri.contains("Socket/") || uri.contains("websocket/") || uri.contains("Websocket/")) {
+		// Source Map仅用于浏览器调试，缺失不影响业务功能，降级为debug日志
+		if (uri.endsWith(".map")) {
+			log.debug("Source Map资源不存在: {}", uri);
+		} else if (uri.contains("Socket/") || uri.contains("websocket/") || uri.contains("Websocket/")) {
+			// WebSocket路径的非upgrade请求，降级为debug日志
 			log.debug("WebSocket路径被当作静态资源请求: {}", uri);
 		} else {
 			log.error(e.getMessage(), e);
@@ -264,7 +267,13 @@ public class JeecgBootExceptionHandler {
 				// 文件上传过大异常时不能获取参数,否则会报错
 				Map<String, String[]> parameterMap = request.getParameterMap();
 				if(!CollectionUtils.isEmpty(parameterMap)) {
-					log.setMethod(oConvertUtils.mapToString(request.getParameterMap()));
+					//update-begin---author:scott ---date:2026-05-09  for：sys_log.method字段长度1000，过长导致Data truncation异常吞掉原始错误-----------
+					String methodStr = oConvertUtils.mapToString(request.getParameterMap());
+					if (methodStr != null && methodStr.length() > 950) {
+						methodStr = methodStr.substring(0, 950) + "...(truncated)";
+					}
+					log.setMethod(methodStr);
+					//update-end---author:scott ---date:2026-05-09  for：sys_log.method字段长度1000，过长导致Data truncation异常吞掉原始错误-----------
 				}
 			}
             // 请求地址

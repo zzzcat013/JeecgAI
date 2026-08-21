@@ -2,7 +2,10 @@ package org.jeecg.modules.system.service;
 
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.jeecg.common.api.vo.Result;
 import org.jeecg.modules.system.entity.SysCheckRule;
+import org.jeecgframework.poi.excel.entity.ImportParams;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * @Description: 编码校验规则
@@ -29,5 +32,10 @@ public interface ISysCheckRuleService extends IService<SysCheckRule> {
      * @return 返回 null代表通过校验，否则就是返回的错误提示文本
      */
     JSONObject checkValue(SysCheckRule checkRule, String value);
+
+    /**
+     * 导入系统校验规则。
+     */
+    Result<?> importExcel(MultipartFile file, ImportParams params) throws Exception;
 
 }

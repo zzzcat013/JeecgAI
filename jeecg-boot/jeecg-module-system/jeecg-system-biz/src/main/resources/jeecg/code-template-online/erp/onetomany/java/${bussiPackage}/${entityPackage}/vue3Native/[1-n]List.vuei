@@ -2,6 +2,13 @@
 #segment#${sub.entityName}List.vue
 <#assign need_pca = false>
 <#assign is_like = false>
+<#assign need_link_table = false>
+<#assign need_popup_dict = false>
+<#list sub.originalColumns as po>
+  <#if po.classType=='popup_dict'>
+    <#assign need_popup_dict = true>
+  </#if>
+</#list>
 <template>
  <div class="p-2">
    <#-- 结束循环 -->
@@ -72,6 +79,10 @@
 <#if need_pca>
   import { getAreaTextByCode } from '/@/components/Form/src/utils/Area';
 </#if>
+<#if need_popup_dict>
+  import { getPopDictByCode } from '@/utils/dict';
+  import { filterMultiDictText } from '@/utils/dict/JDictSelectUtil';
+</#if>
   
   const toggleSearchStatus = ref<boolean>(false);
   //接收主表id
@@ -93,6 +104,9 @@
       beforeFetch: (params) => {
         return Object.assign(params, queryParam);
       },
+<#if need_popup_dict>
+      afterFetch: afterFetch,
+</#if>
     },
     exportConfig: {
       name: '${sub.ftlDescription}',
@@ -221,6 +235,26 @@
     //刷新数据
     reload();
   }
+
+<#if need_popup_dict>
+  /**
+   * 翻译Popup字典配置
+   */
+  async function afterFetch(records) {
+  <#list sub.originalColumns as po>
+    <#if po.classType=='popup_dict' && (po.isQuery=='Y' || po.isShowList=='Y')>
+    const ${po.fieldName}Keys = [...new Set(records.map((item) => item['${po.fieldName}']).flatMap((item) => item && item.split(',')))];
+    if (${po.fieldName}Keys.length) {
+      const dictOptions = await getPopDictByCode(${po.fieldName}Keys.join(','), '${po.dictTable},${po.dictField},${po.dictText}');
+      records.forEach((item) => {
+        item['${po.fieldName}_dictText'] = filterMultiDictText(dictOptions, item['${po.fieldName}']);
+      });
+    }
+    </#if>
+  </#list>
+    return records;
+  }
+</#if>
   
   watch(mainId, () => {
     <#list sub.foreignKeys as key>

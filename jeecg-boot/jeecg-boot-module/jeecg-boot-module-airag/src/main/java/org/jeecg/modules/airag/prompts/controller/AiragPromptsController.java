@@ -56,7 +56,28 @@ public class AiragPromptsController extends JeecgController<AiragPrompts, IAirag
 		IPage<AiragPrompts> pageList = airagPromptsService.page(page, queryWrapper);
 		return Result.OK(pageList);
 	}
-	
+	/**
+	 * 分页列表查询
+	 *
+	 * @param airagPrompts
+	 * @param pageNo
+	 * @param pageSize
+	 * @param req
+	 * @return
+	 */
+	@Operation(summary="airag_prompts-回收站分页列表查询")
+	@GetMapping(value = "/recycleBinList")
+	//update-begin---author:chenrui ---date:2026-04-07  for：【QQYUN-14643】修复回收站查询逻辑，绕过@TableLogic过滤-----------
+	public Result<IPage<AiragPrompts>> recycleBinList(AiragPrompts airagPrompts,
+								   @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
+								   @RequestParam(name="pageSize", defaultValue="10") Integer pageSize,
+								   HttpServletRequest req) {
+		Page<AiragPrompts> page = new Page<>(pageNo, pageSize);
+		IPage<AiragPrompts> pageList = airagPromptsService.recycleBinPage(page);
+		return Result.OK(pageList);
+	}
+	//update-end---author:chenrui ---date:2026-04-07  for：【QQYUN-14643】修复回收站查询逻辑，绕过@TableLogic过滤-----------
+
 	/**
 	 *   添加
 	 *
@@ -131,6 +152,25 @@ public class AiragPromptsController extends JeecgController<AiragPrompts, IAirag
 		}
 		return Result.OK(airagPrompts);
 	}
+
+	 /**
+	  * 从回收站取回（支持多个id，逗号分割）
+	  */
+	 @Operation(summary = "提示词-从回收站取回")
+	 @PutMapping(value = "/revertRecycleBin")
+	 public Result<?> revertRecycleBin(@RequestParam(name = "ids", required = true) String ids) {
+		 airagPromptsService.revertRecycleBin(Arrays.asList(ids.split(",")));
+		 return Result.OK("已从回收站取回!");
+	 }
+	 /**
+	  * 从回收站彻底删除（支持多个id，逗号分割）
+	  */
+	 @Operation(summary = "提示词-从回收站彻底删除")
+	 @DeleteMapping(value = "/deleteRecycleBin")
+	 public Result<?> deleteRecycleBin(@RequestParam(name = "ids", required = true) String ids) {
+		 airagPromptsService.deleteRecycleBin(Arrays.asList(ids.split(",")));
+		 return Result.OK("从回收站彻底删除!");
+	 }
 	 /**
 	  * 构造器调试
 	  *

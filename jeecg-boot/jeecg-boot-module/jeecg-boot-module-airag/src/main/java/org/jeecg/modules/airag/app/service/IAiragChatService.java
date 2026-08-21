@@ -98,11 +98,23 @@ public interface IAiragChatService {
      * 初始化聊天(忽略租户)
      * [QQYUN-12113]分享之后的聊天，应用、模型、知识库不根据租户查询
      * @param appId
+     * @param shareToken 分享令牌（匿名访问必填）
      * @return
      * @author chenrui
      * @date 2025/4/21 14:17
      */
-    Result<?> initChat(String appId);
+    Result<AiragAppShareInfoVO> initChat(String appId, String shareToken);
+
+    /**
+     * 匿名分享访问校验（登录用户直接放行）。
+     * 用于 upload 等匿名写接口，与 send/init 共用同一套规则。
+     *
+     * @param appId 应用ID
+     * @param shareToken 分享令牌
+     * @author scott
+     * @since 2026-07-21 【issues/9787】匿名上传补分享令牌校验
+     */
+    void validateAnonymousShareAccess(String appId, String shareToken);
 
     /**
      * 继续接收消息

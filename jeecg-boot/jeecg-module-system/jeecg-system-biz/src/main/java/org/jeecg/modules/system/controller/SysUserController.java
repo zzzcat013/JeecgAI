@@ -487,11 +487,12 @@ public class SysUserController {
      * @return
      */
     @RequestMapping(value = "/queryUserByDepId", method = RequestMethod.GET)
-    public Result<List<SysUser>> queryUserByDepId(@RequestParam(name = "id", required = true) String id,@RequestParam(name="realname",required=false) String realname) {
+    public Result<List<SysUser>> queryUserByDepId(@RequestParam(name = "id", required = true) String id,@RequestParam(name="realname",required=false) String realname,
+                                                  @RequestParam(name="status",required=false) Integer status) {
         Result<List<SysUser>> result = new Result<>();
         //List<SysUser> userList = sysUserDepartService.queryUserByDepId(id);
         SysDepart sysDepart = sysDepartService.getById(id);
-        List<SysUser> userList = sysUserDepartService.queryUserByDepCode(sysDepart.getOrgCode(),realname);
+        List<SysUser> userList = sysUserDepartService.queryUserByDepCode(sysDepart.getOrgCode(),realname,status);
 
         //批量查询用户的所属部门
         //step.1 先拿到全部的 useids
@@ -878,7 +879,8 @@ public class SysUserController {
         String groupId = req.getParameter("groupId");
         String username = req.getParameter("username");
         String realname = req.getParameter("realname");
-        IPage<SysUser> pageList = sysUserService.getUserByUgroupId(page,groupId,username,realname);
+        Integer status = oConvertUtils.getInteger(req.getParameter("status"), null);
+        IPage<SysUser> pageList = sysUserService.getUserByUgroupId(page,groupId,username,realname,status);
         result.setSuccess(true);
         result.setResult(pageList);
         return result;
@@ -921,7 +923,9 @@ public class SysUserController {
                 });
             }
             //设置租户id
-            page.setRecords(userTenantService.setUserTenantIds(page.getRecords()));
+            //update-begin---author:wangshuai ---date:20260811  for：[LHZP-1141]【系统管理】我的部门编辑用户关联信息未正确回显------------
+            pageList.setRecords(userTenantService.setUserTenantIds(pageList.getRecords()));
+            //update-end---author:wangshuai ---date:20260811  for：[LHZP-1141]【系统管理】我的部门编辑用户关联信息未正确回显------------
             result.setSuccess(true);
             result.setResult(pageList);
         }else{
@@ -1514,6 +1518,7 @@ public class SysUserController {
      * @param jsonObject
      * @return
      */
+    @RequiresPermissions("system:user:putRecycleBin")
     @RequestMapping(value = "/putRecycleBin", method = RequestMethod.PUT)
     public Result putRecycleBin(@RequestBody JSONObject jsonObject, HttpServletRequest request) {
         String userIds = jsonObject.getString("userIds");
@@ -1924,7 +1929,21 @@ public class SysUserController {
         if(!username.equals(user.getUsername())){
             return Result.error("只能修改自己的数据");
         }
-        sysUserService.updateById(sysUser);
+        //update-begin---author:zhangdaihao ---date:2026-05-06  for：【issue/9596】修复userEdit越权漏洞，仅允许修改个人资料字段，防止通过userIdentity/departIds等敏感字段越权-----------
+        SysUser updateUser = new SysUser();
+        updateUser.setId(user.getId());
+        updateUser.setRealname(sysUser.getRealname());
+        updateUser.setAvatar(sysUser.getAvatar());
+        updateUser.setBirthday(sysUser.getBirthday());
+        updateUser.setSex(sysUser.getSex());
+        updateUser.setEmail(sysUser.getEmail());
+        updateUser.setPhone(sysUser.getPhone());
+        updateUser.setTelephone(sysUser.getTelephone());
+        updateUser.setSign(sysUser.getSign());
+        updateUser.setSignEnable(sysUser.getSignEnable());
+        updateUser.setIzHideContact(sysUser.getIzHideContact());
+        sysUserService.updateById(updateUser);
+        //update-end---author:zhangdaihao ---date:2026-05-06  for：【issue/9596】修复userEdit越权漏洞，仅允许修改个人资料字段，防止通过userIdentity/departIds等敏感字段越权-----------
         return Result.ok("更新个人信息成功");
     }
 

@@ -1,4 +1,11 @@
+logging:
+  level:
+    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
+    
 spring:
+  main:
+    # 启动加速 (建议开发环境)
+    lazy-initialization: true
   application:
     name: jeecg-system
   config:

@@ -57,6 +57,9 @@ public class VoiceApiHelper {
     public void generateAudio(String text, Path audioPath, String voice, double speed) throws IOException, InterruptedException {
         AiChatConfig.VoiceModelConfig config = aiChatConfig.getAiModelVoice();
         String apiHost = config.getApiHost();
+		if (apiHost == null || apiHost.isBlank()) {
+			throw new IllegalStateException("语音模型 api-host 未配置，请检查 jeecg.ai-chat.ai-model-voice.api-host");
+		}
         String url = apiHost.endsWith("/") ? apiHost + "audio/speech" : apiHost + "/audio/speech";
 
         JSONObject body = new JSONObject();

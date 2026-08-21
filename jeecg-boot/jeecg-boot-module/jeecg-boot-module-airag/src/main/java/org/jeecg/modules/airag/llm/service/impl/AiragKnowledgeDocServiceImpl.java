@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -408,7 +409,12 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
             Files.createDirectories(targetDir);
         }
 
-        try (ZipFile zipFile = new ZipFile(zipFilePath.toFile())) {
+        //update-begin---author:wangshuai ---date:2026-06-25  for：【QQYUN-16635】知识库上传压缩包报错，中文zip文件名乱码，指定GBK回退编码（条目带UTF-8标志仍用UTF-8，兼容两种压缩包）-----------
+        try (ZipFile zipFile = ZipFile.builder()
+                .setFile(zipFilePath.toFile())
+                .setCharset(Charset.forName("GBK"))
+                .get()) {
+        //update-end---author:wangshuai ---date:2026-06-25  for：【QQYUN-16635】知识库上传压缩包报错，中文zip文件名乱码，指定GBK回退编码（条目带UTF-8标志仍用UTF-8，兼容两种压缩包）-----------
             Enumeration<ZipArchiveEntry> entries = zipFile.getEntries();
 
             while (entries.hasMoreElements()) {
@@ -463,7 +469,12 @@ public class AiragKnowledgeDocServiceImpl extends ServiceImpl<AiragKnowledgeDocM
         if (normalizedName.startsWith("__MACOSX/")) {
             return true;
         }
-        String fileName = Paths.get(normalizedName).getFileName().toString();
+        //update-begin---author:wangshuai ---date:2026-06-25  for：【QQYUN-16635】用字符串截取取文件名，避免文件名含非法字符时 Paths.get 抛 InvalidPathException-----------
+        // 去掉末尾的目录分隔符再取最后一段，避免对目录项(如 "知识库/")解析为空
+        String trimmed = normalizedName.endsWith("/") ? normalizedName.substring(0, normalizedName.length() - 1) : normalizedName;
+        int slashIdx = trimmed.lastIndexOf('/');
+        String fileName = slashIdx >= 0 ? trimmed.substring(slashIdx + 1) : trimmed;
+        //update-end---author:wangshuai ---date:2026-06-25  for：【QQYUN-16635】用字符串截取取文件名，避免文件名含非法字符时 Paths.get 抛 InvalidPathException-----------
         return fileName.startsWith("._") || fileName.equals(".DS_Store");
     }
     //update-end---author:scott ---date:2026-04-16  for：【issues/9551】macOS压缩包隐藏文件过滤-----------

@@ -14,6 +14,28 @@ import java.util.List;
 public interface IAiragAppService extends IService<AiragApp> {
 
     /**
+     * 发布/取消发布应用，并维护分享令牌
+     *
+     * @param id 应用ID
+     * @param release true=发布，false=取消发布
+     * @return 发布成功时返回 shareToken；取消发布返回 null
+     * @author scott
+     * @since 2026-07-21 【issues/9787】应用级分享令牌
+     */
+    String releaseApp(String id, boolean release);
+
+	/**
+	 * 复制应用
+	 *
+	 * @param id 原应用ID
+	 * @param currentTenantId 当前租户ID
+	 * @return 新应用ID
+	 * @author scott
+	 * @since 2026-08-06 【LHZP-1512】AI应用增加复制功能
+	 */
+	String copyApp(String id, String currentTenantId);
+
+    /**
      * 生成提示词
      * @param prompt
      * @return blocking 是否阻塞

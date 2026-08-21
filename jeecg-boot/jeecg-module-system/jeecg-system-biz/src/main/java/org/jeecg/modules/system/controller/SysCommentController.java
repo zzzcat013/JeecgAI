@@ -16,6 +16,7 @@ import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.vo.LoginUser;
 import org.jeecg.modules.system.entity.SysComment;
 import org.jeecg.modules.system.service.ISysCommentService;
+import org.jeecg.modules.system.util.XssUtils;
 import org.jeecg.modules.system.vo.SysCommentFileVo;
 import org.jeecg.modules.system.vo.SysCommentVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,6 +87,9 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
     @Operation(summary = "系统评论表-添加文本")
     @PostMapping(value = "/addText")
     public Result<String> addText(@RequestBody SysComment sysComment) {
+        // 对评论内容做 XSS 过滤，防止存储型 XSS 进入数据库并在前端 v-html 时执行
+        String content = XssUtils.richTextXss(sysComment.getCommentContent());
+        sysComment.setCommentContent(content);
         String commentId = sysCommentService.saveOne(sysComment);
         return Result.OK(commentId);
     }
@@ -182,9 +186,19 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
      * @return
      */
     @Operation(summary = "系统评论回复表-添加")
-    //@RequiresPermissions("org.jeecg.modules.demo:sys_comment:add")
     @PostMapping(value = "/add")
     public Result<String> add(@RequestBody SysComment sysComment) {
+        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        if (sysUser == null) {
+            return Result.error("用户未登录！");
+        }
+        sysComment.setFromUserId(sysUser.getId());
+        sysComment.setCreateBy(null);
+        sysComment.setCreateTime(null);
+        sysComment.setUpdateBy(null);
+        sysComment.setUpdateTime(null);
+        // 对评论内容做 XSS 过滤
+        sysComment.setCommentContent(XssUtils.richTextXss(sysComment.getCommentContent()));
         sysCommentService.save(sysComment);
         return Result.OK("添加成功！");
     }
@@ -197,9 +211,28 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
      */
     //@AutoLog(value = "系统评论回复表-编辑")
     @Operation(summary = "系统评论回复表-编辑")
-    //@RequiresPermissions("org.jeecg.modules.demo:sys_comment:edit")
     @RequestMapping(value = "/edit", method = {RequestMethod.PUT, RequestMethod.POST})
     public Result<String> edit(@RequestBody SysComment sysComment) {
+        if (sysComment == null || sysComment.getId() == null || sysComment.getId().isEmpty()) {
+            return Result.error("评论ID不能为空！");
+        }
+        SysComment origin = sysCommentService.getById(sysComment.getId());
+        if (origin == null) {
+            return Result.error("该评论不存在或已删除！");
+        }
+        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        if (sysUser == null) {
+            return Result.error("用户未登录！");
+        }
+        String username = sysUser.getUsername();
+        String admin = "admin";
+        if (!admin.equals(username) && !username.equals(origin.getCreateBy())) {
+            return Result.error("只能编辑自己的评论！");
+        }
+        sysComment.setFromUserId(origin.getFromUserId());
+        sysComment.setToUserId(origin.getToUserId());
+        sysComment.setCreateBy(origin.getCreateBy());
+        sysComment.setCreateTime(origin.getCreateTime());
         sysCommentService.updateById(sysComment);
         return Result.OK("编辑成功!");
     }
@@ -212,10 +245,26 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
      */
     //@AutoLog(value = "系统评论回复表-通过id删除")
     @Operation(summary = "系统评论回复表-通过id删除")
-    //@RequiresPermissions("org.jeecg.modules.demo:sys_comment:delete")
     @DeleteMapping(value = "/delete")
     public Result<String> delete(@RequestParam(name = "id", required = true) String id) {
-        sysCommentService.removeById(id);
+        //update-begin---author:wangshuai ---date:2026-06-17  for：【issues/9684】修复评论删除越权漏洞，校验只能删除自己的评论-----------
+        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        if (sysUser == null) {
+            return Result.error("用户未登录！");
+        }
+        SysComment comment = sysCommentService.getById(id);
+        if (comment == null) {
+            return Result.error("该评论已被删除！");
+        }
+        String username = sysUser.getUsername();
+        String admin = "admin";
+        //除了admin外 其他人只能删除自己的评论
+        if (!admin.equals(username) && !username.equals(comment.getCreateBy())) {
+            return Result.error("只能删除自己的评论！");
+        }
+        //通过deleteOne删除，同时清理关联文件
+        sysCommentService.deleteOne(id);
+        //update-end---author:wangshuai ---date:2026-06-17  for：【issues/9684】修复评论删除越权漏洞，校验只能删除自己的评论-----------
         return Result.OK("删除成功!");
     }
 
@@ -227,10 +276,30 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
      */
     //@AutoLog(value = "系统评论回复表-批量删除")
     @Operation(summary = "系统评论回复表-批量删除")
-    //@RequiresPermissions("org.jeecg.modules.demo:sys_comment:deleteBatch")
     @DeleteMapping(value = "/deleteBatch")
     public Result<String> deleteBatch(@RequestParam(name = "ids", required = true) String ids) {
-        this.sysCommentService.removeByIds(Arrays.asList(ids.split(",")));
+        //update-begin---author:wangshuai ---date:2026-06-17  for：【issues/9684】修复评论批量删除越权漏洞，校验只能删除自己的评论-----------
+        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        if (sysUser == null) {
+            return Result.error("用户未登录！");
+        }
+        String username = sysUser.getUsername();
+        String admin = "admin";
+        List<String> idList = Arrays.asList(ids.split(","));
+        //非admin需逐一校验评论归属，只能删除自己的评论
+        if (!admin.equals(username)) {
+            for (String id : idList) {
+                SysComment comment = sysCommentService.getById(id);
+                if (comment != null && !username.equals(comment.getCreateBy())) {
+                    return Result.error("只能删除自己的评论！");
+                }
+            }
+        }
+        //逐一删除，同时清理关联文件
+        for (String id : idList) {
+            sysCommentService.deleteOne(id);
+        }
+        //update-end---author:wangshuai ---date:2026-06-17  for：【issues/9684】修复评论批量删除越权漏洞，校验只能删除自己的评论-----------
         return Result.OK("批量删除成功!");
     }
 
@@ -257,7 +326,6 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
      * @param request
      * @param sysComment
      */
-    //@RequiresPermissions("org.jeecg.modules.demo:sys_comment:exportXls")
     @RequestMapping(value = "/exportXls")
     public ModelAndView exportXls(HttpServletRequest request, SysComment sysComment) {
         return super.exportXls(request, sysComment, SysComment.class, "系统评论回复表");
@@ -270,7 +338,6 @@ public class SysCommentController extends JeecgController<SysComment, ISysCommen
      * @param response
      * @return
      */
-    //@RequiresPermissions("sys_comment:importExcel")
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response) {
         return super.importExcel(request, response, SysComment.class);

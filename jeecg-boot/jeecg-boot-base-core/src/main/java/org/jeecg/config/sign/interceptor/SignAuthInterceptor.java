@@ -33,7 +33,7 @@ public class SignAuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        log.info("签名拦截器 Interceptor request URI = " + request.getRequestURI());
+        log.debug("签名拦截器 Interceptor request URI = " + request.getRequestURI());
         
         try {
             // 调用验证逻辑
