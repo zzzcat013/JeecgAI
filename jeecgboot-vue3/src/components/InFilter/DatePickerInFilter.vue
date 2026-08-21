@@ -41,10 +41,16 @@ export default defineComponent({
 </script>
 
 <script lang="ts" setup>
-import {ref, watch, computed, nextTick, useAttrs, defineProps} from 'vue'
+import {ref, watch, computed, nextTick, useAttrs} from 'vue'
 import {DatePicker} from 'ant-design-vue'
 import {useDesign} from '/@/hooks/web/useDesign';
 import { Form } from 'ant-design-vue';
+import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
+import quarterOfYear from 'dayjs/plugin/quarterOfYear';
+
+dayjs.extend(isoWeek);
+dayjs.extend(quarterOfYear);
 const formItemContext = Form.useInjectFormItemContext();
 
 // 日期范围选项
@@ -98,11 +104,29 @@ watch(innerValue, (val) => {
     val = ''
     openDatePicker()
   }
-  emit('change', val)
-  emit('update:value', val)
+  // update-begin--author:wangshuai---date:20260819---for：【LHZP-322】【表单设计器】online周、季度没转化成功
+  const normalizedValue = normalizePickerValue(val)
+  emit('change', normalizedValue)
+  emit('update:value', normalizedValue)
+  // update-end--author:wangshuai---date:20260819---for：【LHZP-322】【表单设计器】online周、季度没转化成功
   // 代码逻辑说明: 【QQYUN-9227】日期校验没清空
   formItemContext?.onFieldChange();
 })
+
+/** 季度取季度第一天，周取 ISO 周的周一。 */
+function normalizePickerValue(value) {
+  if (!value || RANGE_OPTION_KEYS.includes(value)) {
+    return value
+  }
+  const picker = attrs.picker
+  if (picker === 'quarter') {
+    return dayjs(value).startOf('quarter').format('YYYY-MM-DD')
+  }
+  if (picker === 'week') {
+    return dayjs(value).startOf('isoWeek').format('YYYY-MM-DD')
+  }
+  return value
+}
 
 watch(() => props.allowSelectRange, (allow) => {
   // 如果不允许选择范围，且当前值为范围选项，则清空值

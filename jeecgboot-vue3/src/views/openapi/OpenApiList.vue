@@ -17,8 +17,8 @@
      <!--插槽:table标题-->
       <template #tableTitle>
           <a-button type="primary" v-auth="'openapi:open_api:add'"  @click="handleAdd" preIcon="ant-design:plus-outlined"> 新增</a-button>
-          <a-button  type="primary" v-auth="'openapi:open_api:exportXls'"  preIcon="ant-design:export-outlined" @click="onExportXls"> 导出</a-button>
-          <j-upload-button  type="primary" v-auth="'openapi:open_api:importExcel'"  preIcon="ant-design:import-outlined" @click="onImportXls">导入</j-upload-button>
+<!--          <a-button  type="primary" v-auth="'openapi:open_api:exportXls'"  preIcon="ant-design:export-outlined" @click="onExportXls"> 导出</a-button>-->
+<!--          <j-upload-button  type="primary" v-auth="'openapi:open_api:importExcel'"  preIcon="ant-design:import-outlined" @click="onImportXls">导入</j-upload-button>-->
           <a-dropdown v-if="selectedRowKeys.length > 0">
               <template #overlay>
                 <a-menu>
@@ -57,6 +57,7 @@
   import { useListPage } from '/@/hooks/system/useListPage';
   import { useDrawer } from '/@/components/Drawer';
   import { useMessage } from '/@/hooks/web/useMessage';
+  import { copyTextToClipboard } from '/@/hooks/web/useCopyToClipboard';
   import OpenApiDrawer from './components/OpenApiDrawer.vue';
   import { columns, searchFormSchema, superQuerySchema } from './OpenApi.data';
   import { list, deleteOne, batchDelete, getImportUrl, getExportUrl } from './OpenApi.api';
@@ -181,8 +182,13 @@
   async function handleCopyUrl(record: Recordable) {
     const url = API_DOMAIN + '/openapi/call/' + record.requestUrl;
     try {
-      await navigator.clipboard.writeText(url);
-      createMessage.success('接口地址已复制');
+      //update-begin---wangshuai---date:20260804  for：[LHZP-1353] openapi 接口管理 复制不了------------
+      if (copyTextToClipboard(url)) {
+        createMessage.success('接口地址已复制');
+      } else {
+        createMessage.error('复制失败，请手动复制');
+      }
+      //update-end---author:wangshuai ---date:20260804  for：[LHZP-1353]openapi 接口管理 复制不了------------
     } catch (_e) {
       createMessage.error('复制失败，请手动复制');
     }

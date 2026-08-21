@@ -126,9 +126,9 @@
               <Icon :icon="getStatusIcon(item)" class="pill-icon" />
               <span class="pill-text">{{ item.synced ? (item.status==='enable'?'启用':'禁用') : '未同步' }}</span>
             </div>
-            <div class="pill tool-pill" :title="getToolCount(item.metadata)+' 个工具'">
+            <div class="pill tool-pill" :title="getToolCount(item)+' 个工具'">
               <Icon icon="ant-design:tool-outlined" class="pill-icon" />
-              <span class="pill-text">{{ getToolCount(item.metadata) }} 个工具</span>
+              <span class="pill-text">{{ getToolCount(item) }} 个工具</span>
             </div>
           </div>
         </a-card>
@@ -159,6 +159,8 @@ import AiragMcpAddModal from './components/AiragMcpAddModal.vue';
 import AiragMcpDetailModal from './components/AiragMcpDetailModal.vue';
 import { list, deleteOne, syncMcp, toggleStatus} from './AiragMcp.api';
 import { useModal } from '/@/components/Modal';
+import { useMessage } from '/@/hooks/web/useMessage';
+import { getFileAccessHttpUrl } from '@/utils/common/compUtils';
 import JInput from '@/components/Form/src/jeecg/components/JInput.vue';
 import defaultLogo from './imgs/mcpLogo.png'
 
@@ -166,13 +168,14 @@ import defaultLogo from './imgs/mcpLogo.png'
 const mcpList = ref<any[]>([]);
 // 分页
 const pageNo = ref<number>(1);
-const pageSize = ref<number>(10);
+const pageSize = ref<number>(30);
 const total = ref<number>(0);
 const pageSizeOptions = ref<any>(['10', '20', '30']);
 
 // 查询参数
 const queryParam = reactive<any>({});
 const formRef = ref();
+const { createMessage } = useMessage();
 
 // 查询区域label宽度
 const labelCol = reactive({
@@ -246,7 +249,18 @@ async function handleDeleteClick(item) {
 }
 
 async function handleSync(item) {
-  await syncMcp(item.id).finally(() => reload());
+  try {
+    const res = await syncMcp(item.id);
+    if (res.success) {
+      createMessage.success(res.message || '同步成功');
+    } else {
+      createMessage.error(res.message || '同步失败');
+    }
+  } catch (error: any) {
+    createMessage.error(error?.message || '同步失败');
+  } finally {
+    reload();
+  }
 }
 
 async function handleToggleStatus(item) {
@@ -265,25 +279,41 @@ function searchReset() {
   searchQuery();
 }
 
-// 图标处理（如果 icon 是完整URL则使用，否则可以扩展映射）
+// 图标处理
 function getIcon(icon?: string) {
-  if (!icon) return defaultLogo;
-  return icon.startsWith('http') ? icon : icon; // 可扩展为本地静态资源路径
+  return icon ? getFileAccessHttpUrl(icon) : defaultLogo;
 }
 
-// 工具数量：从 metadata 中读取 tool_count，可处理对象或 JSON 字符串
-function getToolCount(metadata: any): number {
-  if (!metadata) return 0;
-  let metaObj: any = metadata;
-  if (typeof metadata === 'string') {
+// 工具数量：插件按 tools 列表统计，MCP 优先读取 metadata
+function getToolCount(item: any): number {
+  //update-begin---wangshuai---date:20260805  for：[LHZP-1590]mcp 插件的时候 列表工具不显示数量------------
+  let metaObj: any = item?.metadata;
+  if (typeof metaObj === 'string') {
     try {
-      metaObj = JSON.parse(metadata);
+      metaObj = JSON.parse(metaObj);
     } catch (e) {
-      return 0;
+      metaObj = null;
     }
   }
-  const count = metaObj.tool_count || metaObj.toolCount || 0;
-  return typeof count === 'number' ? count : parseInt(count, 10) || 0;
+  let tools = item?.tools;
+  if (typeof tools === 'string') {
+    try {
+      tools = JSON.parse(tools);
+    } catch (e) {
+      tools = [];
+    }
+  }
+  if (item?.category === 'plugin' && Array.isArray(tools)) {
+    //update-begin---author:scott ---date:20260806  for：【LHZP-1496】插件卡片只统计启用工具-----------
+    return tools.filter((tool: any) => tool?.enabled !== false).length;
+    //update-end---author:scott ---date:20260806  for：【LHZP-1496】插件卡片只统计启用工具-----------
+  }
+  const count = metaObj?.tool_count;
+  if (count != null) {
+    return typeof count === 'number' ? count : parseInt(count, 10) || 0;
+  }
+  return Array.isArray(tools) ? tools.length : 0;
+  //update-end---author:wangshuai ---date:20260805  for：[LHZP-1590]mcp 插件的时候 列表工具不显示数量------------
 }
 
 // 类型图标映射
@@ -325,18 +355,28 @@ function getStatusIcon(item: any) {
     height: calc(100vh - 115px);
     background: #f7f8fc;
     padding: 24px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .jeecg-basic-table-form-container {
+      flex-shrink: 0;
+    }
+
     .mcp-row {
-      /* 允许阴影完整显示 */
+      flex: 1;
+      min-height: 0;
       margin-top: 20px;
       padding-bottom: 12px;
-      overflow: visible;
-        display: flex;
-        flex-wrap: wrap;
-        align-content: flex-start;
-        gap: 20px;
-        :deep(.ant-col) { flex: 0 0 270px; max-width: 270px; }
-        .mcp-card, .add-mcp-card { width: 270px; }
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      align-items: flex-start;
+      gap: 20px;
+      :deep(.ant-col) { flex: 0 0 270px; max-width: 270px; }
+      .mcp-card, .add-mcp-card { width: 270px; }
       .mcp-header {
         position: relative;
         font-size: 14px;
@@ -356,6 +396,12 @@ function getStatusIcon(item: any) {
           white-space: nowrap;
         }
       }
+    }
+
+    .list-footer {
+      flex-shrink: 0;
+      margin-top: 12px;
+      padding-top: 4px;
     }
   }
 
@@ -481,7 +527,6 @@ function getStatusIcon(item: any) {
   }
   .list-footer {
     text-align: right;
-    margin-top: 5px;
   }
   .jeecg-basic-table-form-container {
     padding: 0;

@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white m-4 mr-0 overflow-hidden">
     <div v-if="userIdentity === '2'" class="j-table-operator" style="width: 100%">
-      <a-button type="primary" preIcon="ant-design:plus-outlined" @click="onAddChildDepart">添加下级</a-button>
+      <a-button type="primary" :disabled="treeData.length === 0" preIcon="ant-design:plus-outlined" @click="onAddChildDepart">添加下级</a-button>
       <!--      <a-button type="primary" preIcon="ant-design:edit-outlined" @click="editDepart">编辑</a-button>-->
       <a-button :disabled="!(checkedKeys && checkedKeys.length > 0)" preIcon="ant-design:delete-outlined" @click="onDeleteBatch">删除</a-button>
     </div>
@@ -10,7 +10,7 @@
         <a-input-search placeholder="按部门名称搜索…" style="margin-bottom: 10px" @search="onSearch" />
         <!--组织机构树-->
         <BasicTree
-          v-if="!treeReloading"
+          v-if="!treeReloading && treeData.length > 0"
           :toolbar="false"
           :search="false"
           :showLine="false"
@@ -27,6 +27,8 @@
           @expand="onExpand"
           @check="onCheck"
         />
+        <a-empty v-else-if="!treeReloading && !loading" 
+                 description="暂无负责部门权限，请联系管理员前往“用户管理”中配置负责部门。" />
       </template>
       <a-empty v-else description="普通员工无此权限" />
     </a-spin>
@@ -66,31 +68,36 @@
   let userIdentity = ref<string>('2');
   // 树组件重新加载
   let treeReloading = ref<boolean>(false);
+  // 树请求序号，防止搜索与重置请求乱序回写
+  let treeRequestId = 0;
   // 注册 modal
   const [registerModal, { openModal }] = useModal();
   // 加载部门信息
-  function loadDepartTreeData() {
+  async function loadDepartTreeData() {
+    const requestId = ++treeRequestId;
     loading.value = true;
     treeReloading.value = true;
-    treeData.value = [];
-    queryMyDepartTreeList()
-      .then((res) => {
-        if (res.success) {
-          if (Array.isArray(res.result)) {
-            treeData.value = res.result;
-            myDepIds.value = res.result.map((item) => item.id);
-            userIdentity.value = res.message;
-            autoExpandParentNode();
-          }
-        } else {
-          createMessage.warning(res.message);
+    resetTreeState();
+    try {
+      const res = await queryMyDepartTreeList();
+      if (requestId !== treeRequestId) return;
+      if (res.success) {
+        userIdentity.value = res.message;
+        if (Array.isArray(res.result)) {
+          treeData.value = res.result;
+          myDepIds.value = res.result.map((item) => item.id);
+          autoExpandParentNode();
         }
-      })
-      .finally(async () => {
+      } else {
+        createMessage.warning(res.message);
+      }
+    } finally {
+      if (requestId === treeRequestId) {
         await nextTick();
         loading.value = false;
         treeReloading.value = false;
-      });
+      }
+    }
   }
 
   loadDepartTreeData();
@@ -107,10 +114,7 @@
         setSelectedKey(item.id, item);
       }
     });
-    if (keys.length > 0) {
-      reloadTree();
-      expandedKeys.value = keys;
-    }
+    expandedKeys.value = keys;
   }
 
   // 添加子级部门
@@ -119,7 +123,9 @@
       createMessage.warning('请先选择一个部门');
       return;
     }
-    const record = { parentId: selectedKeys.value[0] };
+    //update-begin---author:wangshuai---date:20260807---for:【LHZP-1152】添加下级时 部门下不能再添加子公司---
+    const record = { parentId: selectedKeys.value[0], orgCategory: selectedNode.value.orgCategory };
+    //update-end---author:wangshuai---date:20260807---for:【LHZP-1152】添加下级时 部门下不能再添加子公司---
     openModal(true, { isUpdate: false, isChild: true, record });
   }
 
@@ -154,12 +160,13 @@
       }
     }
   }
-  // 重新加载树组件，防止无法默认展开数据
-  async function reloadTree() {
-    await nextTick();
-    treeReloading.value = true;
-    await nextTick();
-    treeReloading.value = false;
+  // 清理旧树的受控状态，避免旧 key 与新树数据不匹配
+  function resetTreeState() {
+    treeData.value = [];
+    expandedKeys.value = [];
+    selectedKeys.value = [];
+    checkedKeys.value = [];
+    selectedNode.value = {};
   }
 
   /**
@@ -175,21 +182,29 @@
   }
 
   // 搜索事件
-  function onSearch(value: string) {
+  async function onSearch(value: string) {
     if (value) {
+      const requestId = ++treeRequestId;
       loading.value = true;
-      searchByKeywords({ keyWord: value, myDeptSearch: '1' })
-        .then((result) => {
-          if (Array.isArray(result)) {
-            treeData.value = result;
-          } else {
-            createMessage.warning('未查询到部门信息');
-            treeData.value = [];
-          }
-        })
-        .finally(() => (loading.value = false));
+      treeReloading.value = true;
+      resetTreeState();
+      try {
+        const result = await searchByKeywords({ keyWord: value, myDeptSearch: '1' });
+        if (requestId !== treeRequestId) return;
+        if (Array.isArray(result)) {
+          treeData.value = result;
+        } else {
+          createMessage.warning('未查询到部门信息');
+        }
+      } finally {
+        if (requestId === treeRequestId) {
+          await nextTick();
+          loading.value = false;
+          treeReloading.value = false;
+        }
+      }
     } else {
-      loadDepartTreeData();
+      await loadDepartTreeData();
     }
   }
 
@@ -231,9 +246,11 @@
     return [
       {
         label: '添加下级',
-        disabled: myDepIds.value.includes(node.key),
         handler: () => {
-          setSelectedKey(node.key);
+          //update-begin---author:wangshuai---date:20260807---for:【LHZP-1152】右键部门时 添加下级 综合管理部不能添加下级 上方按钮可以---
+          // 右键节点需要同步完整数据，新增弹窗据此限制可选的机构类型
+          setSelectedKey(node.key, node.dataRef);
+          //update-begin---author:wangshuai---date:20260807---for:【LHZP-1152】右键部门时 添加下级 综合管理部不能添加下级 上方按钮可以---
           onAddChildDepart();
         },
         icon: 'ant-design:plus-outlined',

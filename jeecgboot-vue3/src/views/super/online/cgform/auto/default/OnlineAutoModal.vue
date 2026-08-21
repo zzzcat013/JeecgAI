@@ -1,5 +1,5 @@
 <template>
-  <BasicModal :title="title" @cancel="onCloseEvent" :enableComment="enableComment" :width="modalWidth" v-bind="$attrs" :maxHeight="600" @register="registerModal" wrapClassName="jeecg-online-modal" @ok="handleSubmit" @commentOpen="handleCommentOpen">
+  <BasicModal :title="title" @cancel="onCloseEvent" :enableComment="enableComment" :width="modalWidth" v-bind="$attrs" :maxHeight="800" @register="registerModal" wrapClassName="jeecg-online-modal" @ok="handleSubmit" @commentOpen="handleCommentOpen">
     <template #footer>
       <a-row>
         <a-col :span='24 - commentSpan'>

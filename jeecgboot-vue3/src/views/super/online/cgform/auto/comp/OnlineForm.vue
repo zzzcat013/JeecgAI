@@ -10,7 +10,9 @@
     <BasicForm ref="onlineFormRef" @register="registerForm" :name="'online-form_' + tableName"/>
 
     <!-- 子表 -->
-    <a-tabs v-model:activeKey="subActiveKey" v-if="themeTemplate !== ERP && hasSubTable">
+    <!-- update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表 -->
+    <a-tabs v-model:activeKey="subActiveKey" v-if="hasSubTable && (isShare || themeTemplate !== ERP)">
+    <!-- update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表 -->
       <a-tab-pane v-for="(sub, index) in subTabInfo" :tab="sub.describe" :key="index + ''" :forceRender="true">
         <div ref="subFormWrapRef" :style="{ 'overflow-y': 'auto', 'overflow-x': 'hidden', 'max-height': subFormHeight + 'px' }" v-if="sub.relationType == 1">
           <!-- 子表-一对一 -->
@@ -24,6 +26,7 @@
             :properties="sub.properties"
             :required-fields="sub.requiredFields"
             :is-update="isUpdate"
+            :modal-class="modalClass"
             @formChange="(arg) => handleSubFormChange(arg, sub.key)"
           />
         </div>
@@ -50,25 +53,25 @@
             @added="handleAdded(sub, $event)"
             @executeFillRule="handleSubTableDefaultValue(sub, $event)">
 
-            <template #toolbarSuffix>
-              <!-- 子表内弹出新增按钮 -->
-              <a-button
-                  v-if="!onlineFormDisabled && getSubOpenAddBtnCfg.enabled && getBtnAuth('add', sub.key)"
-                  type="primary"
-                  :preIcon="getSubOpenAddBtnCfg.buttonIcon"
-                  @click="openSubFormModalForAdd(sub)"
-              >
-                <span>{{getSubOpenAddBtnCfg.buttonName}}</span>
-              </a-button>
-              <!-- 子表内弹出编辑按钮 -->
-              <a-button
-                  v-if="!onlineFormDisabled && getSubOpenEditBtnCfg.enabled && getBtnAuth('update', sub.key)"
-                  type="primary"
-                  :preIcon="getSubOpenEditBtnCfg.buttonIcon"
-                  @click="openSubFormModalForEdit(sub)"
-              >
-                <span>{{getSubOpenEditBtnCfg.buttonName}}</span>
-              </a-button>
+            <template #toolbarAfterAdd="{ selectedRowIds }">
+              <a-button-group class="sub-popup-button-group">
+                <!-- 子表内弹出新增按钮 -->
+                <a-button
+                    v-if="!onlineFormDisabled && getSubOpenAddBtnCfg.enabled && getBtnAuth('add', sub.key)"
+                    :preIcon="getSubOpenAddBtnCfg.buttonIcon"
+                    @click="openSubFormModalForAdd(sub)"
+                >
+                  <span>{{getSubOpenAddBtnCfg.buttonName}}</span>
+                </a-button>
+                <!-- 子表内弹出编辑按钮 -->
+                <a-button
+                    v-if="!onlineFormDisabled && getSubOpenEditBtnCfg.enabled && getBtnAuth('update', sub.key) && selectedRowIds.length === 1"
+                    :preIcon="getSubOpenEditBtnCfg.buttonIcon"
+                    @click="openSubFormModalForEdit(sub)"
+                >
+                  <span>{{getSubOpenEditBtnCfg.buttonName}}</span>
+                </a-button>
+              </a-button-group>
             </template>
 
           </JVxeTable>
@@ -87,7 +90,7 @@
 
 <script>
   import { useMessage } from '/@/hooks/web/useMessage';
-  import { computed, defineComponent, ref, unref, watch, nextTick, toRaw, reactive, inject, onMounted } from 'vue';
+  import { computed, defineComponent, ref, unref, watch, nextTick, toRaw, reactive, inject, provide, onMounted } from 'vue';
   import { BasicForm, useForm } from '/@/components/Form/index';
   import {
     SUBMIT_FLOW_ID,
@@ -181,6 +184,12 @@
       // -update-end--author:liaozhiyang---date:20240613---for：【TV360X-1000】流程一对多走流程的接口
       cgBIBtnMap: Object,
       buttonSwitch: Object,
+      // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
+      isShare: {
+        type: Boolean,
+        default: false,
+      },
+      // update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
     },
     emits: ['success', 'rendered', 'close','validate'],
     setup(props, { emit }) {
@@ -348,30 +357,36 @@
       }
       //update-begin-author:taoyan date:2022-5-17 for: VUEN-1056 15、严重——online树表单，添加的时候，父亲节点是空的
       /**
-       * 如果是树 需要重新设置pid的formSchema--dict信息 让他刷新树控件的数据
+       * 刷新表单中的 JTreeSelect 树数据
+       * - 树表：刷新父节点字段，并清空 hiddenNodeKey
+       * - 普通表：每次进入表单（含第二次新增/编辑）重新加载自定义树控件
        */
       async function updatePidFieldDict() {
-        if (props.isTree === true) {
-          let pidFieldName = props.pidField;
-          let arr = formSchemas.value;
-          if (arr && arr.length > 0) {
-            //先拿到pid的 componentProps配置
-            let temp = arr.filter((item) => item.field === pidFieldName);
-            if (temp.length > 0) {
-              await updateSchema({
-                field: pidFieldName,
-                componentProps: {
-                  reload: new Date().getTime(),
-                  // update-begin--author:liaozhiyang---date:20240529---for：【TV360X-87】树表编辑时不可选自己及子孙节点当父节点
-                  hiddenNodeKey: '',
-                  // update-end--author:liaozhiyang---date:20240529---for：【TV360X-87】树表编辑时不可选自己及子孙节点当父节点
-                },
-              });
-            }
-          } else {
-            console.log('没有拿到表单配置信息，可能是第一次打开新增页面');
-          }
+        let arr = formSchemas.value;
+        if (!arr || arr.length === 0) {
+          console.log('没有拿到表单配置信息，可能是第一次打开新增页面');
+          return;
         }
+        // update-begin--author:liaozhiyang---date:20260804---for：Online表单第二次进入时 JTreeSelect 重新加载树数据
+        const treeSelectSchemas = arr.filter((item) => item.component === 'JTreeSelect');
+        if (treeSelectSchemas.length > 0) {
+          const reload = new Date().getTime();
+          const pidFieldName = props.isTree === true ? props.pidField : '';
+          await updateSchema(
+            treeSelectSchemas.map((item) => {
+              const componentProps = { reload };
+              // 树表父节点字段：清空 hiddenNodeKey，编辑时再按当前节点过滤
+              if (pidFieldName && item.field === pidFieldName) {
+                componentProps.hiddenNodeKey = '';
+              }
+              return {
+                field: item.field,
+                componentProps,
+              };
+            })
+          );
+        }
+        // update-end--author:liaozhiyang---date:20260804---for：Online表单第二次进入时 JTreeSelect 重新加载树数据
       }
       //update-end-author:taoyan date:2022-5-17 for: VUEN-1056 15、严重——online树表单，添加的时候，父亲节点是空的
 
@@ -518,7 +533,13 @@
           if(item.relationType == 1){
             // update-begin--author:liaozhiyang---date:20240321---for：【QQYUN-8563】erp风格配置的默认值表达式 未显示
             if (refMap[item.key].value) {
-              refMap[item.key].value[0].resetFields();
+              // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-249】第二次打开新增弹窗，一对一子表的默认值没了
+              if (unref(isUpdate) === false && typeof refMap[item.key].value[0]?.resetAndApplyDefaultValue === 'function') {
+                refMap[item.key].value[0].resetAndApplyDefaultValue();
+              } else {
+                refMap[item.key].value[0].resetFields();
+              }
+              // update-end--author:liaozhiyang---date:20260714---for：【LHZP-249】第二次打开新增弹窗，一对一子表的默认值没了
             }
             // update-end--author:liaozhiyang---date:20240321---for：【QQYUN-5803】erp风格配置的默认值表达式 未显示
           }
@@ -704,12 +725,15 @@
           .then((result) => {
             Object.assign(temp, changeDataIfArray2String(result));
             // update-begin--author:liaozhiyang---date:20230818---for：【QQYUN-5803】online一对多Erp风格
-            // erp弹窗下面就没子表
-            if (props.themeTemplate === ERP) {
+            // erp 列表入口：弹窗内无子表，子表在列表页单独维护；分享入口 isShare 会展示子表 Tab，必须一并校验并提交，否则主子表关联不上
+            // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
+            // 分享入口 ERP 新建主子表未关联
+            if (props.themeTemplate === ERP && !props.isShare) {
               return Promise.resolve({});
             } else {
               return validateSubTableFields();
             }
+            // update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
             // update-end--author:liaozhiyang---date:20230818---for：【QQYUN-5803】online一对多Erp风格
           })
           .then((allTableData) => {
@@ -865,10 +889,13 @@
       //提交数据前 先走一下自定义的JS校验
       function handleApplyRequest(formData) {
         // update-begin--author:liaozhiyang---date:20231128---for：【QQYUN-7260】erp主表编辑时保存子表记录
-        // erp主表编辑时需要把子表数据带上保存
-        if (props.themeTemplate === ERP && isUpdate.value && Object.keys(props.subTableSource).length) {
+        // 非分享 ERP：列表页勾选主表后维护子表，编辑主表时需把列表页 subTableSource 合并进去（新增不合并）
+        // 分享 ERP：主子表同页一块提交，子表已在 validateSubTableFields 写入 formData，禁止再用 subTableSource 覆盖
+        // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
+        if (props.themeTemplate === ERP && !props.isShare && isUpdate.value && Object.keys(props.subTableSource).length) {
           formData = { ...formData, ...props.subTableSource };
         }
+        // update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
         // update-end--author:liaozhiyang---date:20231128---for：【QQYUN-7260】erp主表编辑时保存子表记录
         customBeforeSubmit(context, formData)
           .then(() => {
@@ -1201,6 +1228,7 @@
             .then((res) => {
               if (res.success) {
                 $message.success('处理完成!');
+                emit('success', formData);
               } else {
                 $message.warning('处理失败!');
               }
@@ -1538,6 +1566,15 @@
       // 是否发起请求
       const popModalRequest = ref(true);
 
+      // update-begin--author:liaozhiyang---date:20260519---for：【QQYUN-9773】online一对多内部弹窗新增js增强
+      // 父→子注入：主表 context + enhanceJs（用 getter 取最新值，因为 EnhanceJS 在 createRootProperties 里后赋值）+ 当前打开的子表 key
+      provide('parentOnlineForm', {
+        context: onlineFormContext,
+        getEnhanceJs: () => EnhanceJS,
+        subTableKey: popTableName,
+      });
+      // update-end--author:liaozhiyang---date:20260519---for：【QQYUN-9773】online一对多内部弹窗新增js增强
+
       /**
        * 新增
        * @param sub
@@ -1596,7 +1633,10 @@
       //update-begin-author:taoyan date:2022-10-17 for: VUEN-2480【严重bug】online vue3测试的问题 6、勾中弹窗编辑后，再次打开，发现不能取消勾中
       function onCloseModal(){
         // update-begin--author:liaozhiyang---date:20230818---for：【QQYUN-5803】online一对多Erp风格
-        if (props.themeTemplate === ERP) return;
+        // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
+        // 分享入口 ERP 新建主子表未关联
+        if (props.themeTemplate === ERP && !props.isShare) return;
+        // update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
         // update-end--author:liaozhiyang---date:20230818---for：【QQYUN-5803】online一对多Erp风格
         let arr  = subTabInfo.value;
         if(arr && arr.length>0){
@@ -1795,6 +1835,13 @@
     :deep(.vxe-buttons--wrapper) {
       > div {
         display: flex;
+      }
+    }
+    .sub-popup-button-group {
+      margin-right: 8px;
+
+      :deep(.ant-btn) {
+        margin-right: 0;
       }
     }
     // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9353】markdown全屏之后，弹窗的关闭和全屏按钮在markdown上面

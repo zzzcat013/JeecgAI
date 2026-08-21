@@ -34,7 +34,7 @@
   import { BasicTable, TableAction } from '/@/components/Table';
   import { useListPage } from '/@/hooks/system/useListPage';
   import { columns, searchFormSchema } from './cgreport.data';
-  import { list, deleteOne, batchDelete, getReportParam } from './cgreport.api';
+  import { list, deleteOne, batchDelete, getReportParam, doCopy } from './cgreport.api';
   import { useModal } from '/@/components/Modal';
   import CgreportModal from './components/CgreportModal.vue';
   import CgreportAigcModal from "./components/CgreportAigcModal.vue";
@@ -152,6 +152,10 @@
         onClick: () => onShowOnlineUrl(record),
       },
       {
+        label: '复制',
+        onClick: () => onCopyReport(record),
+      },
+      {
         label: '删除',
         popConfirm: {
           title: '是否确认删除',
@@ -250,6 +254,31 @@
       });
   }
   
+  /**
+   * 复制报表
+   * @param record
+   */
+  function onCopyReport(record) {
+    $confirm({
+      title: '复制报表',
+      content: '是否确认复制该报表？',
+      iconType: 'warning',
+      closable: true,
+      onOk() {
+        return doCopy(record.id)
+          .then(() => {
+            // 成功提示由 defHttp 自动弹出（后端 Result 的 message），这里不再手动弹，避免重复提示
+            // 强制跳到第 1 页再刷新：默认排序是 createTime desc，新复制的报表落在第 1 页，
+            // 如果用户当前在第 N 页，普通 reload() 会沿用 current，导致新数据看不到。
+            reload({ page: 1 });
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      },
+    });
+  }
+
   // 抛出方法，让外部可以调用
   // 目前【lowApp】页面用到
   defineExpose({

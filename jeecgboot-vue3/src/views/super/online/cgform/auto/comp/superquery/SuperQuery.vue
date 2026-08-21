@@ -221,20 +221,24 @@
       let currentQueryInfo = null;
       // -update-begin--author:liaozhiyang---date:20240614---for：【TV360X-76】高级查询条件根据控件类型区分
       const { filterCondition } = useConditionFilter();
-      const getQueryCondition = (data) => {
-        const auto = (arr, field) => {
-          const findItem = arr.find((item) => item.value === field) ?? {};
-          return filterCondition({ view: findItem.originView || findItem.view, fieldType: findItem.fieldType });
-        };
-        if (data.field?.indexOf('@') == -1 || !data.field) {
-          return auto(fieldTreeData.value, data.field);
-        } else {
-          const tableName = data.field.split('@')[0];
-          const findTableItem = fieldTreeData.value.find((item) => item.value === tableName);
-          if (findTableItem?.children?.length) {
-            return auto(findTableItem.children, data.field);
+      const findFieldItem = (items: any[], field: string | undefined): any => {
+        for (const item of items) {
+          if (item.value === field) {
+            return item;
+          }
+          if (item.children?.length) {
+            const child = findFieldItem(item.children, field);
+            if (child) {
+              return child;
+            }
           }
         }
+      };
+      const getQueryCondition = (data) => {
+        // -update-begin--author:liaozhiyang---date:20260810---for：【LHZP-523】高级查询组件查询条件调整
+        const findItem = findFieldItem(fieldTreeData.value, data.field) ?? {};
+        return filterCondition({ view: findItem.originView || findItem.view, fieldType: findItem.fieldType });
+        // -update-end--author:liaozhiyang---date:20260810---for：【LHZP-523】高级查询组件查询条件调整
       };
       // -update-end--author:liaozhiyang---date:20240614---for：【TV360X-76】高级查询条件根据控件类型区分
       /**
@@ -292,7 +296,10 @@
         date.forEach((item) => {
           const value = item['val'];
           if (item.type === 'date' && typeof value === 'string' && value != '') {
-            const obj = fieldProperties.value[item.field];
+            // update-begin--author:liusq---date:20260806---for：联合查询子表年/月/周字段提交后由@转为,，导致无法获取字段扩展配置
+            const fieldKey = item.field.includes(',') ? item.field.replace(',', '@') : item.field;
+            const obj = fieldProperties.value[fieldKey];
+            // update-end--author:liusq---date:20260806---for：联合查询子表年/月/周字段提交后由@转为,，导致无法获取字段扩展配置
             if (obj) {
               let fieldExtendJson = obj.fieldExtendJson;
               if (fieldExtendJson) {
@@ -403,6 +410,21 @@
         // update-begin--author:liaozhiyang---date:20240604---for：【TV360X-204】修改内容没点确定，再次打开应该是恢复之前的内容
         if (superQueryFlag.value && currentQueryInfo) {
           dynamicRowValues.values = cloneDeep(currentQueryInfo);
+          // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-505】当操作执行查询后，再次打开，当操作删除最后面的条件时，实际删除的是最前面的条件
+          if (dynamicRowValues.values.length > 0 && !dynamicRowValues.values[0].key) {
+            dynamicRowValues.values.forEach((item) => {
+              item.key = Math.random().toString(36).slice(2, 18);
+            });
+          }
+          // update-end--author:liaozhiyang---date:20260714---for：【LHZP-505】当操作执行查询后，再次打开，当操作删除最后面的条件时，实际删除的是最前面的条件
+          // update-begin--author:liaozhiyang---date:20260707---for：【LHZP-536】主子表，选择子表的字段查询，再次点开弹窗回显的不是label而是value
+          // 将子表字段名中的逗号还原为@，以便TreeSelect正确回显
+          dynamicRowValues.values.forEach(item => {
+            if (item.field && item.field.includes(',')) {
+              item.field = item.field.replace(',', '@');
+            }
+          });
+          // update-end--author:liaozhiyang---date:20260707---for：【LHZP-536】主子表，选择子表的字段查询，再次点开弹窗回显的不是label而是value
         }
         // update-end--author:liaozhiyang---date:20240604---for：【TV360X-204】修改内容没点确定，再次打开应该是恢复之前的内容
         formModal.openModal();
@@ -425,25 +447,20 @@
        * */
       function handleChangeField(data) {
         data['val'] = '';
-        const auto = (arr, field) => {
-          const findItem = arr.find((item) => item.value === field);
-          if (findItem?.fieldType === 'string' && ['text'].includes(findItem?.originView || findItem?.view)) {
-            data['rule'] = 'like';
-          } else if (['file', 'image', 'password'].includes(findItem?.originView || findItem?.view)) {
-            data['rule'] = 'empty';
-          } else {
-            data['rule'] = 'eq';
-          }
-        };
-        if (data.field?.indexOf('@') == -1) {
-          auto(fieldTreeData.value, data.field);
+        // -update-begin--author:liaozhiyang---date:20260810---for：【LHZP-523】高级查询组件查询条件调整
+        const findItem = findFieldItem(fieldTreeData.value, data.field);
+        if (findItem?.fieldType === 'string' && ['text'].includes(findItem?.originView || findItem?.view)) {
+          data['rule'] = 'like';
+        } else if (['file', 'image', 'password'].includes(findItem?.originView || findItem?.view)) {
+          data['rule'] = 'empty';
         } else {
-          const tableName = data.field.split('@')[0];
-          const findTableItem = fieldTreeData.value.find((item) => item.value === tableName);
-          if (findTableItem?.children?.length) {
-            auto(findTableItem.children, data.field);
-          }
+          // update-begin--author:liaozhiyang---date:20260813---for：【LHZP-442】当前组件没有等于条件，默认使用当前组件的第一个条件
+          const queryConditions = getQueryCondition(data);
+          const defaultCondition = queryConditions.find((item) => item.value === 'eq') || queryConditions[0];
+          data['rule'] = defaultCondition?.value;
+          // update-end--author:liaozhiyang---date:20260813---for：【LHZP-442】当前组件没有等于条件，默认使用当前组件的第一个条件
         }
+        // -update-end--author:liaozhiyang---date:20260810---for：【LHZP-523】高级查询组件查询条件调整
       }
 
       
@@ -631,7 +648,7 @@
     }
 
     /*VUEN-1087 【移动端】高级查询显示不全 */
-    @media only screen and (max-width: 1050px) {
+    @media only screen and(max-width: 1050px) {
         :deep(.jee-super-query-form){
             .ant-space{
                 flex-direction:column;

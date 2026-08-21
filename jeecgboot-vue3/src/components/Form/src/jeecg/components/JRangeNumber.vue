@@ -52,9 +52,13 @@
       watch(
         () => props.value,
         (val) => {
-          if (val && val.length == 2) {
-            beginValue.value = val[0];
-            endValue.value = val[1];
+          let parseVal = val;
+          if (typeof val === 'string') {
+            parseVal = val.split(',');
+          }
+          if (Array.isArray(parseVal) && parseVal.length === 2) {
+            beginValue.value = parseVal[0];
+            endValue.value = parseVal[1];
           } else {
             beginValue.value = '';
             endValue.value = '';

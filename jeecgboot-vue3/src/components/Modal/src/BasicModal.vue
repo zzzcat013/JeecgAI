@@ -29,7 +29,7 @@
           :maxHeight="getProps.maxHeight"
           :height="getWrapperHeight"
           :visible="visibleRef"
-          :modalHeaderHeight="getProps.modalHeaderHeight"
+          :modalHeaderHeight="isNoTitle ? 0 : getProps.modalHeaderHeight"
           :modalFooterHeight="footer !== undefined && !footer ? 0 : getProps.modalFooterHeight"
           v-bind="omit(getProps.wrapperProps, 'visible', 'height', 'modalFooterHeight')"
           @ext-height="handleExtHeight"
@@ -266,6 +266,13 @@
         emit('fullScreen',val);
       });
 
+      // update-begin--author:liaozhiyang---date:20260805---for:【LHZP-865】basicModal无标题时不预留 header 高度，有标题时重新计算内容区高度
+      watch(isNoTitle, () => {
+        nextTick(() => {
+          modalMethods.redoModalHeight();
+        });
+      });
+      // update-end--author:liaozhiyang---date:20260805---for:【LHZP-865】basicModal无标题时不预留 header 高度，有标题时重新计算内容区高度
       return {
         handleCancel,
         getBindValue,

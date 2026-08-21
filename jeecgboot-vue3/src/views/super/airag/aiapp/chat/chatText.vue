@@ -1,11 +1,21 @@
 <template>
   <div v-if="parsedText != '' || error" class="textWrap" :class="[inversion === 'user' ? 'self' : (isOnlyImage ? 'chatgpt-image' : 'chatgpt')]" ref="textRef">
+    <a-tooltip v-if="inversion !== 'user' && !isOnlyImage && !error && !loading" :title="copied ? '已复制' : '复制 Markdown'">
+      <a-button class="copyMarkdownBtn" type="text" size="small" :aria-label="copied ? '已复制' : '复制 Markdown'" @click="handleCopyMarkdown">
+        <CheckOutlined v-if="copied" />
+        <CopyOutlined v-else />
+      </a-button>
+    </a-tooltip>
     <div v-if="inversion != 'user'" :style="{ width: getIsMobile? screenWidth : 'auto' }">
       <div ref="markdownBodyRef" class="markdown-body" :class="{ 'markdown-body-generate': loading }" v-html="parsedText" />
       <template v-if="showRefKnow">
         <a-divider orientation="left">引用</a-divider>
         <template v-for="(item, idx) in referenceKnowledge" :key="idx">
-          <a-tooltip :title="item.content?.substring(0, 800)">
+          <a-tooltip
+            :title="item.content?.substring(0, 800)"
+            overlayClassName="knowledge-reference-tooltip"
+            :overlayInnerStyle="knowledgeTooltipStyle"
+          >
             <a-tag style="min-width: 80px;background: #F7F8FA;padding-inline: 0 7px">
               <a-space style="min-height: 30px;padding-left: 4px;padding-right: 4px;background-color: #F0F1F6;color: #788194">
                 <div>{{ 'chunk-' + item.chunk}}</div>
@@ -24,7 +34,7 @@
         <p>{{ errorMsg }}</p>
       </div>
     </div>
-    <div v-else class="msg" v-html="parsedText" />
+    <div v-else class="msg user-message-text">{{ props.text }}</div>
   </div>
   <ImageViewer v-if="amplifyImage" :imageUrl="imageUrl" @hide="pictureHide"></ImageViewer>
   <!-- 聊天中渲染JeecgTag -->
@@ -54,6 +64,8 @@
   import { useGlobSetting } from "@/hooks/setting";
   import { mdPluginJeecgTag, JEECG_TAG_CLASS, jeecgTagMap } from './jeecg-tags'
   import knowledgePng from '../../aiknowledge/icon/knowledge.png'
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
+  import { CheckOutlined, CopyOutlined } from '@ant-design/icons-vue';
 
   /**
    * 屏幕宽度
@@ -65,6 +77,9 @@
   const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'errorMsg', 'currentToolTag', 'loading', 'referenceKnowledge', 'isLast']);
   const textRef = ref();
   const markdownBodyRef = ref<HTMLDivElement>();
+  const copied = ref(false);
+  const knowledgeTooltipStyle = { maxHeight: '240px', overflowY: 'auto', scrollbarGutter: 'stable' };
+  let copyResetTimer: ReturnType<typeof setTimeout> | undefined;
 
   //图片地址
   const imageUrl = ref<string>('');
@@ -109,13 +124,12 @@
       // 先替换图片宽度与域名占位符后再渲染 markdown
       value = replaceImageWith(value);
       value = replaceDomainUrl(value);
-      parsedText.value = mdi.render(value);
+      parsedText.value = sanitizeRichText(mdi.render(value));
       // 解析 jeecgTag 标签
       parseJeecgTag();
       return;
     }
-    // 用户消息保留换行展示
-    parsedText.value = value.replace("\n", "<br>");
+    parsedText.value = value;
   }, 100);
 
   // 是否显示引用知识库
@@ -156,7 +170,7 @@
   watch(() => props.currentToolTag, () => {
     const {isLast, inversion, currentToolTag, loading} = props;
     if (isLast && inversion != 'user' && currentToolTag && loading) {
-      parsedText.value += mdi.render(currentToolTag);
+      parsedText.value += sanitizeRichText(mdi.render(currentToolTag));
       // 解析 jeecgTag 标签
       parseJeecgTag();
     }
@@ -165,33 +179,30 @@
   //替换图片宽度
   function replaceImageWith(markdownContent) {
     //update-begin---author:wangshuai---date:2026-01-08---for: 兼容返回多张图片集图片默认宽度调整---
-    // 1. 支持图片设置width的写法 ![](/static/jimuImages/screenshot_1617252560523.png =100)
-    // 必须有空格，避免匹配到url参数中的=
-    const regex = /!\[([^\]]*)\]\(([^)]+)\s=([0-9]+)\)/g;
-    markdownContent = markdownContent.replace(regex, (match, alt, src, width) => {
-      let reg = /#\s*{\s*domainURL\s*}/g;
-      src = src.replace(reg,domainUrl);
-      return `<div class="chat-image-custom"><img src='${src}' alt='${alt}' width='${width}' /></div>`;
+    // 1. 连续输出的多张图片优先使用九宫格，包括带width的文章配图
+    const regexCustomWidth = /!\[([^\]]*)\]\(([^)]+)\s=([0-9]+)\)/g;
+    const regexStandard = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const regexContinuousImages = /(?:!\[[^\]]*\]\([^)]+\)[ \t]*(?:\r?\n[ \t]*)*){2,}/g;
+    const renderImage = (alt: string, src: string, className: string) => {
+      const reg = /#\s*{\s*domainURL\s*}/g;
+      const imageSrc = src.replace(/\s=[0-9]+$/, '').replace(reg, domainUrl);
+      return `<div class="${className}"><img src='${imageSrc}' alt='${alt}' /></div>`;
+    };
+
+    markdownContent = markdownContent.replace(regexContinuousImages, (imageGroup) => {
+      return imageGroup.replace(regexStandard, (_match, alt, src) => renderImage(alt, src, 'chat-image-grid-item'));
     });
 
-    // 2. 处理普通图片，实现多图并列显示（如生成图片场景）
-    // 统计剩余的markdown图片数量
-    const regexStandard = /!\[([^\]]*)\]\(([^)]+)\)/g;
-    const matches = markdownContent.match(regexStandard);
-    const count = matches ? matches.length : 0;
-    
-    if (count > 0) {
-      markdownContent = markdownContent.replace(regexStandard, (match, alt, src) => {
-        let reg = /#\s*{\s*domainURL\s*}/g;
-        src = src.replace(reg, domainUrl);
-        // 如果有多张图片，使用Grid布局（一行4个）
-        if (count > 1) {
-             return `<div class="chat-image-grid-item"><img src='${src}' alt='${alt}' /></div>`;
-        }
-        // 单张图片保持默认（或包裹以便控制）
-        return `<div class="chat-image-single"><img src='${src}' alt='${alt}' /></div>`;
-      });
-    }
+    // 2. 支持图片设置width的写法 ![](/static/jimuImages/screenshot_1617252560523.png =100)
+    // 必须有空格，避免匹配到url参数中的=
+    markdownContent = markdownContent.replace(regexCustomWidth, (_match, alt, src, width) => {
+      const reg = /#\s*{\s*domainURL\s*}/g;
+      const imageSrc = src.replace(reg, domainUrl);
+      return `<div class="chat-image-custom"><img src='${imageSrc}' alt='${alt}' width='${width}' /></div>`;
+    });
+
+    // 3. 文章中不连续的普通图片保持单图展示
+    markdownContent = markdownContent.replace(regexStandard, (_match, alt, src) => renderImage(alt, src, 'chat-image-single'));
     return markdownContent;
     //update-end---author:wangshuai---date:2026-01-08---for: 兼容返回多张图片集图片默认宽度调整---
   };
@@ -333,6 +344,22 @@
     });
   }
 
+  /**
+   * 复制最终回答的原始 Markdown 内容
+   */
+  async function handleCopyMarkdown() {
+    const markdown = props.text ?? '';
+    if (!markdown) {
+      return;
+    }
+    await copyToClip(markdown);
+    copied.value = true;
+    clearTimeout(copyResetTimer);
+    copyResetTimer = setTimeout(() => {
+      copied.value = false;
+    }, 1500);
+  }
+
   onMounted(() => {
     addCopyEvents();
     addImageClickEvent();
@@ -349,6 +376,7 @@
     removeCopyEvents();
     removeImageClickEvent();
     window.removeEventListener('resize', setMarkdownBodyWidth);
+    clearTimeout(copyResetTimer);
   });
 
   function copyToClip(text: string) {
@@ -370,6 +398,9 @@
 </script>
 <style lang="less" scoped>
   .textWrap {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
     border-radius: 0.375rem;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
@@ -377,6 +408,29 @@
     padding-right: 0.75rem;
     font-size: 0.875rem;
     line-height: 1.25rem;
+    position: relative;
+  }
+
+  .copyMarkdownBtn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.82);
+    color: #8b95a5;
+    opacity: 0.72;
+    transition: color 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
+
+    &:hover,
+    &:focus-visible {
+      background: #fff;
+      color: @primary-color;
+      opacity: 1;
+    }
   }
 
   .error {
@@ -402,11 +456,21 @@
     line-height: 1.625;
     min-width: 20px;
   }
+  .user-message-text {
+    white-space: pre-wrap;
+  }
   .chatgpt {
     background-color: #f4f6f8;
 
     font-size: 0.875rem;
     line-height: 1.25rem;
+
+    :deep(.markdown-body) {
+      box-sizing: border-box;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      padding-right: 48px;
+    }
   }
   .chatgpt-image {
     .markdown-body{
@@ -461,6 +525,30 @@
         min-width: 300px;
       }
     }
+  }
+
+  :global(.knowledge-reference-tooltip .ant-tooltip-inner) {
+    scrollbar-color: #aeb7c5 #4a4a4a;
+    scrollbar-width: auto;
+  }
+
+  :global(.knowledge-reference-tooltip .ant-tooltip-inner::-webkit-scrollbar) {
+    width: 10px;
+  }
+
+  :global(.knowledge-reference-tooltip .ant-tooltip-inner::-webkit-scrollbar-track) {
+    background: #4a4a4a;
+    border-radius: 5px;
+  }
+
+  :global(.knowledge-reference-tooltip .ant-tooltip-inner::-webkit-scrollbar-thumb) {
+    background: #aeb7c5;
+    border: 2px solid #4a4a4a;
+    border-radius: 5px;
+  }
+
+  :global(.knowledge-reference-tooltip .ant-tooltip-inner::-webkit-scrollbar-thumb:hover) {
+    background: #d7dce3;
   }
 
 </style>

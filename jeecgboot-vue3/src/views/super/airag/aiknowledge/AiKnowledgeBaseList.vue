@@ -148,7 +148,7 @@
       //当前页数
       const pageNo = ref<number>(1);
       //每页条数
-      const pageSize = ref<number>(10);
+      const pageSize = ref<number>(30);
       //总条数
       const total = ref<number>(0);
       //可选择的页数
@@ -328,12 +328,21 @@
     height: calc(100vh - 115px);
     background: #f7f8fc;
     padding: 24px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .jeecg-basic-table-form-container {
+      flex-shrink: 0;
+    }
 
     .knowledge-row {
-      max-height: calc(100% - 100px);
+      flex: 1;
+      min-height: 0;
       margin-top: 20px;
       overflow-y: auto;
+      align-content: flex-start;
+      align-items: flex-start;
       .knowledge-header {
         position: relative;
         font-size: 14px;
@@ -359,6 +368,12 @@
           }
         }
       }
+    }
+
+    .list-footer {
+      flex-shrink: 0;
+      margin-top: 12px;
+      padding-top: 4px;
     }
   }
 
@@ -468,7 +483,6 @@
   }
   .list-footer {
     text-align: right;
-    margin-top: 5px;
   }
   .jeecg-basic-table-form-container {
     padding: 0;

@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+  <div>
     <BasicModal destroyOnClose @register="registerModal" :canFullscreen="false" width="600px" :title="title" @ok="handleOk" @cancel="handleCancel">
       <div class="flex header">
         <JInput
@@ -10,55 +10,59 @@
           placeholder="请输入流程名称，回车搜索"
         />
       </div>
-      <a-row :span="24">
-        <a-col :span="12" v-for="item in flowList" @click="handleSelect(item)">
-          <!-- begin 流程选择支持单选和多选 -->
-          <a-card :style="getCardStyle(item)" hoverable class="checkbox-card" :body-style="{ width: '100%' }">
-            <div style="display: flex; width: 100%;align-items:center; justify-content: space-between">
-              <div style="display: flex; align-items:center; flex: 1; overflow: hidden; margin-right: 10px;">
-                <img :src="getImage(item.icon)" class="flow-icon"/>
-                <div style="display: grid;margin-left: 5px;align-items: center">
-                  <span class="checkbox-name ellipsis">{{ item.name }}</span>
-                  <div class="flex text-status" v-if="item.metadata && item.metadata.length>0">
-                    <span class="tag-input">输入</span>
-                    <div v-for="(metaItem, index) in item.metadata">
-                      <a-tag color="#f2f3f8" class="tags-meadata">
-                        <span v-if="index<3" class="tag-text">{{ metaItem.field }}</span>
-                      </a-tag>
+      <div class="scroll-container">
+        <a-row :span="24">
+          <a-col :span="12" v-for="item in flowList" :key="item.id" @click="handleSelect(item)">
+            <!-- begin 流程选择支持单选和多选 -->
+            <a-card :style="getCardStyle(item)" hoverable class="checkbox-card" :body-style="{ width: '100%' }">
+              <div style="display: flex; width: 100%;align-items:center; justify-content: space-between">
+                <div style="display: flex; align-items:center; flex: 1; overflow: hidden; margin-right: 10px;">
+                  <img :src="getImage(item.icon)" class="flow-icon"/>
+                  <div style="display: grid;margin-left: 5px;align-items: center">
+                    <span class="checkbox-name ellipsis">{{ item.name }}</span>
+                    <div class="flex text-status" v-if="item.metadata && item.metadata.length>0">
+                      <span class="tag-input">输入</span>
+                      <div v-for="(metaItem, index) in item.metadata" :key="index">
+                        <a-tag color="#f2f3f8" class="tags-meadata">
+                          <span v-if="index<3" class="tag-text">{{ metaItem.field }}</span>
+                        </a-tag>
+                      </div>
                     </div>
                   </div>
                 </div>
+                <a-checkbox v-if="multiple" v-model:checked="item.checked" @click.stop @change="(e)=>handleChange(e,item)"></a-checkbox>
+                <!-- end 流程选择支持单选和多选 -->
               </div>
-              <a-checkbox v-if="multiple" v-model:checked="item.checked" @click.stop @change="(e)=>handleChange(e,item)"></a-checkbox>
-              <!-- end 流程选择支持单选和多选 -->
-            </div>
-            <div class="text-desc mt-10">
-              {{ item.descr || '暂无描述' }}
-            </div>
-          </a-card>
-        </a-col>
-      </a-row>
-      <div v-if="showFooterSelection" class="use-select">
-        <template v-if="!multiple">
-          已选择 <span class="ellipsis" style="max-width: 100px">{{flowData.name}}</span>
-        </template>
-        <template v-else>
-          已选择 {{ flowId.length }} 个流程
-        </template>
-        <span style="margin-left: 8px; color: #3d79fb; cursor: pointer" @click="handleClearClick">清空</span>
+              <div class="text-desc mt-10">
+                {{ item.descr || '暂无描述' }}
+              </div>
+            </a-card>
+          </a-col>
+        </a-row>
       </div>
-      <Pagination
-        v-if="flowList.length > 0"
-        :current="pageNo"
-        :page-size="pageSize"
-        :page-size-options="pageSizeOptions"
-        :total="total"
-        :showQuickJumper="true"
-        :showSizeChanger="true"
-        @change="handlePageChange"
-        class="list-footer"
-        size="small"
-      />
+      <div class="footer-bar">
+        <div v-if="showFooterSelection" class="use-select">
+          <template v-if="!multiple">
+            已选择 <span class="ellipsis" style="max-width: 100px">{{flowData.name}}</span>
+          </template>
+          <template v-else>
+            已选择 {{ flowId.length }} 个流程
+          </template>
+          <span style="margin-left: 8px; color: #3d79fb; cursor: pointer" @click="handleClearClick">清空</span>
+        </div>
+        <Pagination
+          v-if="flowList.length > 0"
+          :current="pageNo"
+          :page-size="pageSize"
+          :page-size-options="pageSizeOptions"
+          :total="total"
+          :showQuickJumper="true"
+          :showSizeChanger="true"
+          @change="handlePageChange"
+          class="list-footer"
+          size="small"
+        />
+      </div>
     </BasicModal>
   </div>
 </template>
@@ -118,7 +122,7 @@
           flowId.value = data.flowId ? cloneDeep(data.flowId) : '';
           flowData.value = data.flowData ? cloneDeep(data.flowData) : {};
         }
-        setModalProps({ minHeight: 500, bodyStyle: { padding: '10px', height: 'calc(100% - 20px)', overflowY: 'auto' } });
+        setModalProps({ bodyStyle: { padding: '10px' } });
         //update-end---author:wangshuai---date:2025-12-24---for:流程选择支持单选和多选---
         loadFlowData();
       });
@@ -313,10 +317,12 @@
   .header {
     color: #646a73;
     width: 100%;
+    align-items: center;
     justify-content: space-between;
     margin-bottom: 10px;
     .header-search {
       width: 200px;
+      height: 24px;
     }
   }
   .pointer {
@@ -330,10 +336,16 @@
     color: #8f959e;
     font-weight: 400;
   }
+  .footer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+    margin-top: 12px;
+  }
   .list-footer {
-    position: absolute;
-    bottom: 0;
-    left: 210px;
+    margin-left: auto;
   }
   .checkbox-card {
     margin-bottom: 10px;
@@ -352,10 +364,10 @@
   }
   .use-select {
     color: #646a73;
-    position: absolute;
-    bottom: 0;
-    left: 20px;
     display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    max-width: 45%;
   }
   .ellipsis {
     display: block;
@@ -424,13 +436,8 @@
     max-width: 100%;
   }
 
-  :deep(.jeecg-modal-wrapper){
-    height: calc(100% - 20px);
-  }
-
   .scroll-container {
-    height: 480px;
+    height: 400px;
     overflow-y: auto;
-    padding-bottom: 20px;
   }
 </style>

@@ -5,6 +5,7 @@
       <!--插槽:table标题-->
       <template #tableTitle>
         <a-button type="primary" @click="handleAdd" preIcon="ant-design:plus-outlined">新增</a-button>
+        <a-button type="primary" @click="openRecycleBinModal(true, {})" preIcon="ant-design:hdd-outlined">回收站</a-button>
 
         <a-dropdown v-if="selectedRowKeys.length > 0">
           <template #overlay>
@@ -15,7 +16,7 @@
               </a-menu-item>
             </a-menu>
           </template>
-          <a-button v-auth="'prompts:airag_prompts:deleteBatch'"
+          <a-button
             >批量操作
             <Icon icon="mdi:chevron-down"></Icon>
           </a-button>
@@ -30,6 +31,8 @@
     <AiragPromptsModal @register="registerModal" @success="handleSuccess"></AiragPromptsModal>
     <!-- 表单区域 -->
     <AiPromptSettingModal @register="registerSettingModal" @success="handleSuccess"></AiPromptSettingModal>
+    <!-- 回收站 -->
+    <AiragPromptsRecycleBinModal @register="registerRecycleBinModal" @success="handleSuccess"></AiragPromptsRecycleBinModal>
   </div>
 </template>
 
@@ -39,12 +42,15 @@
   import { useListPage } from '/@/hooks/system/useListPage';
   import AiragPromptsModal from './components/AiragPromptsModal.vue';
   import AiPromptSettingModal from './components/AiPromptSettingModal.vue';
+  import AiragPromptsRecycleBinModal from './components/AiragPromptsRecycleBinModal.vue';
   import { columns, searchFormSchema } from './AiragPrompts.data';
   import { list, deleteOne, batchDelete, getImportUrl, getExportUrl } from './AiragPrompts.api';
   //注册model
   const [registerModal, { openModal }] = useModal();
   //注册model
   const [registerSettingModal, { openModal: openSettingModal }] = useModal();
+  //回收站model
+  const [registerRecycleBinModal, { openModal: openRecycleBinModal }] = useModal();
   //注册table数据
   const { tableContext } = useListPage({
     tableProps: {

@@ -45,7 +45,6 @@
       <!--组织机构树-->
       <template v-if="treeData.length > 0">
         <a-tree
-          v-if="!treeReloading"
           checkable
           :clickRowToExpand="false"
           :treeData="treeData"
@@ -72,7 +71,7 @@
                 @confirm="onDelete(dataRef)"
                 @openChange="onVisibleChange"
               >
-                <TreeIcon :orgCategory="dataRef.orgCategory" :title="title"></TreeIcon>
+                <TreeIcon :orgCategory="dataRef.orgCategory" :title="getTreeTitle(dataRef, title)"></TreeIcon>
               </Popconfirm>
 
               <template #overlay>
@@ -109,18 +108,18 @@
 </template>
 
 <script lang="ts" setup>
-  import { inject, nextTick, ref, unref, defineEmits, h } from 'vue';
+  import { inject, ref, unref, defineEmits, h } from 'vue';
   import { useModal } from '/@/components/Modal';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { useMethods } from '/@/hooks/system/useMethods';
-  import { Api, deleteBatchDepart, queryDepartAndPostTreeSync, updateChangeDepart } from '../depart.api';
-  import { searchByKeywords } from '/@/views/system/departUser/depart.user.api';
+  import { Api, deleteBatchDepart, queryDepartAndPostTreeSync, searchByDepartManage, updateChangeDepart } from '../depart.api';
+  import { initDictOptions } from '/@/utils/dict/JDictSelectUtil';
   import DepartFormModal from '/@/views/system/depart/components/DepartFormModal.vue';
   import { Modal, Popconfirm } from 'ant-design-vue';
   import TreeIcon from "@/components/Form/src/jeecg/components/TreeIcon/TreeIcon.vue";
 
   const prefixCls = inject('prefixCls');
-  const emit = defineEmits(['select', 'rootTreeData']);
+  const emit = defineEmits(['select', 'rootTreeData', 'dragSuccess']);
   const { createMessage } = useMessage();
   const { handleImportXls, handleExportXls } = useMethods();
   const props = defineProps({
@@ -139,8 +138,6 @@
   const expandedKeys = ref<any[]>([]);
   // 当前选中的项
   const selectedKeys = ref<any[]>([]);
-  // 树组件重新加载
-  const treeReloading = ref<boolean>(false);
   // 树父子是否关联
   const checkStrictly = ref<boolean>(true);
   // 当前选中的部门
@@ -151,6 +148,8 @@
   const searchKeyword = ref('');
   // 提示弹窗是否显示
   const tipShow = ref<boolean>(false);
+  // 职务级别名称，页面加载时一次性获取，避免按岗位查询
+  const positionNameMap = ref<Record<string, string>>({});
 
   // 注册 modal
   const [registerModal, { openModal }] = useModal();
@@ -183,7 +182,37 @@
     }
   }
 
+  loadPositionNames();
   loadRootTreeData();
+
+  /**
+   * 一次性加载职务级别字典，树节点渲染只做内存查找
+   * @author scott
+   * @since 2026-08-06 【无】岗位节点展示职务级别
+   */
+  async function loadPositionNames() {
+    try {
+      const options = await initDictOptions('sys_position,name,id');
+      if (Array.isArray(options)) {
+        positionNameMap.value = Object.fromEntries(options.map((item) => [item.value, item.text]));
+      }
+    } catch (e) {
+      console.error('加载职务级别字典失败', e);
+    }
+  }
+
+  /**
+   * 岗位节点追加展示职务级别，其他节点保持原名称
+   * @author scott
+   * @since 2026-08-06 【无】岗位节点展示职务级别
+   */
+  function getTreeTitle(data, title: string) {
+    if (data.orgCategory !== '3' || !data.positionId) {
+      return title;
+    }
+    const positionName = positionNameMap.value[data.positionId];
+    return positionName ? `${title}（${positionName}）` : title;
+  }
 
   // 加载子级部门信息
   async function loadChildrenTreeData(treeNode) {
@@ -225,18 +254,9 @@
       }
       // 默认选中第一个
       setSelectedKey(item.id, item);
-      reloadTree();
     } else {
       emit('select', null);
     }
-  }
-
-  // 重新加载树组件，防止无法默认展开数据
-  async function reloadTree() {
-    await nextTick();
-    treeReloading.value = true;
-    await nextTick();
-    treeReloading.value = false;
   }
 
   /**
@@ -275,7 +295,9 @@
       try {
         loading.value = true;
         treeData.value = [];
-        let result = await searchByKeywords({ keyWord: value, orgCategory: "1,2,3,4" });
+        // update-begin--author:wangshuai---date:20260813---for:【LHZP-1075】【系统管理】部门 搜索后 如果是公司或部门 不能展开下级
+        let result = await searchByDepartManage({ keyWord: value, orgCategory: "1,2,3,4" });
+        // update-end--author:wangshuai---date:20260813---for:【LHZP-1075】【系统管理】部门 搜索后 如果是公司或部门 不能展开下级
         if (Array.isArray(result)) {
           treeData.value = result;
         }
@@ -423,13 +445,14 @@
       okText: '确认',
       cancelText: '取消',
       onOk: () => {
-        updateChangeDepart({ dragId: dragKey, dropId: dropKey, dropPosition: dropPosition, sort: info.dropPosition }).then(res=>{
+        updateChangeDepart({ dragId: dragKey, dropId: dropKey, dropPosition: dropPosition, sort: info.dropPosition }).then(async res=>{
           if(res.success){
             createMessage.success('部门顺序调整成功');
             //重新加载树
             treeData.value = [];
             selectedKeys.value = [];
-            loadRootTreeData();
+            await loadRootTreeData();
+            emit('dragSuccess');
           } else {
             createMessage.error(res.message);
           }
@@ -477,5 +500,14 @@
     text-decoration: underline;
     margin: 5px;
     font-size: 15px;
+  }
+
+  :deep(.ant-tree-treenode) {
+    width: 100%;
+  }
+
+  :deep(.ant-tree-node-content-wrapper) {
+    flex: 1;
+    min-width: 0;
   }
 </style>

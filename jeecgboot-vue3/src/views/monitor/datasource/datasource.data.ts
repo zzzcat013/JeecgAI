@@ -70,6 +70,12 @@ const dbUrlMap = {
 
 export const columns: BasicColumn[] = [
   {
+    title: '数据源编码',
+    dataIndex: 'code',
+    width: 180,
+    align: 'left',
+  },
+  {
     title: '数据源名称',
     dataIndex: 'name',
     width: 200,
@@ -100,7 +106,7 @@ export const searchFormSchema: FormSchema[] = [
   {
     field: 'name',
     label: '数据源名称',
-    component: 'Input',
+    component: 'JInput',
     colProps: { span: 8 },
   },
   {
@@ -173,7 +179,6 @@ export const formSchema: FormSchema[] = [
   {
     field: 'dbPassword',
     label: '密码',
-    required: true,
     component: 'InputPassword',
     slot: 'pwd',
   },

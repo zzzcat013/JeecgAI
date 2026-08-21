@@ -121,9 +121,9 @@
         <template #htmlSlot="{ text, column, record }">
           <!-- update-begin--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
           <template v-if="column.fieldHref">
-            <a v-html="text" @click="handleClickFieldHref(column.fieldHref, record)"></a>
+            <a v-html="sanitizeRichText(text)" @click="handleClickFieldHref(column.fieldHref, record)"></a>
           </template>
-          <div v-else v-html="text"></div>
+          <div v-else v-html="sanitizeRichText(text)"></div>
           <!-- update-end--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
         </template>
 
@@ -209,7 +209,8 @@
   import { cloneDeep } from 'lodash-es';
   import { Loading } from '/@/components/Loading';
   import { isObject } from '/@/utils/is';
-  
+  import { useDebounceFn } from '@vueuse/core';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
   const subTableData = ref([]);
   const tabActiveKey = ref(0);
   const selectedRowRcord = ref(null);
@@ -255,20 +256,33 @@
   });
 
   // 监听数据源变化
-  watch(dataSource, (value) => {
+  // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-593】点击分页上一页选中的不显示了
+  const handleDataSourceChange = useDebounceFn((value) => {
+    // update-begin--author:liusq---date:20260713---for：【LHZP-118】ERP主子表查询结果为空时子表残留数据
+    // 主表无数据时强制清空选中行，触发子表 watch 走 else 分支清空子表
+    if (!Array.isArray(value) || value.length === 0) {
+      if (selectedKeys.value.length > 0) {
+        selectedKeys.value = [];
+      }
+      if (selectedRowRcord.value !== null) {
+        selectedRowRcord.value = null;
+      }
+      return;
+    }
+    // update-end--author:liusq---date:20260713---for：【LHZP-118】ERP主子表查询结果为空时子表残留数据
     if (selectedKeys.value.length > 0) {
       // 【TV360X-2701】选中的数据在当前页数据中不存在就清空选中
-      selectedKeys.value = selectedKeys.value.filter((key) => value.some((item) => item['jeecg_row_key'] === key));
+      // selectedKeys.value = selectedKeys.value.filter((key) => value.some((item) => item['jeecg_row_key'] === key));
     }
     // update-begin--author:liaozhiyang---date:20250722---for：【issues/8575】erp默认选中第一个及没选中主表时子表不查询
     if (pagination.value.current == 1 && selectedKeys.value.length === 0) {
-      setTimeout(() => {
         const tableTbodyElem = document.querySelector('.ant-table-wrapper .ant-table-tbody');
         tableTbodyElem?.querySelector('.ant-table-row')?.click();
-      }, 100);
     }
     // update-end--author:liaozhiyang---date:20250722---for：【issues/8575】erp默认选中第一个及没选中主表时子表不查询
-  });
+  }, 100);
+  watch(dataSource, (value) => handleDataSourceChange(value));
+  // update-end--author:liaozhiyang---date:20260715---for：【LHZP-593】点击分页上一页选中的不显示了
 
   // 判断 若ID不存在就终止后续逻辑
   if (!ID.value) {
@@ -390,7 +404,20 @@
     handleTableConfig(columnResult.main);
     subTableData.value = columnResult.subList;
     // 2.加载数据
-    await loadData();
+    // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+    let hasDefaultQuery = false;
+    try {
+      const queryForm = await getRefPromise(onlineQueryFormOuter);
+      if (queryForm && typeof queryForm.whenFirstQueryDecided === 'function') {
+        hasDefaultQuery = await queryForm.whenFirstQueryDecided();
+      }
+    } catch (e) {
+      hasDefaultQuery = false;
+    }
+    if (!hasDefaultQuery) {
+      await loadData();
+    }
+    // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
     loading.value = false;
     // 3.执行js增强 setup
     onlineTableContext.execButtonEnhance('setup');

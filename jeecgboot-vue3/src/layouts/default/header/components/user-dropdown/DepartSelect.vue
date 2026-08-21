@@ -108,10 +108,13 @@
    * 弹窗打开前处理
    */
   async function show() {
-    //加载部门
-    await loadDepartList();
-    //加载租户
-    await loadTenantList();
+    // update-begin--author:liaozhiyang---date:20260812---for:【LHZP-1359】部门和租户任一有数据都需要展示出来，除非都没数据时则提示
+    const [canSwitchDepart, canSwitchTenant] = await Promise.all([loadDepartList(), loadTenantList()]);
+    if (!canSwitchDepart && !canSwitchTenant) {
+      createMessage.info('当前没有可切换的租户或部门');
+      return;
+    }
+    // update-end--author:liaozhiyang---date:20260812---for:【LHZP-1359】部门和租户任一有数据都需要展示出来，除非都没数据时则提示
     //标题配置
     if (unref(isMultiTenant) && unref(isMultiDepart)) {
       currTitle.value = '切换租户和部门';
@@ -132,18 +135,20 @@
    */
   async function loadDepartList() {
     const result = await getUserDeparts();
-    if (!result.list || result.list.length == 0) {
-      return;
+    // update-begin--author:liaozhiyang---date:20260812---for:【LHZP-1359】部门和租户任一有数据都需要展示出来，除非都没数据时则提示
+    const userDeparts = Array.isArray(result.list) ? result.list.filter((item) => item.orgCategory == '2') : [];
+    if (userDeparts.length == 0) {
+      return false;
     }
-    let currentDepart = result.list.filter((item) => item.orgCode == result.orgCode);
-    //TODO 筛选出用户的部门信息（排除公司或者岗位配置）后期回滚
-    const userDeparts = result.list.filter((item) => item.orgCategory == '2');
+    // update-end--author:liaozhiyang---date:20260812---for:【LHZP-1359】部门和租户任一有数据都需要展示出来，除非都没数据时则提示
+    let currentDepart = userDeparts.filter((item) => item.orgCode == result.orgCode);
     departList.value = userDeparts;
     // 代码逻辑说明: JHHB-790 用户部门变更，会出现这个情况（因为之前设置的这里只切换部门，过滤了公司和岗位信息）
     const hasCurrentDepart = userDeparts.some(item => item.orgCode == result.orgCode);
     departSelected.value = hasCurrentDepart && currentDepart && currentDepart.length > 0 ? result.orgCode : '';
     currentDepartName.value = currentDepart && currentDepart.length > 0 ? currentDepart[0].departName : '';
     isMultiDepart.value = true;
+    return true;
   }
   /**
    *加载租户信息
@@ -151,7 +156,7 @@
   async function loadTenantList() {
     const result = await getUserTenants();
     if (!result.list || result.list.length == 0) {
-      return;
+      return false;
     }
     let tenantId = userStore.getTenant;
     let currentTenant = result.list.filter((item) => item.id == tenantId);
@@ -159,6 +164,7 @@
     tenantList.value = result.list;
     tenantSelected.value = tenantId;
     isMultiTenant.value = true;
+    return true;
   }
 
   /**
@@ -198,23 +204,24 @@
    */
   function departResolve() {
     return new Promise(async (resolve, reject) => {
-      if (!unref(isMultiDepart) || unref(departList).length == 0) {
+      const hasDepart = unref(isMultiDepart) && unref(departList).length > 0;
+      const hasTenant = unref(isMultiTenant);
+      if (!hasDepart && !hasTenant) {
+        resolve();
+        return;
+      }
+      const result = await selectDepart({
+        username: userStore.getUserInfo.username,
+        orgCode: hasDepart ? unref(departSelected) : undefined,
+        loginTenantId: hasTenant ? unref(tenantSelected) : undefined,
+      });
+      if (result.userInfo) {
+        userStore.setUserInfo(result.userInfo);
         resolve();
       } else {
-        const result = await selectDepart({
-          username: userStore.getUserInfo.username,
-          orgCode: unref(departSelected),
-          loginTenantId: unref(tenantSelected),
-        });
-        if (result.userInfo) {
-          const userInfo = result.userInfo;
-          userStore.setUserInfo(userInfo);
-          resolve();
-        } else {
-          requestFailed(result);
-          userStore.logout();
-          reject();
-        }
+        requestFailed(result);
+        userStore.logout();
+        reject();
       }
     });
   }

@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+  <div>
     <BasicModal destroyOnClose @register="registerModal" :canFullscreen="false" width="1000px" @ok="handleOk" @cancel="handleCancel" okText="替换" wrapClassName='ai-rag-generate-prompt-modal'>
       <div class="prompt">
         <div class="prompt-left">
@@ -111,8 +111,17 @@
         content.value = '';
         loading.value = false;
         prompt.value = '';
-        setModalProps({ height: 500 });
+        // update-begin--author:liaozhiyang---date:20260804---for：打开弹窗时禁用「替换」，需等生成完成后再启用
+        setModalProps({ height: 500, okButtonProps: { disabled: true } });
+        // update-end--author:liaozhiyang---date:20260804---for：打开弹窗时禁用「替换」，需等生成完成后再启用
       });
+
+      /**
+       * 设置替换按钮是否可用
+       */
+      function setReplaceEnabled(enabled: boolean) {
+        setModalProps({ okButtonProps: { disabled: !enabled } });
+      }
 
       /**
        * 保存
@@ -129,15 +138,29 @@
       async function generatedPrompt() {
         content.value = '';
         loading.value = true;
+        // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1477】打开弹窗时禁用「替换」，需等生成完成后再启用
+        // 开始生成时禁用「替换」，流式数据全部完成后再启用
+        setReplaceEnabled(false);
+        // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1477】打开弹窗时禁用「替换」，需等生成完成后再启用
         let readableStream = await promptGenerate({ prompt: encodeURIComponent(prompt.value) }).catch(() => {
             loading.value = false;
         });
+        if (!readableStream) {
+          return;
+        }
         const reader = readableStream.getReader();
         const decoder = new TextDecoder('UTF-8');
         let buffer = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
+            // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1477】打开弹窗时禁用「替换」，需等生成完成后再启用
+            // 接口流式数据全部接收完成后启用「替换」
+            loading.value = false;
+            if (content.value) {
+              setReplaceEnabled(true);
+            }
+            // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1477】打开弹窗时禁用「替换」，需等生成完成后再启用
             break;
           }
           let result = decoder.decode(value, { stream: true });
@@ -189,6 +212,10 @@
           if (parse.event == 'ERROR') {
             content.value = parse.data.message?parse.data.message:'生成失败，请稍后重试！'
             loading.value = false;
+            // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1477】打开弹窗时禁用「替换」，需等生成完成后再启用
+            // 生成失败保持「替换」禁用
+            setReplaceEnabled(false);
+            // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1477】打开弹窗时禁用「替换」，需等生成完成后再启用
           }
         } catch (error) {
           console.log('Error parsing update:', error);

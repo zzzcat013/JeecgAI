@@ -30,6 +30,7 @@
   const [registerDrawer] = useDrawerInner(async (data) => {
     permissionId.value = data.id;
     setProps({ searchInfo: { permissionId: unref(permissionId) } });
+    await getForm().resetFields();
     reload();
   });
   // 自适应列配置
@@ -41,7 +42,7 @@
     xl: 8, // ≥1200px
     xxl: 8, // ≥1600px
   };
-  const [registerTable, { reload, setProps }] = useTable({
+  const [registerTable, { reload, setProps, getForm }] = useTable({
     api: dataRuleList,
     columns: dataRuleColumns,
     size: 'small',

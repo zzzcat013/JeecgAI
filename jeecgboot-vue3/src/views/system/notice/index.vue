@@ -24,7 +24,7 @@
         <TableAction :actions="getActions(record)" :dropDownActions="getDropDownAction(record)" />
       </template>
     </BasicTable>
-    <NoticeModal @register="registerModal" @success="reload" />
+    <NoticeModal @register="registerModal" @success="handleSuccess" />
     <DetailModal @register="register" :frameSrc="iframeUrl" />
   </div>
 </template>
@@ -69,9 +69,28 @@
     },
   });
 
-  const [registerTable, { reload }, { rowSelection, selectedRowKeys }] = tableContext;
+  const [registerTable, { reload, getForm }, { rowSelection, selectedRowKeys }] = tableContext;
   //流程编码
   const flowCode = 'dev_sys_announcement_001';
+  /**
+   * 新增/编辑保存成功
+   * 代码逻辑说明: 查询条件的消息类型默认是"通知公告"，若保存的是"系统消息"等其他类型，
+   * 数据会被查询条件过滤掉，用户误以为没保存成功，这里自动把查询条件切换到该条数据的消息类型
+   */
+  async function handleSuccess(values) {
+    const msgCategory = values?.msgCategory;
+    if (msgCategory) {
+      const searchForm = getForm();
+      const searchMsgCategory = searchForm.getFieldsValue()?.msgCategory;
+      // 查询条件为空表示查全部，无需切换
+      if (searchMsgCategory && searchMsgCategory != msgCategory) {
+        await searchForm.setFieldsValue({ msgCategory });
+        reload({ page: 1 });
+        return;
+      }
+    }
+    reload();
+  }
   /**
    * 新增事件
    */

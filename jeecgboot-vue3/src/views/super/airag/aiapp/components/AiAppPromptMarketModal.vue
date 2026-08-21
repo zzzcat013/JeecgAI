@@ -79,6 +79,7 @@
   import { list } from '@/views/super/airag/aiprompts/AiragPrompts.api';
   import { formatToDateTime } from '@/utils/dateUtil';
   import { Pagination } from 'ant-design-vue';
+  import { useMessage } from '/@/hooks/web/useMessage';
   export default {
     name: 'AiAppPromptMarketModal',
     components: {
@@ -88,6 +89,7 @@
     },
     emits: ['ok', 'register', 'select'],
     setup(props, { emit }) {
+      const { createMessage } = useMessage();
       // 提示词列表
       const promptList = ref<any[]>([]);
       // 加载状态
@@ -200,13 +202,19 @@
        * 保存
        */
       async function handleOk() {
-        if (selectedPrompt.value) {
-          // select 传递完整对象，供调用方按需取用 id/name/content
-          emit('select', selectedPrompt.value);
-          emit('ok', selectedPrompt.value.content);
-        } else {
-          emit('ok');
+        // update-begin--author:liaozhiyang---date:20260810---for：【LHZP-1518】修复选择弹窗的提示词，没回显内容
+        if (!selectedPrompt.value) {
+          createMessage.warning('请选择提示词');
+          return;
         }
+        if (!String(selectedPrompt.value.content ?? '').trim()) {
+          createMessage.warning('当前提示词数据尚未配置提示词内容，请前往「AI 提示词」页面找到对应数据并完成配置。');
+          return;
+        }
+        // update-end--author:liaozhiyang---date:20260810---for：【LHZP-1518】修复选择弹窗的提示词，没回显内容
+        // select 传递完整对象，供调用方按需取用 id/name/content
+        emit('select', selectedPrompt.value);
+        emit('ok', selectedPrompt.value.content);
         handleCancel();
       }
 

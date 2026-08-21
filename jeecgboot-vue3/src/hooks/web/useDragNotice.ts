@@ -44,6 +44,16 @@ export function useDragNotice() {
       console.log('仪表盘监听点击事件参数', record);
       //1.路径的话，判断外部链接还是内部路由跳转
       if (action == 'url') {
+        if (record?.type && record?.type === 'file') {
+          const fileUrl = getFileAccessHttpUrl(record.fileUrl);
+          const fileName = record.fileUrl?.split('/')?.pop()?.split('?')?.[0] || record.title;
+          downloadFile(fileUrl, fileName);
+          return;
+        }
+        if (record?.type && record.type === 'url') {
+          window.open(record.linkUrl, '_blank');
+          return;
+        }
         //常用下載特殊处理
         if (url == 'fileUrl') {
           url = record[url];
@@ -145,7 +155,7 @@ export function useDragNotice() {
     const iframes: any = document.getElementsByClassName('jeecg-iframe-page__main');
     // 将 HTMLCollection 转换为数组
     const iframeArray = Array.from(iframes);
-    if (currentRoute.value?.meta?.frameSrc && currentRoute.value?.meta?.frameSrc.indexOf('/drag/view?pageId=') >= 0) {
+    if (currentRoute.value?.meta?.frameSrc && isDragFrameSrc(currentRoute.value.meta.frameSrc)) {
       const targetIframe: any = iframeArray.find((iframe: any) => iframe.src == currentRoute.value?.meta?.frameSrc);
       console.log('targetIframe', targetIframe);
       if (targetIframe) {
@@ -153,6 +163,16 @@ export function useDragNotice() {
       }
     }
   }
+  /**
+   * 判断 frameSrc 是否为仪表盘页面
+   * 支持两种 URL 形式：
+   *   1. /drag/view?pageId=xxx（query 形式，老版本约定）
+   *   2. /drag/view/xxx（path 形式，新版本约定）
+   */
+  function isDragFrameSrc(frameSrc: string): boolean {
+    return /\/(drag|jimubi)\/view(\?|\/|$)/.test(frameSrc || '');
+  }
+  // update-end--author:liusq---date:20260804---for:【仪表盘】从我的消息切回仪表盘 tab 时布局变化，原判断仅匹配 /drag/view?pageId= 形式，未覆盖 /drag/view/:id path 形式，导致 iframe 内仪表盘未刷新
   return {
     initDragWebSocket: initWebSocket,
     handleOpenType,

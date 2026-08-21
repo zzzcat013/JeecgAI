@@ -6,6 +6,7 @@ const { createConfirm } = useMessage();
 
 export enum Api {
   queryDepartTreeSync = '/sys/sysDepart/queryDepartTreeSync',
+  searchByDepartManage = '/sys/sysDepart/searchByDepartManage',
   save = '/sys/sysDepart/add',
   edit = '/sys/sysDepart/edit',
   delete = '/sys/sysDepart/delete',
@@ -42,6 +43,11 @@ export enum Api {
  * 获取部门树列表
  */
 export const queryDepartTreeSync = (params?) => defHttp.get({ url: Api.queryDepartTreeSync, params });
+
+/**
+ * 部门管理页面专用搜索，搜索结果支持继续展开下级
+ */
+export const searchByDepartManage = (params) => defHttp.get({ url: Api.searchByDepartManage, params });
 
 /**
  * 获取部门和岗位树列表

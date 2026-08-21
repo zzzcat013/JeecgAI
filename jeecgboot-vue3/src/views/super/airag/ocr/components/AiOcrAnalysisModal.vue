@@ -32,6 +32,16 @@
     wrapperCol: { span: 24 },
   });
 
+  /**
+   * 将 OCR 的字符串或结构化结果统一转换为文本框可展示的内容。
+   */
+  function formatAnalysisResult(result: unknown) {
+    if (result == null) {
+      return '';
+    }
+    return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  }
+
   async function analysisHandleClick() {
     const values = await validate();
     loading.value = true;
@@ -60,7 +70,9 @@
           let lastText = "";
           try {
             let parse = JSON.parse(text);
-            lastText = parse.text;
+            //update-begin---author:wangshuai---date:20260807---for:OCR添加提示词后结构化结果显示为[object Object]---
+            lastText = formatAnalysisResult(parse.text ?? parse);
+            //update-end---author:wangshuai---date:20260807---for:OCR添加提示词后结构化结果显示为[object Object]---
           } catch (e) {
             lastText = text;
           }

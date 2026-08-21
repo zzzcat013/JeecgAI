@@ -9,7 +9,9 @@
     <detail-form :schemas="detailFormSchemas" :data="formData" :span="formSpan"></detail-form>
 
     <!-- 子表 -->
-    <a-tabs v-if="themeTemplate !== ERP && hasSubTable && showSub" @change="onTabChange">
+    <!-- update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表 -->
+    <a-tabs v-if="hasSubTable && showSub && (isShare || themeTemplate !== 'erp')" @change="onTabChange">
+    <!-- update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表 -->
       <a-tab-pane v-for="(sub, index) in subTabInfo" :tab="sub.describe" :key="index + ''" :forceRender="true">
         <div :style="{ 'overflow-y': 'auto', 'overflow-x': 'hidden', 'max-height': subFormHeight + 'px' }" v-if="sub.relationType == 1">
           <!-- 子表-一对一 -->
@@ -93,7 +95,13 @@
       themeTemplate: {
         type: String,
         default: '',
-      }
+      },
+      // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
+      isShare: {
+        type: Boolean,
+        default: false,
+      },
+      // update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
     },
     emits: ['success', 'rendered'],
     setup(props, { emit }) {

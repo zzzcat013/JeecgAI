@@ -1,5 +1,5 @@
 <template>
-  <BasicModal @register="registerModal" :title="title" :width="600" v-bind="$attrs" @ok="onSubmit">
+  <BasicModal @register="registerModal" :title="title" :width="800" :maxHeight="650" v-bind="$attrs" @ok="onSubmit">
     <BasicForm @register="registerForm" />
   </BasicModal>
 </template>

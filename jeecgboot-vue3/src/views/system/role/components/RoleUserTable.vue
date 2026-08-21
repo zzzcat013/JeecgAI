@@ -38,7 +38,7 @@
   import UserDrawer from '../../user/UserDrawer.vue';
   import UseSelectModal from './UseSelectModal.vue';
   import { userList, deleteUserRole, batchDeleteUserRole, addUserRole } from '../role.api';
-  import { userColumns, searchUserFormSchema } from '../role.data';
+  import { userColumns, roleUserSearchFormSchema } from '../role.data';
   import { getUserRoles } from '../../user/user.api';
 
   const emit = defineEmits(['register', 'hideUserList']);
@@ -64,7 +64,7 @@
     formConfig: {
       // 代码逻辑说明: 【QQYUN-5685】3、租户角色下,查询居左显示
       labelWidth: 60,
-      schemas: searchUserFormSchema,
+      schemas: roleUserSearchFormSchema,
       autoSubmitOnEnter: true,
     },
     striped: true,

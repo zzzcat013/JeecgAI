@@ -18,7 +18,7 @@ export const searchFormSchema: FormSchema[] = [
   {
     label: '名称',
     field: 'name',
-    component: 'Input',
+    component: 'JInput',
     colProps: {
       span: 6,
     },

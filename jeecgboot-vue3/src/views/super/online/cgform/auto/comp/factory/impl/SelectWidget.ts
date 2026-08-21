@@ -82,6 +82,26 @@ export default class SelectWidget extends IFormSchema {
       // },
       // update-end--author:liaozhiyang---date:20260203---for:【issues/9307】online下拉加载表字典需滚动加载
     }
+    // 是否启用远程搜索+滚动加载（查询工作表模式）
+    const loadMore = this.schema['loadMore'] || this._data['loadMore'];
+    if (typeof loadMore === 'function') {
+      props['remoteLoad'] = true;
+      props['onLoad'] = (params: { keyword: string; pageNo: number; pageSize: number }) => {
+        return loadMore(params.keyword, params.pageNo);
+      };
+      // 透传真实每页条数，否则 JSelectSingle 按默认值 10 判断末页，会多发一次空页请求
+      const pageSize = this.schema['pageSize'] || this._data['pageSize'];
+      if (pageSize) {
+        props['pageSize'] = pageSize;
+      }
+      delete props.options; // remoteLoad 模式下不用静态 options
+    } else {
+      // 普通搜索模式
+      const filterable = this.schema['filterable'] || this._data['filterable'];
+      if (filterable) {
+        props['showSearch'] = true;
+      }
+    }
     // update-begin--author:liaozhiyang---date:20260203---for:【issues/9307】online下拉加载表字典需滚动加载
     if (!this.dictTable) {
       props['dictCode'] = this.dictCode;
@@ -89,7 +109,7 @@ export default class SelectWidget extends IFormSchema {
       props['useDicColor'] = true;
       // update-end--author:liaozhiyang---date:20230110---for：【QQYUN-7799】字典组件（原生组件除外）加上颜色配置
       // 静态数据（无 dictCode）时，将 enum 选项直接传给组件
-      if (!this.dictCode && this.options.length > 0) {
+      if (!this.dictCode && !loadMore && this.options.length > 0) {
         props['options'] = this.options;
       }
     } else {

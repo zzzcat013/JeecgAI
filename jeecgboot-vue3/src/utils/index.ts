@@ -130,6 +130,10 @@ export function getDateByPicker(data, picker) {
   if (!data || !picker) {
     return data;
   }
+  const date = dayjs(data);
+  if (!date.isValid()) {
+    return null;
+  }
   /**
    * 需要把年、年月、设置成这段时间内的第一天（[年季度]不需要处理antd回传的就是该季度的第一天，[年周]也不处理）
    * 例如日期格式是年，传给数据库的时间必须是20240101
@@ -440,16 +444,29 @@ export function _eval(str: string) {
  * 通过时间或者时间戳获取对应antd的年、月、周、季度。
  */
 export function getWeekMonthQuarterYear(date) {
-  // 获取 ISO 周数的函数
+  // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-15】表单填入2026年26周，列表显示的是2026年25周
+  // 获取 ISO 8601 周数及对应的周所属年份
   const getISOWeek = (date) => {
-    const jan4 = new Date(date.getFullYear(), 0, 4);
-    const oneDay = 86400000; // 一天的毫秒数
-    return Math.ceil(((date - jan4.getTime()) / oneDay + jan4.getDay() + 1) / 7);
+    // 归一化到当天0点，避免时分秒干扰
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    // ISO 规定周一为一周起点：周一=0 ... 周日=6
+    const dayNr = (target.getDay() + 6) % 7;
+    // 移动到本周的周四（周四决定该周归属的年份）
+    target.setDate(target.getDate() - dayNr + 3);
+    const isoYear = target.getFullYear();
+    // 该 ISO 年第一个周四所在周的周四
+    const firstThursday = new Date(isoYear, 0, 4);
+    const firstDayNr = (firstThursday.getDay() + 6) % 7;
+    firstThursday.setDate(firstThursday.getDate() - firstDayNr + 3);
+    const oneWeek = 7 * 86400000; // 一周的毫秒数
+    const week = 1 + Math.round((target.getTime() - firstThursday.getTime()) / oneWeek);
+    return { week, isoYear };
   };
   // 将时间戳转换为日期对象
   const dateObj = new Date(date);
   // 计算周
-  const week = getISOWeek(dateObj);
+  const { week, isoYear } = getISOWeek(dateObj);
+  // update-end--author:liaozhiyang---date:20260713---for：【LHZP-15】表单填入2026年26周，列表显示的是2026年25周
   // 计算月
   const month = dateObj.getMonth() + 1; // 月份是从0开始的，所以要加1
   // 计算季度
@@ -459,7 +476,7 @@ export function getWeekMonthQuarterYear(date) {
   return {
     year: `${year}`,
     month: `${year}-${month.toString().padStart(2, '0')}`,
-    week: `${year}-${week}周`,
+    week: `${isoYear}-${week}周`,
     quarter: `${year}-Q${quarter}`,
   };
 }
@@ -514,10 +531,9 @@ export function useConditionFilter() {
     {label: '不为空', value: 'not_empty', val: 'NOT_EMPTY'},
   ]
 
-  // 数值、日期
+  // 数值
   const numberConditionOptions = [
     { label: '等于', value: 'eq', val: '=' },
-    { label: '在...中', value: 'in', val: 'IN', title: '包含' },
     { label: '不等于', value: 'ne', val: '!=' },
     { label: '大于', value: 'gt', val: '>' },
     { label: '大于等于', value: 'ge', val: '>=' },
@@ -526,7 +542,18 @@ export function useConditionFilter() {
     ...commonConditionOptions,
   ];
 
-  // 文本、密码、多行文本、富文本、markdown
+  // 日期、日期时间、时间：不支持"在...中"（包含）
+  const dateConditionOptions = [
+    { label: '等于', value: 'eq', val: '=' },
+    { label: '不等于', value: 'ne', val: '!=' },
+    { label: '大于', value: 'gt', val: '>' },
+    { label: '大于等于', value: 'ge', val: '>=' },
+    { label: '小于', value: 'lt', val: '<' },
+    { label: '小于等于', value: 'le', val: '<=' },
+    ...commonConditionOptions,
+  ];
+
+  // 文本、多行文本
   const inputConditionOptions = [
     { label: '等于', value: 'eq', val: '=' },
     { label: '模糊', value: 'like', val: 'LIKE' },
@@ -536,9 +563,17 @@ export function useConditionFilter() {
     { label: '不等于', value: 'ne', val: '!=' },
     ...commonConditionOptions,
   ];
+  // -update-begin--author:liaozhiyang---date:20260810---for：【LHZP-523】高级查询组件查询条件调整
+  // 单值选择控件：下拉、省市区、单选、开关、下拉搜索、分类字典、自定义树
+  const singleSelectConditionOptions = [
+    { label: '等于', value: 'eq', val: '=' },
+    { label: '不等于', value: 'ne', val: '!=' },
+    ...commonConditionOptions,
+  ];
+  // -update-end--author:liaozhiyang---date:20260810---for：【LHZP-523】高级查询组件查询条件调整
 
-  // 下拉、单选、多选、开关、用户、部门、关联记录、省市区、popup、popupDict、下拉多选、下拉搜索、分类字典、自定义树
-  const selectConditionOptions = [
+  // 支持多值的选择控件：多选、用户、部门、关联记录、popup、popupDict、下拉多选
+  const multiSelectConditionOptions = [
     { label: '等于', value: 'eq', val: '=' },
     { label: '在...中', value: 'in', val: 'IN', title: '包含' },
     { label: '不等于', value: 'ne', val: '!=' },
@@ -566,29 +601,32 @@ export function useConditionFilter() {
     switch (data.view) {
       case 'file':
       case 'image':
+      case 'umeditor':
+      case 'markdown':
       case 'password':
         return commonConditionOptions;
       case 'text':
       case 'textarea':
-      case 'umeditor':
-      case 'markdown':
-      case 'pca':
-      case 'popup':
         return inputConditionOptions;
-      case 'list':
-      case 'radio':
       case 'checkbox':
-      case 'switch':
       case 'sel_user':
       case 'sel_depart':
       case 'link_table':
       case 'popup_dict':
       case 'list_multi':
+        return multiSelectConditionOptions;
+      case 'list':
+      case 'radio':
+      case 'switch':
+      case 'pca':
       case 'sel_search':
       case 'cat_tree':
       case 'sel_tree':
-        return selectConditionOptions;
+        return singleSelectConditionOptions;
       case 'date':
+      case 'datetime':
+      case 'time':
+        return dateConditionOptions;
       // number是虚拟的
       case 'number':
         return numberConditionOptions;
@@ -653,6 +691,20 @@ export const split = (str) => {
   }
   return str;
 };
+/**
+ * 解码 HTML 实体（如 &lt;thead&gt; → <thead>），用于修复混合格式内容
+ * update-begin--author:liaozhiyang---date:20260807---for:【LHZP-1128】修复thead标签没解析出来
+ */
+export const decodeHtmlEntities = (html: string): string => {
+  if (!html || !/&(?:#x?[0-9a-f]+|[a-z]+);/i.test(html)) {
+    return html;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = html;
+  return textarea.value;
+};
+// update-end--author:liaozhiyang---date:20260807---for:【LHZP-1128】修复thead标签没解析出来
+
 /**
   * 处理word文档中的o:p标签
   * @param html
@@ -723,24 +775,22 @@ export const removeSpecialTags = (html: string): string => {
     }
 
     // ===================================================================
-    // 第三步：注入全局表格样式 <style>（兜底保障）
+    // 第三步：注入表格样式 <style>（兜底保障）
     //   ★ 放在 DOM 序列化之后，确保 <style> 标签不会被 DOM 改写
+    //   ★ 选择器必须限定在 .jeecg-rich-content 内：v-html 中的 <style> 会进入文档并全局生效，
+    //     若写成裸 table/img 选择器，会污染页面上的 Ant Design Table 等其它表格样式。
     // ===================================================================
-    const globalCSS = `<style>
-table{border-collapse:collapse!important;border-spacing:0!important;width:100%!important;max-width:100%!important;}
-table td,table th{border-top:${BORDER}!important;border-right:${BORDER}!important;border-bottom:${BORDER}!important;border-left:${BORDER}!important;padding:6px 8px!important;vertical-align:middle!important;box-sizing:border-box!important;empty-cells:show!important;}
-table td p,table th p{margin:0!important;padding:0!important;line-height:1.4!important;}
-img{max-width:100%!important;height:auto!important;display:block!important;}
+    const RICH_CONTENT_CLASS = 'jeecg-rich-content';
+    const scopedCSS = `<style>
+.${RICH_CONTENT_CLASS} table{border-collapse:collapse!important;border-spacing:0!important;width:100%!important;max-width:100%!important;}
+.${RICH_CONTENT_CLASS} table td,.${RICH_CONTENT_CLASS} table th{border-top:${BORDER}!important;border-right:${BORDER}!important;border-bottom:${BORDER}!important;border-left:${BORDER}!important;padding:6px 8px!important;vertical-align:middle!important;box-sizing:border-box!important;empty-cells:show!important;}
+.${RICH_CONTENT_CLASS} table td p,.${RICH_CONTENT_CLASS} table th p{margin:0!important;padding:0!important;line-height:1.4!important;}
+.${RICH_CONTENT_CLASS} img{max-width:100%!important;height:auto!important;display:block!important;}
 </style>`;
-
-    if (/<head[^>]*>/i.test(html)) {
-      html = html.replace(/(<head[^>]*>)/i, `$1${globalCSS}`);
-    } else if (/<html[^>]*>/i.test(html)) {
-      html = html.replace(/(<html[^>]*>)/i, `$1<head>${globalCSS}</head>`);
-    } else {
-      html = globalCSS + html;
-    }
-
+    // update-begin--author:liaozhiyang---date:20260803---for:【LHZP-1239】我的消息页面点击通知公告数据查看按钮页面表格样式变了
+    // 用作用域容器包裹正文，保证上面的选择器只命中富文本内部
+    html = `${scopedCSS}<div class="${RICH_CONTENT_CLASS}">${html}</div>`;
+    // update-end--author:liaozhiyang---date:20260803---for:【LHZP-1239】我的消息页面点击通知公告数据查看按钮页面表格样式变了
     // ===================================================================
     // 第四步：纯字符串处理内联样式（核心边框修复）
     //   ★ 最后执行！确保输出 HTML 中的 !important 不会被任何后续处理丢失
@@ -819,5 +869,4 @@ img{max-width:100%!important;height:auto!important;display:block!important;}
     return html;
   }
 };
-
 

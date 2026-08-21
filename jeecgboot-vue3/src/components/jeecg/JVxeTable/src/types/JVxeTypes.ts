@@ -40,6 +40,9 @@ export enum JVxeTypes {
 
   // 以下为自定义组件
   popup = 'popup',
+  // update-begin--author:liaozhiyang---date:20260507---for：【QQYUN-7961】vxetable子表支持popup字典
+  popupDict = 'popupDict',
+  // update-end--author:liaozhiyang---date:20260507---for：【QQYUN-7961】vxetable子表支持popup字典
   selectDictSearch = 'selectDictSearch',
   radio = 'radio',
   image = 'image',

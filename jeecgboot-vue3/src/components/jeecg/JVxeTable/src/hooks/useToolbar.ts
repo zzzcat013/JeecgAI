@@ -61,6 +61,7 @@ export function useToolbar(props: JVxeTableProps, data: JVxeDataProps, methods: 
         },
         {
           toolbarPrefix: $slots.toolbarPrefix,
+          toolbarAfterAdd: $slots.toolbarAfterAdd,
           toolbarSuffix: $slots.toolbarSuffix,
         }
       );

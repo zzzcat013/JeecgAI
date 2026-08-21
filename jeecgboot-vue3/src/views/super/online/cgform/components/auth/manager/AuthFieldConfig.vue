@@ -1,5 +1,14 @@
 <template>
   <div class="auth-field-config">
+    <!-- update-begin--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索 -->
+    <a-input-search
+      v-model:value="fieldSearchText"
+      class="field-search"
+      placeholder="搜索字段名称/描述"
+      allowClear
+      @search="applyFieldSearch"
+    />
+    <!-- update-end--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索 -->
     <BasicTable @register="registerTable" @change="handleTableChange" :loading="tableLoading">
       <!-- update-begin--author:liaozhiyang---date:20240612---for：【TV360X-148】权限配置加全选 -->
       <template #headerCell="{ column }">
@@ -39,7 +48,7 @@
   import { watch, defineComponent, ref } from 'vue';
   import { BasicTable, useTable } from '/@/components/Table';
   import { authFieldLoadData, authFieldUpdateCheckbox, authFieldUpdateStatus, batchAuthFieldUpdateStatus, batchAuthFieldUpdateCheckbox } from '../auth.api';
-  import { authFieldColumns } from '../auth.data';
+  import { authFieldColumns, isAuthDataField } from '../auth.data';
 
   export default defineComponent({
     name: 'AuthFieldConfig',
@@ -54,13 +63,6 @@
     emits: ['update:authFields'],
     setup(props, { emit }) {
       const cgformId = ref('');
-      const [registerTable, { reload, getTableRef, setPagination }] = useTable({
-        api: loadData,
-        rowKey: 'code',
-        bordered: true,
-        columns: authFieldColumns,
-        showIndexColumn: false,
-      });
       const allSwitch = ref(false);
       const allListControl = ref(false);
       const allFormControl = ref(false);
@@ -68,11 +70,24 @@
       const tableLoading = ref(false);
       const formIndeterminate = ref(false);
       const listIndeterminate = ref(false);
+      // update-begin--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索
+      const fieldSearchText = ref('');
+      const allFieldData = ref<any[]>([]);
+
+      const [registerTable, { reload, getTableRef, setPagination, setTableData }] = useTable({
+        api: loadData,
+        rowKey: 'code',
+        bordered: true,
+        columns: authFieldColumns,
+        showIndexColumn: false,
+      });
+      // update-end--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索
 
       watch(
         () => props.headId,
         (headId) => {
           cgformId.value = headId.split('?')[0];
+          fieldSearchText.value = '';
           // update-begin--author:liaozhiyang---date:20240520---for：【TV360X-149】点击权限控制进入页面后，分页没有重置
           getTableRef().value && setPagination({ current: 1, pageSize: 10 });
           // update-end--author:liaozhiyang---date:20240520---for：【TV360X-149】点击权限控制进入页面后，分页没有重置
@@ -80,6 +95,30 @@
         },
         { immediate: true }
       );
+      // update-begin--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索
+      function filterFieldData(data: any[], keyword: string) {
+        const kw = keyword.trim().toLowerCase();
+        if (!kw) return data;
+        return data.filter(
+          (item) => String(item.code || '').toLowerCase().includes(kw) || String(item.title || '').toLowerCase().includes(kw)
+        );
+      }
+
+      function applyFieldSearch() {
+        if (!allFieldData.value.length) return;
+        const displayData = filterFieldData(allFieldData.value, fieldSearchText.value);
+        setTableData(displayData);
+        setPagination({ current: 1 });
+        const { current, pageSize } = getTableRef().value!.getPaginationRef();
+        setCurDataStatus(current, pageSize, displayData);
+      }
+
+      watch(fieldSearchText, (value) => {
+        if (!value) {
+          applyFieldSearch();
+        }
+      });
+      // update-end--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索
 
       // 加载数据
       async function loadData(params) {
@@ -93,7 +132,7 @@
               filterData.push(item);
             }
             //update-begin-author:taoyan date:2022-8-9 for: VUEN-1957 【online】同步数据库新增字段未提交
-            if(item.dbIsPersist==1){
+            if (isAuthDataField(item)) {
               fields.push({
                 text: item.title,
                 value: item.code,
@@ -101,17 +140,27 @@
                 view: item.fieldShowType,
                 dbType: item.dbType,
                 // -update-end--author:liaozhiyang---date:20240617---for：【TV360X-201】权限管理条件根据控件过滤
+                // -update-begin--author:scott---date:20260722---for：【数据权限】规则值根据规则字段控件类型自动切换下拉/字典选择
+                dictField: item.dictField,
+                dictTable: item.dictTable,
+                dictText: item.dictText,
+                fieldExtendJson: item.fieldExtendJson,
+                // -update-end--author:scott---date:20260722---for：【数据权限】规则值根据规则字段控件类型自动切换下拉/字典选择
               });
             }
             //update-end-author:taoyan date:2022-8-9 for: VUEN-1957 【online】同步数据库新增字段未提交
           }
         });
-        
+
+        // update-begin--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索
+        allFieldData.value = filterData;
         emit('update:authFields', fields);
+        const displayData = filterFieldData(filterData, fieldSearchText.value);
+        // update-end--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索
         // update-begin--author:liaozhiyang---date:20240612---for：【TV360X-148】权限配置加全选
-        setCurDataStatus(params.pageNo, params.pageSize, filterData);
+        setCurDataStatus(params.pageNo, params.pageSize, displayData);
         // update-end--author:liaozhiyang---date:20240612---for：【TV360X-148】权限配置加全选
-        return filterData;
+        return displayData;
       }
 
       async function onUpdateStatus(flag, record) {
@@ -316,12 +365,35 @@
         // }
       }
       // update-end--author:liaozhiyang---date:20240612---for：【TV360X-148】权限配置加全选
-      return { registerTable, onUpdateStatus, onCheckboxChange, handleChangeSwitch, allSwitch, allFormControl, allListControl, allSloading, handleTableChange, handleChangeList, handleChangeForm, tableLoading, formIndeterminate, listIndeterminate, };
+      return {
+        registerTable,
+        onUpdateStatus,
+        onCheckboxChange,
+        handleChangeSwitch,
+        allSwitch,
+        allFormControl,
+        allListControl,
+        allSloading,
+        handleTableChange,
+        handleChangeList,
+        handleChangeForm,
+        tableLoading,
+        formIndeterminate,
+        listIndeterminate,
+        fieldSearchText,
+        applyFieldSearch,
+      };
     },
   });
 </script>
 
 <style lang="less" scoped>
+  /* update-begin--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索 */
+  .field-search {
+    width: 260px;
+    margin-bottom: 12px;
+  }
+  /* update-end--author:liaozhiyang---date:20260810---for：【LHZP-589】字段权限新增一个搜索 */
   .auth-field-config :deep(.ant-checkbox + span) {
     padding-left: 2px;
   }

@@ -9,8 +9,8 @@
                         <edit-outlined v-else/>
                     </span>
                     <span class="log-item-content">
-                        <a @click="handleClickPerson">@{{item.createName || item.createBy}}</a>
-                        {{ item.dataContent }}
+                        <span @click="handleClickPerson">@{{item.createName || item.createBy}}</span>
+                        {{ item.dataContent }}  
                     </span>
                     <div class="log-item-date">
                         <Tooltip :title="item.createTime">
@@ -158,6 +158,9 @@
                     width: 100%;
                     word-break: break-word;
                     box-sizing: border-box;
+                    span {
+                      color: #333;
+                    }
                 }
                 .log-item-date{
                     word-wrap: break-word;

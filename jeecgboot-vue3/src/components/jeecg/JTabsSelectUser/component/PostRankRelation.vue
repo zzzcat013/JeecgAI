@@ -8,7 +8,7 @@
         :treeData="treeData"
         :checkStrictly="true"
         @select="onSelectDepart"
-        style="height: calc(100vh - 390px); min-height: 150px; overflow: auto"
+        class="post-rank-tree"
       ></BasicTree>
     </template>
     <a-empty v-else description="无岗位信息" />
@@ -73,7 +73,38 @@
 </script>
 
 <style lang="less" scoped>
-  .depart-rule-tree :deep(.scrollbar__bar) {
-    pointer-events: none;
+  // update-begin--author:liaozhiyang---date:20260811---for：【LHZP-1694】选中用户组件切换到岗位时滚动条拖动不了
+  .post-rank-tree {
+    width: 100%;
+    min-width: 0;
+    height: calc(100vh - 390px);
+    min-height: 150px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
   }
+
+  .post-rank-tree :deep(.scrollbar__bar) {
+    pointer-events: auto;
+  }
+
+  .post-rank-tree :deep(.scrollbar__view),
+  .post-rank-tree :deep(.ant-tree),
+  .post-rank-tree :deep(.ant-tree-list-holder-inner) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .post-rank-tree :deep(.ant-tree-treenode) {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .post-rank-tree :deep(.ant-tree-node-content-wrapper) {
+    min-width: 0;
+    overflow: hidden;
+  }
+  // update-end--author:liaozhiyang---date:20260811---for：【LHZP-1694】选中用户组件切换到岗位时滚动条拖动不了
 </style>

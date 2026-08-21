@@ -20,7 +20,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, reactive, toRaw, toRefs } from 'vue';
+  import { defineComponent, h, reactive, toRaw, toRefs } from 'vue';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import SetSwitchOptions from './SetSwitchOptions.vue';
   import { ref } from 'vue';
@@ -28,6 +28,7 @@
   import { pick } from 'lodash-es';
   import { LABELLENGTH } from '../util/constant';
   import { isArray } from '/@/utils/is';
+  import { message, Tooltip } from 'ant-design-vue';
   export default defineComponent({
     name: 'FieldExtendJsonModal',
     components: {
@@ -50,6 +51,8 @@
         extendConfig.validateError = '';
         extendConfig.labelLength = LABELLENGTH;
         extendConfig.displayLevel = 'all';
+        //是否标题字段
+        extendConfig.isTitleField = 0;
       }
 
       const extendConfig = reactive({
@@ -63,11 +66,14 @@
         validateError: '',
         labelLength: LABELLENGTH,
         displayLevel: 'all',
+        isTitleField: 0,
       });
       const fieldShowType = ref('');
       const rowKey = ref('');
       const sortFlag = ref('0');
       const dbType = ref('');
+      //是否子表
+      const isSubTable = ref(false);
 
       const formSchemas: any[] = [
         {
@@ -149,7 +155,7 @@
           },
           ifShow: () => {
             // update-begin--author:liaozhiyang---date:20240523---for：【TV360X-308】Datetime、string、Date,int、BigDecimal、double类型默认展示排序功能
-            return sortFlag.value === '1' || ['Datetime', 'string', 'Date', 'int', 'BigDecimal', 'double'].includes(dbType.value);
+            return sortFlag.value === '1' || ['Datetime', 'string', 'Date', 'int', 'BigDecimal', 'double', 'long'].includes(dbType.value);
             // update-end--author:liaozhiyang---date:20240523---for：【TV360X-308】Datetime、string、Date,int、BigDecimal、double类型默认展示排序功能
           },
         },
@@ -162,7 +168,7 @@
           },
         },
         {
-          label: '查询label长度',
+          label: () => h(Tooltip, { title: '显示文字的个数' }, { default: () => '查询label长度' }),
           field: 'labelLength',
           component: 'InputNumber',
           componentProps: {
@@ -237,6 +243,30 @@
           },
         },
         // update-end--author:liaozhiyang---date:20260204---for:【QQYUN-14694】online支持配置独立的省、市、县
+        //update-begin---author:liusq ---date:20260519  for：【QQYUN-13645】online表单允许设置某个字段是标题字段
+        {
+          label: '是否标题字段',
+          field: 'isTitleField',
+          component: 'RadioGroup',
+          defaultValue: 0,
+          componentProps: {
+            options: [
+              { label: '是', value: 1 },
+              { label: '否', value: 0 },
+            ],
+            onChange: (e) => {
+              const newValue = e?.target?.value ?? e;
+              if (newValue === 1) {
+                message.info('标题字段唯一，将覆盖其他已设置项');
+              }
+            },
+          },
+          ifShow: () => {
+            //子表不配置标题字段
+            return !isSubTable.value;
+          },
+        },
+        //update-end---author:liusq ---date:20260519  for：【QQYUN-13645】online表单允许设置某个字段是标题字段
         // update-begin--author:liaozhiyang---date:20240308---for：【TV360X-25】扩展参数配置中增加开关是否选项配置
         {
           label: '开关值',
@@ -287,6 +317,7 @@
         rowKey.value = data.id;
         sortFlag.value = data.sortFlag;
         dbType.value = data.dbType;
+        isSubTable.value = !!data.isSubTable;
         let temp = toRaw(extendConfig);
         await resetFields();
         await setFieldsValue({
@@ -329,6 +360,11 @@
           obj.isFixed = data.isFixed;
         }
         // update-end--author:liaozhiyang---date:20230818---for：【QQYUN-4161】列支持固定功能
+        //update-begin---author:liusq ---date:20260519  for：【QQYUN-13645】online表单允许设置某个字段是标题字段
+        if (!isSubTable.value && data.isTitleField) {
+          obj.isTitleField = data.isTitleField;
+        }
+        //update-end---author:liusq ---date:20260519  for：【QQYUN-13645】online表单允许设置某个字段是标题字段
         // update-begin--author:liaozhiyang---date:20230105---for：【QQYUN-7499】多列风格富文本、markdown增加独占一行功能
         if (data.isOneRow) {
           obj.isOneRow = data.isOneRow;
@@ -370,6 +406,7 @@
         registerForm,
         fieldShowType,
         rowKey,
+        isSubTable,
         handleSubmit,
         ...toRefs(extendConfig),
       };

@@ -11,6 +11,7 @@
     :columns="columns"
     :dataSource="dataSource"
     :toolbar="actionButton"
+    :insertRow="actionButton"
     v-bind="tableProps"
   />
 </template>

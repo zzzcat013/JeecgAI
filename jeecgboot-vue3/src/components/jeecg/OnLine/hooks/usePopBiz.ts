@@ -255,9 +255,17 @@ export function usePopBiz(ob, tableRef?) {
     if (query) {
       url = url + query
     }
+    // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1296】地址栏有参数时首次请求即带上，避免再触发两次请求
+    // 首次请求前先合并地址栏参数，保证与后续查询条件一致
+    if (props.routeQuery && Object.keys(props.routeQuery).length > 0) {
+      queryParam.value = Object.assign({}, queryParam.value, props.routeQuery);
+    }
+    let params = getQueryParams();
+    params['onlRepUrlParamStr'] = getUrlParamString();
+    // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1296】地址栏有参数时首次请求即带上，避免再触发两次请求
     //缓存key
-    let groupIdKey = props.groupId ? `${props.groupId}${url}` : '';
-    httpGroupRequest(() => defHttp.get({ url }, { isTransformResponse: false, successMessageMode: 'none' }), groupIdKey).then((res) => {
+    let groupIdKey = props.groupId ? `${props.groupId}${url}${JSON.stringify(params)}` : '';
+    httpGroupRequest(() => defHttp.get({ url, params }, { isTransformResponse: false, successMessageMode: 'none' }), groupIdKey).then((res) => {
       if (res.success) {
         initDictOptionData(res.result.dictOptions);
         cgRpConfigId.value = props.id;
@@ -621,15 +629,14 @@ export function usePopBiz(ob, tableRef?) {
         dynamicParamHandler(res.result);
         queryInfo.value = res.result;
         console.log('queryInfo==>', queryInfo.value);
-        //查询条件加载后再请求数据
+        // update-begin--author:liaozhiyang---date:20260804---for：【JPopupOnlReport】已有列表数据时不再二次 loadData，避免地址栏带参重复请求
+        // 查询条件加载后再请求数据；若 loadColumnsAndData 已带回数据，直接回填，不再重复请求
         if (data) {
           setDataSource(data);
-          //传递路由参数和动态参数，不生效，
-          loadData(1);
         } else {
-          //没有传递data时查询数据
           loadData(1);
         }
+        // update-end--author:liaozhiyang---date:20260804---for：【JPopupOnlReport】已有列表数据时不再二次 loadData，避免地址栏带参重复请求
       } else {
         createMessage.warning(res.message);
       }
@@ -695,7 +702,7 @@ export function usePopBiz(ob, tableRef?) {
       }
       dataSource.value = data.records;
       // 代码逻辑说明: issues/426 修复356时候引入的回归错误 JPopupOnlReportModal.vue 中未修改
-      tableRef?.value && tableRef?.value?.setPagination({
+      tableRef?.value && tableRef?.value?.setPagination?.({
         total: Number(data.total)
       })
     } else {

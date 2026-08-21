@@ -57,6 +57,12 @@
         type: String,
         default: '',
       },
+      // update-begin--author:liusq---date:20260731---for:【工单授权BPM】一对一子表接收主表传来的 modalClass，否则下拉/日期类组件的 popup 会挂到外层同名 modal 上导致点击无反应
+      modalClass: {
+        type: String,
+        default: '',
+      },
+      // update-end--author:liusq---date:20260731---for:【工单授权BPM】一对一子表接收主表传来的 modalClass，否则下拉/日期类组件的 popup 会挂到外层同名 modal 上导致点击无反应
     },
     emits: ['formChange'],
     setup(props, { emit }) {
@@ -204,28 +210,31 @@
         if (!table || !mainId) {
           return;
         }
-        let values = await loadData(table, mainId);
-        dbData.value = values;
-        // VUEN-1033
-        await setFieldsValue(values);
+        try {
+          const values = await loadData(table, mainId);
+          dbData.value = values;
+          // VUEN-1033
+          await setFieldsValue(values);
+        } catch (error) {
+          const message = error?.message || '子表数据加载失败';
+          console.error('子表数据加载失败:', error);
+          $message.error(message);
+        }
       }
 
-      function loadData(table, mainId) {
+      async function loadData(table, mainId) {
         let url = `${baseUrl}/${table}/${mainId}`;
-        return new Promise((resolve, reject) => {
-          defHttp.get({ url }, { isTransformResponse: false }).then((res) => {
-            console.log(res);
-            if (res.success) {
-              resolve(res.result);
-            } else {
-              console.log(res.message);
-              reject();
-            }
-          });
-        }).finally(() => {
+        //console.log("loadData 子表数据 url:", url);
+        try {
+          const res = await defHttp.get({ url }, { isTransformResponse: false });
+          if (!res?.success) {
+            throw new Error(res?.message || '子表数据加载失败');
+          }
+          return res.result;
+        } finally {
           //resetFields()
           dbData.value = '';
-        });
+        }
       }
 
       function getAll() {
@@ -270,6 +279,16 @@
         }, formData);
       }
 
+      // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-249】第二次打开新增弹窗，一对一子表的默认值没了
+      async function resetAndApplyDefaultValue() {
+        await resetFields();
+        let fieldProperties = toRaw(defaultValueFields[tableName.value]);
+        loadFormFieldsDefVal(fieldProperties, (values) => {
+          setFieldsValue(values);
+        });
+      }
+      // update-end--author:liaozhiyang---date:20260714---for：【LHZP-249】第二次打开新增弹窗，一对一子表的默认值没了
+
       const context = {
         onlineFormRef,
         baseColProps,
@@ -281,6 +300,7 @@
         setValues,
         getAll,
         executeFillRule,
+        resetAndApplyDefaultValue,
         sh: fieldDisplayStatus,
         resetFields,
         updateSchema,

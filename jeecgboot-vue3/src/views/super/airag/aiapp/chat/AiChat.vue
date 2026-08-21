@@ -1,6 +1,9 @@
 <template>
   <div ref="chatContainerRef" class="chat-container" :style="chatContainerStyle">
-    <template v-if="dataSource">
+    <div v-if="pageError" class="chat-error-state">
+      <a-result status="warning" :title="pageError" sub-title="请联系分享者确认链接状态后重试" />
+    </div>
+    <template v-else-if="dataSource">
       <div v-if="isMultiSession" class="leftArea" :class="[expand ? 'expand' : 'shrink']">
         <div class="content">
           <slide :source="source" v-if="uuid" :dataSource="dataSource" @save="handleSave" :prologue="prologue" :appData="appData" @click="handleChatClick"></slide>
@@ -62,6 +65,7 @@
   import { useRouter } from 'vue-router';
   import { useAppInject } from "@/hooks/web/useAppInject";
   import Loading from '@/components/Loading/src/Loading.vue';
+  import { getChatErrorMessage } from './chatError';
 
   const router = useRouter();
   const userId = useUserStore().getUserInfo?.id;
@@ -83,6 +87,7 @@
   const presetQuestion = ref<string>('');
   //加载
   const loading = ref<any>(true);
+  const pageError = ref<string>('');
 
   const handleToggle = () => {
     expand.value = !expand.value;
@@ -327,24 +332,27 @@
   onMounted(() => {
     loading.value = true;
     let params: any = router.currentRoute.value.params;
-    if (params.appId) {
-      appId.value = params.appId;
-      getApplicationData(params.appId);
-      initChartData(params.appId);
-    } else {
-      initChartData();
-      appData.value.metadata = { izDraw: '1', defaultSelect: '0' }  
-      quickCommandData.value = [
-          { name: '请介绍一下JeecgBoot', descr: "请介绍一下JeecgBoot" },
-          { name: 'JEECG有哪些优势？', descr: "JEECG有哪些优势？" },
-          { name: 'JEECG可以做哪些事情？', descr: "JEECG可以做哪些事情？" },];
-    }
     let query: any = router.currentRoute.value.query;
     source.value = query.source;
     if(query.source){
       showAdvertising.value = query.source === 'chatJs';
     }else{
       showAdvertising.value = false;
+    }
+    if (params.appId) {
+      appId.value = params.appId;
+      const shareToken = query.shareToken || '';
+      getApplicationData(params.appId, shareToken);
+      initChartData(params.appId);
+    } else {
+      initChartData();
+      appData.value.metadata = { izDraw: '1', defaultSelect: '0' }  
+      quickCommandData.value = [
+          { name: '介绍一下JeecgBoot', descr: "请介绍一下JeecgBoot" },
+          { name: 'JEECG的优势？', descr: "JEECG有哪些优势？" },
+          { name: 'JEECG可以做什么？', descr: "JEECG可以做哪些事情？" },
+          { name: '创建一个系统用户', descr: "请创建一个系统用户，具体信息如下：\n" +
+              "账号 zhangsan2，密码 Abc123456，姓名张三，邮箱 zhangsan@example.com，手机号 13800138000，并赋予 jeecg 角色权限。" },];
     }
   });
 
@@ -360,13 +368,15 @@
    * 获取应用id
    *
    * @param appId
+   * @param shareToken 分享令牌
    */
-  async function getApplicationData(appId) {
+  async function getApplicationData(appId, shareToken = '') {
+    pageError.value = '';
     await defHttp
       .get(
         {
           url: '/airag/chat/init',
-          params: { id: appId },
+          params: { id: appId, shareToken: shareToken || undefined },
         },
         { isTransformResponse: false }
       )
@@ -400,8 +410,13 @@
             expand.value = false;
           }
         } else {
+          pageError.value = getChatErrorMessage(res) || '分享链接无效或已取消发布';
           appData.value = {};
         }
+      })
+      .catch((error) => {
+        pageError.value = error?.response?.data?.message || error?.message || '应用加载失败，请稍后重试';
+        appData.value = {};
       });
   }
 
@@ -472,6 +487,14 @@
       left: 50%;
       transform: translate(-50%, -50%);
     }
+  }
+
+  .chat-error-state {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .leftArea {

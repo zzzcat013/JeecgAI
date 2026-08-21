@@ -170,7 +170,7 @@ async function checkPhone(rule, value, callback) {
  * 判断是否是OAuth2APP环境
  */
 export function isOAuth2AppEnv() {
-  return /wxwork|dingtalk/i.test(navigator.userAgent);
+  return /wxwork|dingtalk|lark|feishu/i.test(navigator.userAgent);
 }
 
 /**

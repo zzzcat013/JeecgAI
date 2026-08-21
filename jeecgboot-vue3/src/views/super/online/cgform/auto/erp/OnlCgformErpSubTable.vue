@@ -50,7 +50,7 @@
           v-if="btnShow && buttonSwitch.import && cgBIBtnMap['import'].enabled"
           type="primary"
           :preIcon="cgBIBtnMap['import'].buttonIcon"
-          @click="onImportExcel"
+          @click="handleImportExcel"
       >
         <span>{{cgBIBtnMap['import'].buttonName}}</span>
       </a-button>
@@ -111,9 +111,9 @@
     <template #htmlSlot="{ text, column, record }">
       <!-- update-begin--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
       <template v-if="column.fieldHref">
-        <a v-html="text" @click="handleClickFieldHref(column.fieldHref, record)"></a>
+        <a v-html="sanitizeRichText(text)" @click="handleClickFieldHref(column.fieldHref, record)"></a>
       </template>
-      <div v-else v-html="text"></div>
+      <div v-else v-html="sanitizeRichText(text)"></div>
       <!-- update-end--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
     </template>
 
@@ -185,6 +185,7 @@
   import OnlinePopModal from '../comp/OnlinePopModal.vue';
   import { ERP, ERPSUBTABLE } from '../../util/constant';
   import { cloneDeep } from 'lodash-es';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
   const props = defineProps(['data', 'mainTableSelectedRowRcord']);
   const emit = defineEmits(['getSource']);
   const btnShow = ref(false);
@@ -302,12 +303,15 @@
     () => props.mainTableSelectedRowRcord,
     (newVal) => {
       // 切换重置状态
-      pagination.value.current = 1;
+      // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-188】erp风格子表分页改成不显示分页，网页报错无响应
+      if (pagination.value) pagination.value.current = 1;
+      // update-end--author:liaozhiyang---date:20260713---for：【LHZP-188】erp风格子表分页改成不显示分页，网页报错无响应
       selectedKeys.value = [];
       // update-begin--author:liaozhiyang---date:20240523---for：【TV360X-124】erp风格，切换主表数据时，子表查询条件未清空
       onlineQueryFormOuter.value?.clearSearch();
       // update-end--author:liaozhiyang---date:20240523---for：【TV360X-124】erp风格，切换主表数据时，子表查询条件未清空
-      if (newVal) {
+      // update-begin--author:liusq---date:20260113---for：【LHZP-118】主子表联动兜底：只有有效选中行(id !== undefined)才走加载分支
+      if (newVal && newVal.id !== undefined) {
         if (onlineTableContext['foreignKeyField']) {
           const value = newVal[$key];
           onlineTableContext['foreignKeyValue'] = value;
@@ -320,8 +324,11 @@
         });
       } else {
         btnShow.value = false;
+        // 显式清空 foreignKeyValue，避免 loadData 命中旧值仍去查询子表
+        onlineTableContext['foreignKeyValue'] = null;
         dataSource.value = [];
       }
+      // update-end--author:liusq---date:20260113---for：【LHZP-118】主子表联动兜底：只有有效选中行(id !== undefined)才走加载分支
     },
     {
       immediate: true,
@@ -396,8 +403,16 @@
     } else {
       handleAdd();
     }
-   
+
+  }
+
+  // 导入事件 - 一对一关系校验（前端做 UX 拦截，真正的约束由后端把关）
+  const handleImportExcel = () => {
+    if (props.data.relationType == 1 && dataSource.value.length) {
+      $message.warning(`一对一的表只能导入一条数据！`);
+    } else {
+      onImportExcel();
+    }
   }
 </script>
-
 

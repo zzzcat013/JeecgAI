@@ -13,6 +13,7 @@
     :columns="columns"
     :dataSource="dataSource"
     :toolbar="actionButton"
+    :insertRow="actionButton"
     :maxHeight="tableHeight.normal"
     :disabledRows="{ dbFieldName: handleDisabledDbFieldName }"
     v-bind="tableProps"
@@ -278,6 +279,7 @@
       actionButton: { type: Boolean, default: true },
       tableName: { type: String, default: '' },
       isUpdate: { type: Boolean, default: false },
+      isTree: { type: String, default: 'N' },
     },
     components: {
       AiModal,
@@ -479,6 +481,12 @@
             emit('syncDbType', { row, value, target: instance });
           }
           // update-end--author:liaozhiyang---date:20230105---for：【QQYUN-7530】字段类型从Date和DateTime改成string，控件也变成文本框
+          // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-516】blob类型字段的不让勾选查询
+          // Blob类型不支持查询，触发同步去掉查询勾选
+          if (value === 'Blob') {
+            emit('syncDbType', { row, value, target: instance });
+          }
+          // update-end--author:liaozhiyang---date:20260713---for：【LHZP-516】blob类型字段的不让勾选查询
           // 字段类型Blob、Date、Text 将字段长度改为0
           if (value === 'Blob' || value === 'Text' || value === 'Date') {
             target.setValues([{ rowKey: row.id, values: { dbLength: '0' } }]);
@@ -508,9 +516,11 @@
 
       // dbFieldName字段禁用
       function handleDisabledDbFieldName(value, _row, rowIndex) {
-        if (value === 'has_child') {
+        // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-368】online视图插入一行禁用
+        if (value === 'has_child' && props.isTree === 'Y') {
           return true;
         }
+        // update-end--author:liaozhiyang---date:20260713---for：【LHZP-368】online视图插入一行禁用
         if (value === 'id') {
           // -update-begin--author:liaozhiyang---date:20240614---for：【TV360X-357】数据库属性其他行拖到id行之上时id可编辑了
           const { tables } = setup;
@@ -583,6 +593,10 @@
       function validateFieldDbType({ cellValue, row }, callback) {
         if (row.dbType == 'int' && row.dbPointLength > 0) {
           callback(false, '设置了小数点不可设置integer类型');
+        } else if (row.dbType == 'long' && row.dbPointLength > 0 ) {
+          // update-begin--author:liaozhiyang---date:20240522---for：【LHZP-280】设置了小数点不可设置Long类型
+          callback(false, '设置了小数点不可设置Long类型');
+          // update-end--author:liaozhiyang---date:20240522---for：【LHZP-280】设置了小数点不可设置Long类型
         }
         callback(true);
       }

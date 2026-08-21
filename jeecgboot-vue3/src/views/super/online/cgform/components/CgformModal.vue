@@ -11,7 +11,13 @@
     @cancel="onCancel"
     @register="registerModal"
   >
-    <div ref="onlFormContentRef" class="onlForm-content">
+    <div
+      ref="onlFormContentRef"
+      class="onlForm-content"
+      :data-input-method="inputMethod"
+      @pointerdown.capture="inputMethod = 'mouse'"
+      @keydown.capture="onInputKeyDown"
+    >
       <a-spin ref="spinRef" wrapperClassName="pl-2 pr-2" :spinning="confirmLoading">
         <div ref="onlFormContentFormRef" class="onlForm-content-form">
           <CgformHeadForm
@@ -30,6 +36,7 @@
                 :isUpdate="isUpdate"
                 :tableName="oldTableName"
                 :actionButton="actionButton"
+                :isTree="isTree"
                 @added="onTableAdded"
                 @removed="onTableRemoved"
                 @dragged="onTableDragged"
@@ -57,7 +64,7 @@
                   个性查询配置
                   <a-tooltip>
                     <template #title>允许自定义，查询表单字段控件类型！</template>
-                    <Icon icon="bx:help-circle"></Icon>
+                    <Icon class="query-help-icon" icon="bx:help-circle"></Icon>
                   </a-tooltip>
                 </span>
               </template>
@@ -89,7 +96,7 @@
             <a-button type="primary" ghost @click="initVirtualData">生成数据&gt;&gt;</a-button>
           </div>
           <div v-if="isUpdate" class="positioning-area">
-            <a-input v-model:value="positioning" placeholder="请输入字段名称或字段备注" allowClear @pressEnter="handlePositioning"></a-input>
+            <a-input v-model:value="positioning" placeholder="搜索字段或备注" allowClear @pressEnter="handlePositioning"></a-input>
             <a-button type="primary" ghost @click="handlePositioning">定位</a-button>
           </div>
         </div>
@@ -174,6 +181,16 @@
       provide('fullScreenRef', fullScreenRef);
       const positioning = ref('');
       const onlFormContentRef = ref<HTMLElement>();
+
+      //update-begin-author:liaozhiyang date:2026-05-12 for:【QQYUN-9789】鼠标点击时去掉 vxe-table 的蓝框，键盘导航（Tab/Enter/方向键）时正常显示
+      const inputMethod = ref<'mouse' | 'keyboard'>('mouse');
+      const KEYBOARD_NAV_KEYS = new Set(['Tab', 'Enter', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+      function onInputKeyDown(e: KeyboardEvent) {
+        if (KEYBOARD_NAV_KEYS.has(e.key)) {
+          inputMethod.value = 'keyboard';
+        }
+      }
+      //update-end-author:liaozhiyang date:2026-05-12 for：【QQYUN-9789】鼠标点击时去掉 vxe-table 的蓝框，键盘导航（Tab/Enter/方向键）时正常显示
       const onlFormContentFormRef = ref<HTMLElement>();
       /** `.onlForm-content-form` 当前高度（随布局/展开收起等变化） */
       const onlFormContentFormHeight = ref(0);
@@ -189,6 +206,7 @@
 
       // 头部表单子组件 ref
       const cgformHeadFormRef = ref<InstanceType<typeof CgformHeadForm>>();
+      const isTree = ref<string>('N');
       // 代理 formAction 供 ExtendConfigModal 和 useOnlineTest 使用
       const formAction = {
         getFieldsValue: (fields?: string[]) => cgformHeadFormRef.value?.getFieldsValue(fields) ?? {},
@@ -314,6 +332,9 @@
       function initialAllShowItem(model) {
         treeFieldAdded = model.isTree == 'Y';
         showSubTableStr = model.tableType === 2;
+        // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-68】树表时has_child禁用，非树表时has_child字段不禁用
+        isTree.value = model.isTree || 'N';
+        // update-end--author:liaozhiyang---date:20260713---for：【LHZP-68】树表时has_child禁用，非树表时has_child字段不禁用
       }
       // update-begin--author:liaozhiyang---date:20260330---for:【QQYUN-13610】解决online打开慢的问题
       // 清空所有表的数据（v-show模式下切换数据前调用，避免旧ID匹配报错）
@@ -383,6 +404,7 @@
 
       // 是否树isTree字段change事件
       function onIsTreeChange(value) {
+        isTree.value = value;
         value === 'Y' ? addTreeNeedField() : deleteTreeNeedField();
       }
 
@@ -404,6 +426,27 @@
       const SYS_BUILT_IN_FIELDS = ['create_by', 'create_time', 'update_by', 'update_time', 'sys_org_code'];
       // update-end--author:liaozhiyang---date:20260414---for：【QQYUN-15128】新增字段时系统字段永远在最下面
 
+      // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-1858】online表老数据新增字段用户自定义字段下面新增
+      /** 老数据布局：系统字段在前，其后还有用户自定义字段（新增时不应插到系统字段前，以免拆散自定义字段） */
+      function hasCustomFieldsAfterSystemFields(fullData: Recordable[]) {
+        const lastSysIndex = fullData.reduce(
+          (max, row, index) => (SYS_BUILT_IN_FIELDS.includes(row.dbFieldName) ? Math.max(max, index) : max),
+          -1,
+        );
+        if (lastSysIndex === -1) {
+          return false;
+        }
+        const lastIndex = fullData.length - 1;
+        for (let i = lastSysIndex + 1; i < lastIndex; i++) {
+          const name = fullData[i]?.dbFieldName;
+          if (name && name !== 'id' && !SYS_BUILT_IN_FIELDS.includes(name)) {
+            return true;
+          }
+        }
+        return false;
+      }
+      // update-end--author:liaozhiyang---date:20260807---for：【LHZP-1858】online表老数据新增字段用户自定义字段下面新增
+
       // update-begin--author:liaozhiyang---date:20260506---for:【issues/9593】树表的页面属性中子节点和父节点的属性串了
       let onTableAddedQueue: Promise<unknown> = Promise.resolve();
       // update-end--author:liaozhiyang---date:20260506---for:【issues/9593】树表的页面属性中子节点和父节点的属性串了
@@ -420,6 +463,13 @@
             const lastIndex = fullData.length - 1;
             // 末尾是新增行，且在系统字段后面，且本身不是系统字段
             if (sysIndex !== -1 && lastIndex > sysIndex && !SYS_BUILT_IN_FIELDS.includes(fullData[lastIndex]?.dbFieldName)) {
+              // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-1858】online表老数据新增字段用户自定义字段下面新增
+              // 老数据：系统字段在前、自定义在后，新增字段保持在末尾
+              if (hasCustomFieldsAfterSystemFields(fullData)) {
+                syncAllTableNow();
+                return;
+              }
+              // update-end--author:liaozhiyang---date:20260807---for：【LHZP-1858】online表老数据新增字段用户自定义字段下面新增
               const newRowData = { ...fullData[lastIndex] };
               // 在 dbTable 中把末尾新行移到第一个系统字段前面
               await dbJVxeRef.rowResort(lastIndex, sysIndex);
@@ -622,6 +672,11 @@
         formData.head.desFormCode = extConfigJson.desFormCode;
         delete extConfigJson.isDesForm;
         delete extConfigJson.desFormCode;
+        // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源：dbSource 持久化到 onl_cgform_head.db_source 列
+        formData.head.dbSource = extConfigJson.enableMultiDataSource ? extConfigJson.dbSource || '' : '';
+        delete extConfigJson.dbSource;
+        delete extConfigJson.enableMultiDataSource;
+        // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
         formData.head.extConfigJson = JSON.stringify(extConfigJson);
         // 整理 fields
         options.dbTable.tableData.forEach((item, index) => {
@@ -788,10 +843,10 @@
               // update-end--author:liaozhiyang---date:20260330---for：【QQYUN-15058】解决字段定位在小屏幕上看不见的问题
             });
           } else {
-            $message.warning('没搜到相关字段名称或字段备注~');
+            $message.warning('未找到匹配字段');
           }
         } else {
-          $message.warning('请输入字段名称或字段备注~');
+          $message.warning('请输入字段或备注');
         }
       };
       function getRefPromise(componentRef) {
@@ -839,6 +894,7 @@
         onTableSyncDbIsPersist,
         onTableSyncDbIsNull,
         isUpdate,
+        isTree,
         positioning,
         handlePositioning,
         oldTableName,
@@ -847,6 +903,8 @@
         cgformHeadFormRef,
         onTableTypeChange,
         onRelationTypeChange,
+        inputMethod,
+        onInputKeyDown,
       };
     },
   });
@@ -856,6 +914,16 @@
   .onlForm-content {
     height: 100%;
   }
+  .query-help-icon {
+    color: #a8b0bb;
+  }
+  //update-begin-author:liaozhiyang date:2026-05-12 for: 【QQYUN-9789】鼠标点击时去掉 vxe-table 的蓝框，键盘导航（Tab/Enter/方向键）时正常显示
+  .onlForm-content[data-input-method='mouse'] {
+    :deep(.vxe-body--column.col--selected) {
+      box-shadow: none;
+    }
+  }
+  //update-end-author:liaozhiyang date:2026-05-12 for:【QQYUN-9789】鼠标点击时去掉 vxe-table 的蓝框，键盘导航（Tab/Enter/方向键）时正常显示
   // update-begin--author:liaozhiyang---date:20240717---for：【TV360X-829】根据字典名称和字段备注快速定位到行
   .footer-area {
     display: flex;

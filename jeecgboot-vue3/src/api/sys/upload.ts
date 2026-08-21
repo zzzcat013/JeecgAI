@@ -11,10 +11,14 @@ const { uploadUrl = '' } = useGlobSetting();
 export function uploadApi(params: UploadFileParams, onUploadProgress: (progressEvent: ProgressEvent) => void) {
   return defHttp.uploadFile<UploadApiResult>(
     {
-      url: uploadUrl,
+      url: `${uploadUrl}/sys/common/upload`,
       onUploadProgress,
     },
-    params
+    params,
+    // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1385】修复上传示例报错
+    // 返回上传接口完整响应，避免调用方拿到 undefined 被当成失败
+    { isReturnResponse: true }
+    // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1385】修复上传示例报错
   );
 }
 /**

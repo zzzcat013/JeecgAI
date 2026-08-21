@@ -168,7 +168,7 @@
         }
         try {
           item.status = UploadResultStatus.UPLOADING;
-          const { data } = await props.api?.(
+          const res = await props.api?.(
             {
               data: {
                 ...(props.uploadParams || {}),
@@ -182,8 +182,16 @@
               item.percent = complete;
             }
           );
+          // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1385】修复上传示例报错
+          const data = res?.data ?? res;
+          const isSuccess = data && (data.success === true || data.code === 0);
+          const url = data?.url || data?.result || data?.message;
+          if (!isSuccess || !url) {
+            throw new Error(data?.message || 'upload failed');
+          }
           item.status = UploadResultStatus.SUCCESS;
-          item.responseData = data;
+          item.responseData = { ...data, url };
+          // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1385】修复上传示例报错
           return {
             success: true,
             error: null,

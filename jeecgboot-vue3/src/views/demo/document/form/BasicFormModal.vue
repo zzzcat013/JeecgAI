@@ -45,9 +45,13 @@
     },
     {
       label: '入职时间',
-      subLabel: '( 选填 )',
+      subLabel: '(选填)',
       field: 'entryTime',
       component: 'TimePicker',
+      // 弹窗场景：把下拉面板挂到 body 避免被 modal 边界裁剪/遮挡
+      componentProps: {
+        getPopupContainer: () => document.body,
+      },
     },
   ];
 
@@ -59,6 +63,8 @@
    */
   const [registerForm, { validate, resetFields }] = useForm({
     schemas: formSchemas,
+    // 弹窗宽度有限，给 label 一个固定宽度，避免「入职时间（选填）」被截断
+    labelWidth: 120,
     //隐藏操作按钮
     showActionButtonGroup: false,
   });

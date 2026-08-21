@@ -51,4 +51,6 @@ export type ExtConfigType = Partial<{
   tableFixedActionType: 'left' | 'right',
   // 是否允许调整列表列宽
   canResizeColumn?: number,
+  // Excel 图片导出方式
+  imageExportMode?: 'embed' | 'path',
 }>

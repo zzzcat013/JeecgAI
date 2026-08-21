@@ -75,17 +75,26 @@ export function useTableColumns(onlineTableContext, extConfigJson: Ref<ExtConfig
   // 用于 online表单中 弹出别的表单
   const [registerPopModal, { openModal: openPopModal }] = useModal();
   const popTableId = ref('')
+  const formDisabledColumns = ref<string[]>([]);
 
   // 对查询列信息的请求结果 处理方法
   function handleColumnResult(result, type = 'checkbox') {
     // 字典设置
     dictOptionInfo.value = result.dictOptions;
+    // update-begin--author:liusq---date:20260715---for：LHZP-330【关联记录权限】记录当前用户在表单上不可编辑的字段
+    formDisabledColumns.value = result.formDisabledColumns || [];
+    // update-end--author:liusq---date:20260715---for：LHZP-330【关联记录权限】记录当前用户在表单上不可编辑的字段
     // rowSelection设置
     if (result.checkboxFlag == 'Y') {
       rowSelection.value = {
         selectedRowKeys: selectedKeys,
         onChange: onSelectChange,
         type,
+        // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-407】树表后台返回2条，显示的勾选是4条
+        getCheckboxProps: (record) => ({
+          disabled: !!record?.isLoading,
+        }),
+        // update-end--author:liaozhiyang---date:20260714---for：【LHZP-407】树表后台返回2条，显示的勾选是4条
       };
     } else {
       rowSelection.value = null;
@@ -219,7 +228,7 @@ export function useTableColumns(onlineTableContext, extConfigJson: Ref<ExtConfig
                 {
                   id: tempIdArray[i],
                   text: tempLabelArray[i],
-                  onTab:(id)=>handleClickLinkTable(id, hrefSlotName, json.isListReadOnly)
+                  onTab:(id)=>handleClickLinkTable(id, hrefSlotName, json.isListReadOnly, column.dataIndex)
                 }
               );
               renderResult.push(renderObj)
@@ -228,7 +237,9 @@ export function useTableColumns(onlineTableContext, extConfigJson: Ref<ExtConfig
               return ''
             }
             //如果需要显示全，但是会换行：display: flex;width: 100%;flex-wrap: wrap;flex-direction: row;
-            return h('div',{style:{'overflow':'hidden'}}, renderResult);
+            // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-393】表格单元格加上title属性，鼠标划过可显示
+            return h('div',{style:{'overflow':'hidden'}, title: tempLabelArray.join(',')}, renderResult);
+            // update-end--author:liaozhiyang---date:20260713---for：【LHZP-393】表格单元格加上title属性，鼠标划过可显示
           }
         };
       } else if (fieldType === 'popup_dict') {
@@ -240,6 +251,7 @@ export function useTableColumns(onlineTableContext, extConfigJson: Ref<ExtConfig
           }
           return text;
         };
+        column.ellipsis = true;
         // update-end--author:liaozhiyang---date:20240402---for：【QQYUN-8833】JPopupDict的列表翻译
       } else {
         if (!hrefSlotName && column.scopedSlots && column.scopedSlots.customRender) {
@@ -296,13 +308,18 @@ export function useTableColumns(onlineTableContext, extConfigJson: Ref<ExtConfig
                 return h(
                   'a',
                   {
+                    // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-393】表格单元格加上title属性，鼠标划过可显示
+                    title: value,
+                    // update-end--author:liaozhiyang---date:20260713---for：【LHZP-393】表格单元格加上title属性，鼠标划过可显示
                     onClick: () => handleClickFieldHref(field, record),
                   },
                   getValue(),
                 );
               }
             }
-            return h('span', {}, getValue());
+            // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-393】表格单元格加上title属性，鼠标划过可显示
+            return h('span', { title: value }, getValue());
+            // update-end--author:liaozhiyang---date:20260713---for：【LHZP-393】表格单元格加上title属性，鼠标划过可显示
           };
         }
 
@@ -596,11 +613,11 @@ watch(() => extConfigJson?.value, () => {
    * @param hrefTableName
    */
   const onlinePopModalRef = ref();
-  async function handleClickLinkTable(id, hrefTableName, isListReadOnly){
+  async function handleClickLinkTable(id, hrefTableName, isListReadOnly, fieldName?){
     popTableId.value = hrefTableName;
-    let formStatus =  await onlinePopModalRef.value.getFormStatus();
-    // 判断当前表单是否支持编辑，不能编辑跳详情表单
-    if(formStatus==true){
+    const formStatus = await onlinePopModalRef.value.getFormStatus();
+    // 列表配置只读或当前表单不支持编辑时，统一跳转只读详情表单
+    if(formStatus==true || isListReadOnly){
       hrefMainTableId.value = hrefTableName;
       openOnlineHrefModal(true, {
         isUpdate: true,
@@ -612,7 +629,9 @@ watch(() => extConfigJson?.value, () => {
       openPopModal(true, {
         isUpdate: true,
         // update-begin--author:liaozhiyang---date:20250318---for：【issues/7930】表格列表中支持关联记录配置是否只读
-        disableSubmit: isListReadOnly ? true : false,
+        // update-begin--author:cc---date:20260715---for：【关联记录权限】列表只读=是，或该字段对当前用户"表单可编辑"未授权时，弹窗只读不可编辑
+        disableSubmit: (isListReadOnly || formDisabledColumns.value.includes(fieldName)) ? true : false,
+        // update-end--author:cc---date:20260715---for：【关联记录权限】列表只读=是，或该字段对当前用户"表单可编辑"未授权时，弹窗只读不可编辑
         // update-end--author:liaozhiyang---date:20250318---for：【issues/7930】表格列表中支持关联记录配置是否只读
         record: {
           id: id

@@ -28,6 +28,7 @@
               :properties="sub.properties"
               :required-fields="sub.requiredFields"
               :is-update="isUpdate"
+              :modal-class="modalClass"
               @formChange="(arg) => handleSubFormChange(arg, sub.key)"
             />
           </div>
@@ -54,25 +55,25 @@
               @added="handleAdded(sub, $event)"
               @executeFillRule="handleSubTableDefaultValue(sub, $event)"
             >
-              <template #toolbarSuffix>
-                <!-- 子表内弹出新增按钮 -->
-                <a-button
-                    v-if="!onlineFormDisabled && getSubOpenAddBtnCfg.enabled"
-                    type="primary"
-                    :preIcon="getSubOpenAddBtnCfg.buttonIcon"
-                    @click="openSubFormModalForAdd(sub)"
-                >
-                  <span>{{getSubOpenAddBtnCfg.buttonName}}</span>
-                </a-button>
-                <!-- 子表内弹出编辑按钮 -->
-                <a-button
-                    v-if="!onlineFormDisabled && getSubOpenEditBtnCfg.enabled"
-                    type="primary"
-                    :preIcon="getSubOpenEditBtnCfg.buttonIcon"
-                    @click="openSubFormModalForEdit(sub)"
-                >
-                  <span>{{getSubOpenEditBtnCfg.buttonName}}</span>
-                </a-button>
+              <template #toolbarAfterAdd="{ selectedRowIds }">
+                <a-button-group class="sub-popup-button-group">
+                  <!-- 子表内弹出新增按钮 -->
+                  <a-button
+                      v-if="!onlineFormDisabled && getSubOpenAddBtnCfg.enabled"
+                      :preIcon="getSubOpenAddBtnCfg.buttonIcon"
+                      @click="openSubFormModalForAdd(sub)"
+                  >
+                    <span>{{getSubOpenAddBtnCfg.buttonName}}</span>
+                  </a-button>
+                  <!-- 子表内弹出编辑按钮 -->
+                  <a-button
+                      v-if="!onlineFormDisabled && getSubOpenEditBtnCfg.enabled && selectedRowIds.length === 1"
+                      :preIcon="getSubOpenEditBtnCfg.buttonIcon"
+                      @click="openSubFormModalForEdit(sub)"
+                  >
+                    <span>{{getSubOpenEditBtnCfg.buttonName}}</span>
+                  </a-button>
+                </a-button-group>
               </template>
             </JVxeTable>
           </div>
@@ -1268,6 +1269,13 @@
     :deep(.vxe-buttons--wrapper) {
       > div {
         display: flex;
+      }
+    }
+    .sub-popup-button-group {
+      margin-right: 8px;
+
+      :deep(.ant-btn) {
+        margin-right: 0;
       }
     }
     // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9353】markdown全屏之后，弹窗的关闭和全屏按钮在markdown上面

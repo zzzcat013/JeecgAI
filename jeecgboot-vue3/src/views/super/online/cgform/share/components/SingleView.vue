@@ -2,13 +2,13 @@
   <div ref="boxRef" :class="['view-box', {'is-mobile': isMobile}]" :style="boxStyle">
     <template v-if="!loading">
       <!-- 详情弹框 -->
-      <OnlineDetailModal v-if="isDetail" v-bind="getModalProps">
+      <OnlineDetailModal v-if="isDetail" v-bind="getModalProps" :isShare="true">
         <template #footerBtn>
           <a-button @click="emit('goEdit')">编辑该数据</a-button>
         </template>
       </OnlineDetailModal>
       <!-- 编辑弹框 -->
-      <OnlineAutoModal v-else v-bind="getModalProps"/>
+      <OnlineAutoModal v-else v-bind="getModalProps" :isShare="true"/>
     </template>
   </div>
 </template>

@@ -6,7 +6,7 @@
 
 <script lang="ts">
   import { useMessage } from '/@/hooks/web/useMessage';
-  import { computed, ref, unref, nextTick, toRaw, reactive } from 'vue';
+  import { computed, ref, unref, nextTick, toRaw, reactive, inject } from 'vue';
   import { BasicForm, useForm } from '/@/components/Form/index';
   import { SUBMIT_FLOW_KEY, VALIDATE_FAILED } from '../../types/onlineRender';
   import { defHttp } from '/@/utils/http/axios';
@@ -106,6 +106,12 @@
       });
 
       const { onlineFormContext, resetContext } = useOnlineFormContext();
+
+      // update-begin--author:liaozhiyang---date:20260519---for：【QQYUN-9773】online一对多内部弹窗新增js增强
+      // 由父 OnlineForm 注入；非弹窗使用场景（如关联记录单独弹窗）下为 null，所有打通逻辑自动 no-op
+      const parentOnlineForm: any = inject('parentOnlineForm', null);
+      // update-end--author:liaozhiyang---date:20260519---for：【QQYUN-9773】online一对多内部弹窗新增js增强
+
       const {
         formSchemas,
         defaultValueFields,
@@ -171,6 +177,7 @@
           handleDefaultValue();
           // 所有信息加载完毕 触发loaded事件
           handleCgButtonClick('js', 'loaded');
+          replayParentMainOnlChange();
           //处理表单的禁用效果
           handleFormDisabled();
         });
@@ -537,25 +544,126 @@
         if(oldFormData[columnKey]!=value){
           emit('dataChange', columnKey);
         }
-        
-        if (!EnhanceJS || !EnhanceJS['onlChange']) {
-          return false;
-        }
+
         if (!columnKey) {
           return false;
         }
-        //let tableChangeObj = EnhanceJS["onlChange"].call(onlineFormContext);
-        let tableChangeObj = EnhanceJS['onlChange']();
-        if (tableChangeObj[columnKey]) {
-          let formData = await getFieldsValue();
-          let event = {
-            row: formData,
-            column: { key: columnKey },
-            value: value,
-          };
-          tableChangeObj[columnKey].call(onlineFormContext, onlineFormContext, event);
+
+        // 1) 弹窗自己（子表 head）的 enhanceJs.onlChange —— 保留原有行为
+        if (EnhanceJS && EnhanceJS['onlChange']) {
+          //let tableChangeObj = EnhanceJS["onlChange"].call(onlineFormContext);
+          let tableChangeObj = EnhanceJS['onlChange']();
+          if (tableChangeObj[columnKey]) {
+            let formData = await getFieldsValue();
+            let event = {
+              row: formData,
+              column: { key: columnKey },
+              value: value,
+            };
+            tableChangeObj[columnKey].call(onlineFormContext, onlineFormContext, event);
+          }
+        }
+
+        await triggerParentSubOnlChange(columnKey, value);
+      }
+
+      // update-begin--author:liaozhiyang---date:20260519---for：【QQYUN-9773】online一对多内部弹窗新增js增强
+      // 父组件用 provide 注入 onlineFormContext + enhanceJs + 当前子表 key，弹窗 inject
+      // 后做两件事：
+      //   ① 弹窗字段变化   → 调主表「子表名_onlChange[字段]」（与 VxeTable 行内编辑等价）
+      //   ② 弹窗打开 loaded → 重放主表「onlChange[已选字段]」（让"主表分类→当前子表 options"联动立刻生效）
+      // 两条路径都用 wrapParentCtxForPop 包装 this：写"当前行字段"的 API 自动落到弹窗，避免污染主表。
+      function wrapParentCtxForPop(parentCtx, currentSubKey) {
+        const popOverrides: Record<string, Function> = {
+          triggleChangeValues: (values, rowId?, vxeTarget?) => {
+            if (vxeTarget === undefined) return setFieldsValue(values);
+            return parentCtx.triggleChangeValues?.(values, rowId, vxeTarget);
+          },
+          changeSubTableOptions: (tableName, field, options) => {
+            if (tableName === currentSubKey) return changeOptions(field, options);
+            return parentCtx.changeSubTableOptions?.(tableName, field, options);
+          },
+          changeRemoteOptions: (param) => {
+            if (param?.subTableName !== currentSubKey) {
+              return parentCtx.changeRemoteOptions?.(param);
+            }
+            // 等价于父表"单表/主表分支"：用本弹窗 updateSchema 改远程下拉的 dict
+            const _dict = String(param.dict || '').split(',').map(encodeURIComponent).join(',');
+            const schemaPatch: any = { field: param.field, componentProps: { dict: _dict } };
+            if (param.label) schemaPatch.label = param.label;
+            updateSchema(schemaPatch);
+          },
+        };
+
+        return new Proxy(parentCtx, {
+          get: (target, prop: string) =>
+            prop in popOverrides ? popOverrides[prop] : Reflect.get(target, prop),
+        });
+      }
+      /** 弹窗字段变化时，调用主表的「子表名_onlChange[字段]」—— 与 VxeTable 行内编辑等价 */
+      async function triggerParentSubOnlChange(columnKey, value) {
+        const subKey = unref(parentOnlineForm?.subTableKey);
+        if (!subKey) return;
+
+        const subOnlChange = parentOnlineForm.getEnhanceJs?.()?.[`${subKey}_onlChange`];
+        if (typeof subOnlChange !== 'function') return;
+
+        const wrappedCtx = wrapParentCtxForPop(parentOnlineForm.context, subKey);
+        const handler = subOnlChange(wrappedCtx)?.[columnKey];
+        if (typeof handler !== 'function') return;
+
+        const event = {
+          row: await getFieldsValue(),
+          column: { key: columnKey },
+          value,
+          target: undefined,   // 弹窗模式标记：无 VxeTable 实例
+          type: undefined,
+        };
+        try {
+          handler.call(wrappedCtx, wrappedCtx, event);
+        } catch (e) {
+          console.error(`[OnlinePopForm] 调用主表 ${subKey}_onlChange.${columnKey} 失败：`, e);
         }
       }
+
+      /**
+       * 弹窗打开时重放一次主表「onlChange[主表已选字段]」。
+       */
+      function replayParentMainOnlChange() {
+        const subKey = unref(parentOnlineForm?.subTableKey);
+        if (!subKey) return;
+
+        const mainOnlChange = parentOnlineForm.getEnhanceJs?.()?.['onlChange'];
+        if (typeof mainOnlChange !== 'function') return;
+
+        let handlers;
+        try {
+          handlers = mainOnlChange();
+        } catch (e) {
+          console.error('[OnlinePopForm] 解析主表 onlChange 失败：', e);
+          return;
+        }
+        if (!handlers || typeof handlers !== 'object') return;
+
+        const parentCtx = parentOnlineForm.context;
+        const wrappedCtx = wrapParentCtxForPop(parentCtx, subKey);
+        const mainValues = parentCtx?.getFieldsValue?.() || {};
+
+        for (const [field, handler] of Object.entries(handlers)) {
+          const val = mainValues[field];
+          // 主表该字段没值就不重放（避免空触发，也跳过新增模式下未填的字段）
+          if (val === undefined || val === null || val === '') continue;
+          if (typeof handler !== 'function') continue;
+
+          const event = { row: mainValues, column: { key: field }, value: val, target: undefined, type: undefined };
+          try {
+            (handler as Function).call(wrappedCtx, wrappedCtx, event);
+          } catch (e) {
+            console.error(`[OnlinePopForm] 重放主表 onlChange.${field} 失败：`, e);
+          }
+        }
+      }
+      // update-end--author:liaozhiyang---date:20260519---for：【QQYUN-9773】online一对多内部弹窗新增js增强
 
       // 自定义按钮 增强触发事件
       function handleCgButtonClick(optType, buttonCode) {
@@ -884,7 +992,7 @@
 <style lang="less" scoped>
   .onlinePopFormWrap {
     // update-begin--author:liaozhiyang---date:20240429---for：【QQYUN-7632】 label栅格改成labelwidth固宽
-    padding: 20px 1.5% 0 1.5%;
+    padding: 0 1.5%;
     // update-begin--author:liaozhiyang---date:20240506---for：【QQYUN-9229】间隔调整
     &.formTemplate_1 {
       > form {

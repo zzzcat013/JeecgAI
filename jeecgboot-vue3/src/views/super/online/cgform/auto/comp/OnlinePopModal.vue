@@ -1,5 +1,5 @@
 <template>
-    <BasicModal :width="popModalFixedWidth" :dialogStyle="{top: '70px'}" :bodyStyle="popBodyStyle" v-bind="$attrs" :footer="modalFooter" cancelText="关闭" @register="registerModal" wrapClassName="jeecg-online-pop-modal" @ok="handleSubmit">
+  <BasicModal :width="popModalFixedWidth" :wrapperFooterOffset="26" v-bind="$attrs" :footer="modalFooter" cancelText="关闭" @register="registerModal" wrapClassName="jeecg-online-pop-modal" @ok="handleSubmit">
         <template #title>
             {{title}}
             <j-modal-tip v-if="showTopTip" :visible="topTipVisible" @save="handleSaveData" @cancel="handleRecover"></j-modal-tip>
@@ -110,7 +110,6 @@
         topTipVisible,
         successThenClose,
         isUpdate,
-        popBodyStyle,
         popModalFixedWidth,
         getFormStatus
       } = useAutoModal(false, { emit });
@@ -209,7 +208,6 @@
         isUpdate,
         showTopTip,
         modalFooter,
-        popBodyStyle,
         popModalFixedWidth,
         getFormStatus
       };
@@ -219,4 +217,10 @@
   });
 </script>
 
-<style scoped></style>
+<style lang="less">
+  .jeecg-online-pop-modal {
+    > .ant-modal {
+      top: 30px !important;
+    }
+  }
+</style>

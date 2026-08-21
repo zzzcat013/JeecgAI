@@ -7,6 +7,13 @@
     border-color: #606266;
   }
 
+  // 图片、附件上传按钮在行内保持紧凑，避免抢占表格内容的视觉层级
+  .j-vxe-upload-trigger.ant-btn {
+    height: 28px;
+    padding: 0 10px;
+    box-shadow: none;
+  }
+
   .sort--active {
     border-color: @primary-color;
   }
@@ -111,5 +118,17 @@
   .vxe-header--column.col--ellipsis>.vxe-cell .vxe-cell--title{
     font-size: 13px;
   }
+  // update-begin--author:liaozhiyang---date:20260807---for:【LHZP-703】用户、部门、图片、文件、开关的必填标识显示非红色
+  // 不可编辑组件（cellRender）必填标识，样式与 vxe-table 原生 .vxe-cell--required-icon 保持一致
+  .vxe-header--column.jvxe-col--required > .vxe-cell .vxe-cell--title::before {
+    content: '*';
+    display: inline-block;
+    color: var(--vxe-ui-table-validate-error-color, #f5222d);
+    width: 0.8em;
+    margin-right: 2px;
+    font-family: Verdana, Arial, Tahoma;
+    vertical-align: middle;
+  }
+  // update-end--author:liaozhiyang---date:20260807---for:【LHZP-703】用户、部门、图片、文件、开关的必填标识显示非红色
 
 }

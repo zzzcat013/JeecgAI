@@ -83,6 +83,7 @@
             component: 'Input',
           },
         ],
+        autoSubmitOnEnter: true,
       };
       //定义表格列
       const columns = [

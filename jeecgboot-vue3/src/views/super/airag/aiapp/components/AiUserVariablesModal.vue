@@ -137,6 +137,7 @@
 
         closeModal();
         emit('ok', tableData);
+        createMessage.success('保存成功');
       };
 
       return {

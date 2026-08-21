@@ -33,8 +33,10 @@
   import { ref, toRaw } from 'vue';
   import { BasicModal, useModalInner } from '/src/components/Modal';
   import { BasicTable, useTable, TableAction } from '/src/components/Table';
+  import { useMessage } from '/@/hooks/web/useMessage';
   import { recycleBincolumns } from '../dict.data';
   import { getRecycleBinList, putRecycleBin, deleteRecycleBin, batchPutRecycleBin, batchDeleteRecycleBin } from '../dict.api';
+  const { createConfirm } = useMessage();
   // 声明Emits
   const emit = defineEmits(['success', 'register']);
   const checkedKeys = ref<Array<string | number>>([]);
@@ -95,21 +97,31 @@
    * 批量还原事件
    */
   function batchHandleRevert() {
-    batchPutRecycleBin({ ids: toRaw(checkedKeys.value).join(',') }, () => {
-      // 代码逻辑说明: 【TV360X-1663】数据字典回收增加批量功能
-      reload();
-      checkedKeys.value = [];
-      emit('success');
+    createConfirm({
+      iconType: 'warning',
+      title: '批量取回',
+      content: '确定要取回选中的字典吗？',
+      onOk: () => batchPutRecycleBin({ ids: toRaw(checkedKeys.value).join(',') }, () => {
+        // 代码逻辑说明: 【TV360X-1663】数据字典回收增加批量功能
+        reload();
+        checkedKeys.value = [];
+        emit('success');
+      }),
     });
   }
   /**
    * 批量删除事件
    */
   function batchHandleDelete() {
-    batchDeleteRecycleBin({ ids: toRaw(checkedKeys.value).join(',') }, () => {
-      // 代码逻辑说明: 【TV360X-1663】数据字典回收增加批量功能
-      checkedKeys.value = [];
-      reload();
+    createConfirm({
+      iconType: 'warning',
+      title: '批量删除',
+      content: '确定要永久删除选中的字典吗？删除后将不可恢复！',
+      onOk: () => batchDeleteRecycleBin({ ids: toRaw(checkedKeys.value).join(',') }, () => {
+        // 代码逻辑说明: 【TV360X-1663】数据字典回收增加批量功能
+        checkedKeys.value = [];
+        reload();
+      }),
     });
   }
   //获取操作栏事件

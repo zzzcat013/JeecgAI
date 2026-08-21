@@ -5,6 +5,7 @@ export enum Api {
   //知识库管理
   list = '/airag/app/list',
   save = '/airag/app/edit',
+  copy = '/airag/app/copy',
   release = '/airag/app/release',
   delete = '/airag/app/delete',
   queryById = '/airag/app/queryById',
@@ -56,6 +57,16 @@ export const saveApp = (params) => {
   return defHttp.put({ url: Api.save, params });
 };
 
+/**
+ * 复制应用
+ * @param params
+ * @author scott
+ * @since 2026-08-06 【LHZP-1512】AI应用增加后台复制接口
+ */
+export const copyApp = (params) => {
+  return defHttp.post({ url: Api.copy, params }, { joinParamsToUrl: true });
+};
+
 // 发布应用
 export function releaseApp(appId: string, release = false) {
   return defHttp.post({
@@ -64,7 +75,7 @@ export function releaseApp(appId: string, release = false) {
       id: appId,
       release: release,
     }
-  }, {joinParamsToUrl: true});
+  }, {joinParamsToUrl: true, isTransformResponse: false});
 }
 
 /**

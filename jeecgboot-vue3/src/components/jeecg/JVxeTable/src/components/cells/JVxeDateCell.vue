@@ -54,7 +54,10 @@
       function handleChange(_mom, dateStr) {
         // 代码逻辑说明: 【QQYUN-9205】一对多(jVxetable组件date)支持年，年月，年度度，年周
         if (picker.value) {
-          handleChangeCommon(_mom);
+          //update-begin-author:liusq---date:2026-08-06--for: LHZP-1052 生成的jvxe子表 保存的时候 年 年月 周 季度 有一个没有填写值，就会报错
+          const dateValue = _mom && dayjs(_mom).isValid() ? dayjs(_mom).format(dateFormat.value) : null;
+          handleChangeCommon(dateValue);
+          //update-end-author:liusq---date:2026-08-06--for: LHZP-1052 生成的jvxe子表 保存的时候 年 年月 周 季度 有一个没有填写值，就会报错        
         } else {
           handleChangeCommon(dateStr);
         }

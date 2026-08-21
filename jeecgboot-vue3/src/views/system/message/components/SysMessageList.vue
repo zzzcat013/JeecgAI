@@ -225,7 +225,7 @@
        * 日期格式化
        */
       function formatData(data) {
-        return data?dayjs(data).format('YYYY-MM-DD hh:mm'): '';
+        return data?dayjs(data).format('YYYY-MM-DD HH:mm'): '';
       }
       /**
        * 未读点击事件

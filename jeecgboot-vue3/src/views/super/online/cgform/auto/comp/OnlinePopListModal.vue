@@ -34,7 +34,7 @@
             </template>
 
             <template #htmlSlot="{ text }">
-                <div v-html="text"></div>
+                <div v-html="sanitizeRichText(text)"></div>
             </template>
 
             <template #pcaSlot="{ text, column }">
@@ -53,7 +53,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, watch, ref, toRaw, computed } from 'vue';
+  import { defineComponent, watch, ref, toRaw, computed, inject, type Ref } from 'vue';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { BasicTable, TableAction } from '/@/components/Table';
   import { useListPage } from '/@/hooks/system/useListPage';
@@ -64,6 +64,7 @@
   import { useModal } from '/@/components/Modal';
   import OnlinePopModal from './OnlinePopModal.vue';
   import { useFixedHeightModal } from '../../hooks/auto/useAutoModal';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
   
   export default defineComponent({
     name: 'OnlinePopListModal',
@@ -92,6 +93,8 @@
     emits: ['success', 'register'],
     setup(props, { emit }) {
       const { createMessage: $message } = useMessage();
+      // 弹窗仍属于当前 Online 表单上下文，携带源表单编码后才能走受控的关联记录只读授权。
+      const sourceFormCode = inject<Ref<string | null>>('tableId');
       // 弹窗高度控制
       const { popModalFixedWidth, resetBodyStyle, popBodyStyle } = useFixedHeightModal();
       const searchText = ref('');
@@ -135,9 +138,16 @@
       }
       
       //---------------------列表------------------------
+      /**
+       * 只为 Online 表单内的关联记录请求补充源表单编码；无上下文时完全保留原参数。
+       */
+      function getLinkTableParams(params = {}) {
+        return sourceFormCode?.value ? { ...params, linkTableSourceCode: sourceFormCode.value } : params;
+      }
+
       function queryTableData(params){
         const url = '/online/cgform/api/getData/'+props.id;
-        return defHttp.get({ url, params });
+        return defHttp.get({ url, params: getLinkTableParams(params) });
       }
       
       function list(params){
@@ -178,7 +188,7 @@
       function getColumnList() {
         const url = '/online/cgform/api/getColumns/'+props.id;
         return new Promise((resolve, reject) => {
-          defHttp.get({url}, { isTransformResponse: false }).then((res) => {
+          defHttp.get({url, params: getLinkTableParams()}, { isTransformResponse: false }).then((res) => {
             if (res.success) {
               resolve(res.result);
             } else {
@@ -247,7 +257,7 @@
       function onSearch(){
         reload();
       }
-      const eqConditonTypes = ['int', 'double', 'Date', 'Datetime', 'BigDecimal']
+      const eqConditonTypes = ['int', 'double', 'long', 'Date', 'Datetime', 'BigDecimal']
       function addQueryParams(params){
         let text = searchText.value;
         if(!text){
@@ -315,6 +325,7 @@
         getImgView,
         getPcaText,
         getFormatDate,
+        sanitizeRichText,
         hrefComponent,
         viewOnlineCellImage,
         rowSelection,

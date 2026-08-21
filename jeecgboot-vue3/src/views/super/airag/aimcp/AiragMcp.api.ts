@@ -65,7 +65,7 @@ export const saveAndSync = (params) => {
  * 同步接口
  * @param id
  */
-export const syncMcp = (id) => defHttp.post({ url: Api.sync+"/"+id });
+export const syncMcp = (id) => defHttp.post({ url: Api.sync+"/"+id }, { isTransformResponse: false });
 
 /**
  * 修改状态
@@ -78,6 +78,12 @@ export const toggleStatus = (id,status) => defHttp.post({ url: Api.toggleStatus+
  * @param id
  */
 export const queryById = (id) => defHttp.get({ url: Api.queryById ,params: { id:id }}, { isTransformResponse: false });
+
+/**
+ * 根据多个id查询
+ * @param params
+ */
+export const queryByIds = (params) => defHttp.get({ url: Api.list, params }, { isTransformResponse: false });
 
 /**
  * 保存插件工具（仅更新tools字段）

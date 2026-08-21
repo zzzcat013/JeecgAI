@@ -34,7 +34,7 @@
     }
   });
   //设置标题
-  const getTitle = computed(() => (!unref(isUpdate) ? '新增职务级别' : '编辑职务级别'));
+  const getTitle = computed(() => (!unref(isUpdate) ? '新增职务等级' : '编辑职务等级'));
   //表单提交事件
   async function handleSubmit() {
     try {

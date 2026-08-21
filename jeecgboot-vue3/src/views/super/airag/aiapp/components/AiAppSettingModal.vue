@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+<div>
     <BasicModal wrapClassName="ai-app-edit-modal" destroyOnClose @register="registerModal" :canFullscreen="false" defaultFullscreen width="800px" :footer="null" @visible-change="visibleChange">
       <template #title>
         <div style="display: flex;width: 100%;justify-content: space-between;align-items: center;">
@@ -302,7 +302,9 @@
                             <div style="display: flex; width: 100%; justify-content: space-between">
                               <div>
                                 <img class="knowledge-img" src="/@/views/super/airag/aimcp/imgs/mcpLogo.png" />
-                                <span class="knowledge-name">{{ item.name }}</span>
+                                <span class="knowledge-name" :class="{ disabled: item.status === 'disable' || item.isDelete }" :title="item.isDelete ? '已删除' : item.status === 'disable' ? '已禁用' : item.name">{{ item.name }}</span>
+                                <span v-if="item.status === 'disable'" class="status-disabled">禁用</span>
+                                <span v-else-if="item.isDelete" class="status-disabled">已删除</span>
                               </div>
                               <Icon v-if="!isRelease" @click="handleDeleteMcp(item.id)" icon="ant-design:close-outlined" size="20" class="knowledge-icon"></Icon>
                             </div>
@@ -343,6 +345,8 @@
                               <a-tag v-for="(item, index) in variablesList"
                                      :key="index"
                                      color="#2e2e3814"
+                                     :class="{ 'variable-tag-editable': !isRelease }"
+                                     @click="!isRelease && handleAddVariable()"
                                      style="color: #6b6b75;border-radius: 4px; border: none; padding: 0 5px;">
                                 {{ item.name }}
                               </a-tag>
@@ -392,7 +396,7 @@
                             </div>
                           </div>
                           <a-spin :spinning="memoryLoading" tip="为您编排应用程序中…">
-                            <a-textarea :disabled="memoryLoading" :rows="6" v-model:value="formState.memoryPrompt" placeholder="点击生成按钮生成记忆与变量提示词"/>
+                            <a-textarea :disabled="memoryLoading || !canGenerateMemoryPrompt || isRelease" :rows="6" v-model:value="formState.memoryPrompt" placeholder="点击生成按钮生成记忆与变量提示词"/>
                           </a-spin>
                         </div>
                       </div>
@@ -515,6 +519,7 @@
   import { Form, TimePicker, Collapse, CollapsePanel } from 'ant-design-vue';
   import { initDictOptions } from '@/utils/dict';
   import { queryKnowledgeBathById, saveApp, queryById, queryFlowById, queryFlowByIds, queryKnowledgeById, generateMemoryByAppId } from '../AiApp.api';
+  import { queryByIds as queryMcpByIds } from '../../aimcp/AiragMcp.api';
   import { defHttp } from '@/utils/http/axios';
   import JDictSelectTag from '@/components/Form/src/jeecg/components/JDictSelectTag.vue';
   import AiAppAddKnowledgeModal from './AiAppAddKnowledgeModal.vue';
@@ -577,7 +582,7 @@
       const formState = reactive<any>({
         name: '',
         descr: '',
-        msgNum: 1,
+        msgNum: 10,
         prompt: '',
         prologue: null,
         knowledgeIds: '',
@@ -681,7 +686,7 @@
               formState.prompt = cloneDeep(AiAppJson.prompt);
               formState.prologue = cloneDeep(AiAppJson.prologue);
               formState.presetQuestion = JSON.stringify(cloneDeep(AiAppJson.presetQuestion));
-              formState.msgNum = 1;
+              formState.msgNum = 10;
               prologue.value = cloneDeep(AiAppJson.prologue);
               presetQuestion.value = formState.presetQuestion;
               presetQuestionList.value = cloneDeep(AiAppJson.presetQuestion);
@@ -885,6 +890,41 @@
         });
       }
 
+      //update-begin---author:liaozhiyang---date:2026-07-27---for:【LHZP-1499】已删除和已禁用的插件需要标识---
+      /**
+       * 根据插件id查询插件内容
+       * @param ids
+       */
+      function getPluginDataList(ids) {
+        queryMcpByIds({ id: ids, pageNo: 1, pageSize: 999 }).then((res) => {
+          if (res.success && res.result) {
+            let records = res.result.records || [];
+            let idArray = ids.split(",");
+            let arr = [];
+            for (const id of idArray) {
+              let item = records.find((r) => r.id === id);
+              // 从已保存的 plugins 中找回原始名称
+              let original = plugins.value.find((p:any) => p.pluginId === id);
+              if (item) {
+                arr.push({ id: id, name: item.name || original?.pluginName || id, status: item.status });
+              } else {
+                arr.push({ id: id, name: original?.pluginName || id, isDelete: true });
+              }
+            }
+            pluginDataList.value = arr;
+          } else {
+            let arr = [];
+            let idArray = ids.split(",");
+            for (const id of idArray) {
+              let original = plugins.value.find((p:any) => p.pluginId === id);
+              arr.push({ id: id, name: original?.pluginName || id, isDelete: true });
+            }
+            pluginDataList.value = arr;
+          }
+        });
+      }
+      //update-end---author:liaozhiyang---date:2026-07-27---for:【LHZP-1499】已删除和已禁用的插件需要标识---
+
       /**
        * 开场白值改变事件
        */
@@ -988,6 +1028,7 @@
         //update-begin---author:wangshuai---date:2025-12-24---for:【QQYUN-14267】创建应用的时候，选择工作流，让应用可以像调用MCP一样去调用流程: 单选和多选做区分---
         if(multiple.value){
           flowIds.value = values.flowId?.join(",");
+          formState.flowId = flowIds.value;
           flowDataList.value = values.flowData;
         } else {
           flowId.value = values.flowId;
@@ -1012,6 +1053,7 @@
           if (findIndex != -1) {
             array.splice(findIndex, 1);
             flowIds.value = array ? array.join(',') : '';
+            formState.flowId = flowIds.value;
             flowDataList.value.splice(findIndex, 1);
           }
         }
@@ -1195,6 +1237,7 @@
         quickCommandList.value = [];
         quickCommand.value = '';
         multiSessionChecked.value = true;
+        izDrawChecked.value = false;
         variablesList.value = [];
         izOpenMemoryChecked.value = false;
         memoryLoading.value = false;
@@ -1211,7 +1254,7 @@
         if (data.prologue) {
           prologue.value = data.prologue ? data.prologue : '';
         }
-        data.msgNum = data.msgNum ? data.msgNum : 1;
+        data.msgNum = data.msgNum ? data.msgNum : 10;
         if(data.metadata){
           metadata.value = JSON.parse(data.metadata);
           if(metadata.value?.multiSession){
@@ -1252,6 +1295,13 @@
             pluginIds.value = parsePlugins.map((p:any)=> p.pluginId);
             pluginDataList.value = parsePlugins.map((p:any)=> ({ id: p.pluginId, name: p.pluginName }));
             plugins.value = parsePlugins;
+            //update-begin---author:liaozhiyang---date:2026-07-27---for:【LHZP-1499】已删除和已禁用的插件需要标识---
+            // 根据插件id查询插件状态
+            const pluginIdStr = pluginIds.value.join(',');
+            if(pluginIdStr){
+              getPluginDataList(pluginIdStr);
+            }
+            //update-end---author:liaozhiyang---date:2026-07-27---for:【LHZP-1499】已删除和已禁用的插件需要标识---
           } catch (e) {
             pluginIds.value = [];
             pluginDataList.value = [];
@@ -1463,10 +1513,12 @@
           return;
         }
         try {
+          //update-begin---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——非编辑场景改用 /detail，避免依赖 airag:model:queryById 权限并减少 credential 暴露面-----------
           const res = await defHttp.get({
-            url: '/airag/airagModel/queryById',
+            url: '/airag/airagModel/detail',
             params: { id: modelId }
           }, { isTransformResponse: false });
+          //update-end---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——非编辑场景改用 /detail，避免依赖 airag:model:queryById 权限并减少 credential 暴露面-----------
           if (res.success && res.result) {
             const model = res.result;
             // 将模型信息添加到metadata中
@@ -1540,7 +1592,16 @@
       /**
        * 记忆和变量提示词
        */
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-918】无变量且无长期记忆时禁用文本框，生成前校验提示
+      const canGenerateMemoryPrompt = computed(() => {
+        return variablesList.value?.length > 0 || !!formState.memoryId;
+      });
       async function generateVariablePrompt() {
+        if (!canGenerateMemoryPrompt.value) {
+          createMessage.warning('请先添加变量或长期记忆后再生成');
+          return;
+        }
+        // update-end--author:liaozhiyang---date:20260804---for：【LHZP-918】无变量且无长期记忆时禁用文本框，生成前校验提示
         formState.memoryPrompt = '';
         memoryLoading.value = true;
         let readableStream = await generateMemoryByAppId({ variables: formState.variables, memoryId: formState.memoryId }).catch(() => {
@@ -1733,6 +1794,7 @@
         registerVariablesModal,
         variablesList,
         generateVariablePrompt,
+        canGenerateMemoryPrompt,
         izOpenMemoryChecked,
         memoryLoading,
         handleMemoryChange,
@@ -1809,6 +1871,23 @@
   .knowledge-name {
     margin-left: 4px;
   }
+/**update-begin---author:liaozhiyang---date:2026-07-27---for:【LHZP-1499】已删除和已禁用的插件需要标识---*/
+  .knowledge-name.disabled {
+    color: #999;
+    text-decoration: line-through;
+  }
+  .status-disabled {
+    margin-left: 6px;
+    color: #ff4d4f;
+    font-size: 12px;
+    border: 1px solid #ff4d4f;
+    border-radius: 10px;
+    padding: 0 6px;
+    height: 16px;
+    line-height: 14px;
+    display: inline-block;
+  }
+  /**update-end---author:liaozhiyang---date:2026-07-27---for:【LHZP-1499】已删除和已禁用的插件需要标识---*/
 
   .knowledge-card {
     margin-bottom: 10px;
@@ -1900,6 +1979,9 @@
   :deep(.vditor){
     border: none;
   }
+  :deep(.vditor--fullscreen){
+    z-index: 1100 !important;
+  }
   :deep(.vditor-sv){
     font-size: 14px;
   }
@@ -1949,6 +2031,9 @@
   .data-empty-text{
     color: #757c8f;
     margin-left: 10px;
+  }
+  .variable-tag-editable{
+    cursor: pointer;
   }
   .mcp-warning-tip {
     display: flex;

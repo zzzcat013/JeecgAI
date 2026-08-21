@@ -13,6 +13,39 @@ function queryTableColumns(tableName, params) {
   const url = '/online/cgform/api/getColumns/' + tableName;
   return defHttp.get({ url, params });
 }
+//表格列信息
+const tableColumns = ref<any[]>([]);
+// 选项
+const selectOptions = ref<any[]>([]);
+//字典项
+const dictOptions = ref<any>({});
+/**
+ * table 模式：调用 /sys/dict/queryTableDataForLinkRecord 接口（一次请求获取多字段数据）
+ */
+function queryAllTableData(params: {
+  tableName: string;
+  showFields: string;
+  valueField: string;
+  keyword?: string;
+  searchFields?: string;
+  condition?: string;
+  keyValues?: string;
+  pageNo?: number;
+  pageSize?: number;
+}) {
+  return defHttp.get({ url: '/sys/dict/queryTableDataForLinkRecord', params });
+}
+
+/**
+ * table 模式：获取需要查询的所有展示字段（textFields + imageField，去重）
+ */
+function getAllTableShowFields(props): string {
+  const textFields = (props.textField || '').split(',').filter(Boolean);
+  const imageField = props.imageField;
+  const fieldSet = new Set<string>(textFields);
+  if (imageField) fieldSet.add(imageField);
+  return Array.from(fieldSet).join(',');
+}
 
 export function useLinkTable(props) {
   //TODO 目前只支持查询第一页的数据，可以输入关键字搜索
@@ -50,6 +83,18 @@ export function useLinkTable(props) {
   watchEffect(async () => {
     const table = props.tableName;
     if (table) {
+      if (props.queryMode === 'table') {
+        // table 模式：跳过 Online 接口，根据 textField/imageField 配置初始化展示列
+        const textFields = (props.textField || '').split(',').filter(Boolean);
+        mainContentField.value = textFields[0] || '';
+        // otherColumns：textField 中第一个之后的字段，用于卡片副内容展示
+        otherColumns.value = textFields.slice(1).map((f) => ({ title: f, dataIndex: f }));
+        // tableColumns 记录所有字段（transData 中使用，allTable 模式下实为 no-op）
+        tableColumns.value = textFields.map((f) => ({ title: f, dataIndex: f }));
+        dictOptions.value = {};
+        return;
+      }
+
       const valueField = props.valueField || '';
       const textField = props.textField || '';
       const arr: any[] = [];
@@ -94,10 +139,6 @@ export function useLinkTable(props) {
     };
   });
 
-  // 选项
-  const selectOptions = ref<any[]>([]);
-  const tableColumns = ref<any[]>([]);
-  const dictOptions = ref<any>({});
 
   async function resetTableColumns() {
     const params = baseParam.value;
@@ -210,6 +251,34 @@ export function useLinkTable(props) {
     if (!value) {
       return [];
     }
+
+    // table 模式：调用新接口，按 keyValues 反查所有字段，一次返回完整记录
+    if (props.queryMode === 'table') {
+      const showFields = getAllTableShowFields(props);
+      if (!showFields) return [];
+      try {
+        const data = await queryAllTableData({
+          tableName: props.tableName,
+          showFields,
+          valueField: props.valueField,
+          keyValues: value,
+          pageNo: 1,
+          pageSize: 200,
+        });
+        const records: any[] = data?.records || [];
+        if (records.length > 0) return records;
+        // 接口无数据时用原始 value 兜底展示
+        const firstTextField = (props.textField || '').split(',').filter(Boolean)[0] || props.valueField;
+        return value
+          .split(',')
+          .filter(Boolean)
+          .map((v: string) => ({ id: v, [props.valueField]: v, [firstTextField]: v }));
+      } catch (e) {
+        console.error('[useLinkTable] table loadOne 失败', e);
+        return [];
+      }
+    }
+
     let valueFieldName = props.valueField;
     let params = {
       ...baseParam.value,

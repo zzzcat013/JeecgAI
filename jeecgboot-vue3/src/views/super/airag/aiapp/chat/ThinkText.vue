@@ -17,6 +17,7 @@
   import mila from 'markdown-it-link-attributes';
   import mdKatex from '@traptitech/markdown-it-katex';
   import { useGlobSetting } from '@/hooks/setting';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
 
   /**
    * 屏幕宽度
@@ -47,9 +48,9 @@
     if (props.inversion != 'user') {
       value = replaceImageWith(value);
       value = replaceDomainUrl(value);
-      return mdi.render(value);
+      return sanitizeRichText(mdi.render(value));
     }
-    return value.replace('\n', '<br>');
+    return sanitizeRichText(value.replace(/\n/g, '<br>'));
   });
 
   // 是否显示引用知识库

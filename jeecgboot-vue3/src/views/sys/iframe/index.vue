@@ -21,7 +21,7 @@
   const loading = ref(true);
   const topRef = ref(50);
   const heightRef = ref(window.innerHeight);
-  const frameRef = ref<HTMLFrameElement>();
+  const frameRef = ref<HTMLIFrameElement>();
   const { headerHeightRef } = useLayoutHeight();
 
   const { prefixCls } = useDesign('iframe-page');
@@ -43,6 +43,8 @@
     heightRef.value = window.innerHeight - top;
     const clientHeight = document.documentElement.clientHeight - top;
     iframe.style.height = `${clientHeight}px`;
+    // 改成block，解决iframe默认display为inline导致额外的空白和额外的滚动条问题
+    iframe.style.display = 'block';
   }
 
   function hideLoading() {

@@ -18,8 +18,9 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed, inject, ref, watch } from 'vue';
-  import { ActionItem, BasicTable, TableAction } from '/@/components/Table';
+  import { computed, h, inject, ref, watch } from 'vue';
+  import { Tag } from 'ant-design-vue';
+  import { ActionItem, BasicColumn, BasicTable, TableAction } from '/@/components/Table';
   import { useModal } from '/@/components/Modal';
   import { useDrawer } from '/@/components/Drawer';
   import { useListPage } from '/@/hooks/system/useListPage';
@@ -40,6 +41,14 @@
   const orgCode = computed(() => props.data?.orgCode);
   // 当前部门id
   const departId = computed(() => props.data?.id);
+  const departUserColumns: BasicColumn[] = [
+    {
+      ...userColumns[0],
+      customRender: ({ record, text }) =>
+        h('span', [text, record.orgCode === orgCode.value ? h(Tag, { color: 'blue', style: { marginLeft: '6px' } }, () => '本级') : null]),
+    },
+    ...userColumns.slice(1),
+  ];
 
   // 自适应列配置
   const adaptiveColProps: Partial<ColEx> = {
@@ -54,7 +63,7 @@
   const { tableContext, createMessage } = useListPage({
     tableProps: {
       api: queryDepartPostByOrgCode,
-      columns: userColumns,
+      columns: departUserColumns,
       canResize: false,
       rowKey: 'id',
       formConfig: {
@@ -115,6 +124,9 @@
       }
       openDrawer(true, {
         isUpdate: false,
+        //update-begin---author:wangshuai ---date:20260811  for：[LHZP-1124]【系统管理】部门管理-用户列表 在这里编辑用户时 部门和角色没展示出来------------
+        departDisabled: true,
+        //update-end---author:wangshuai ---date:20260811  for：[LHZP-1124]【系统管理】部门管理-用户列表 在这里编辑用户时 部门和角色没展示出来------------
         // 初始化负责部门
         nextDepartOptions: { value: props.data?.key, label: props.data?.title },
         //初始化岗位
@@ -141,7 +153,9 @@
   // 编辑用户信息
   function editUserInfo(record) {
     record.activitiSync = record.activitiSync? Number(record.activitiSync) : 1;
-    openDrawer(true, { isUpdate: true, record, departDisabled: true, departPostDisabled: true });
+    //update-begin---author:wangshuai ---date:20260811  for：[LHZP-1124]【系统管理】部门管理-用户列表 在这里编辑用户时 部门和角色没展示出来------------
+    openDrawer(true, { isUpdate: true, record, departDisabled: true, roleDisabled: true, departPostDisabled: true });
+    //update-end---author:wangshuai ---date:20260811  for：[LHZP-1124]【系统管理】部门管理-用户列表 在这里编辑用户时 部门和角色没展示出来------------
   }
 
   // 选择添加已有用户

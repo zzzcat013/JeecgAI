@@ -5,6 +5,7 @@
     title="接口授权"
     width="720px"
     destroyOnClose
+    showFooter
     @ok="handleSubmit"
   >
     <a-spin :spinning="confirmLoading">

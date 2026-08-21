@@ -65,6 +65,7 @@
       -webkit-background-size: cover;
       -moz-background-size: cover;
       background-size: cover;
+      max-height: 100%;
     }
   }
 }

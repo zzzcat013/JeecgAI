@@ -113,12 +113,29 @@
     let cacheByDynKey = getCacheByDynKey(JEECG_CHAT_UID);
     let iframes:any = document.getElementById("jChatOnline");
     let id = record.id;
-    //发送打开聊天窗口的请求
-    iframes.contentWindow.postMessage({
+    //update-begin---wangshuai---date:20260616  for：[JHHB-1436]【PC端通讯录】直接点击通讯录列表的发消息没反应，需要点一下通讯录图标，才能点列表的发消息------------
+    const msgData = {
       type: "open-chat",
       messageId: cacheByDynKey,
       data: { id: id, type: "friend", groupName: "", avatar: record.avatar, username: record.realname }
-    }, "*");
+    };
+    // .btn 存在说明聊天窗口尚未打开（v-if="showChatIcon"），先触发打开再等 iframe 初始化
+    const chatBtn = document.querySelector<HTMLElement>('.j-chat-online .btn');
+    if (chatBtn) {
+      chatBtn.click();
+      const onReady = (event: MessageEvent) => {
+        //打开之后 聊天那边会发送get-system-unread-num 或者 get-dialog-height，满足一个说明已打开，再去发送聊天打开窗口的请求
+        if (event.data?.type === 'get-system-unread-num' || event.data?.type === 'get-dialog-height') {
+          window.removeEventListener('message', onReady);
+          iframes.contentWindow.postMessage(msgData, '*');
+        }
+      };
+      //监听消息
+      window.addEventListener('message', onReady);
+    } else {
+      iframes.contentWindow.postMessage(msgData, '*');
+    }
+    //update-end---author:wangshuai ---date:20260616  for：[JHHB-1436]【PC端通讯录】直接点击通讯录列表的发消息没反应，需要点一下通讯录图标，才能点列表的发消息------------
   }
 </script>
 

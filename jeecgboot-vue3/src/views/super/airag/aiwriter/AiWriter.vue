@@ -85,6 +85,7 @@
   import '/@/views/super/airag/aiapp/chat/style/github-markdown.less';
   import '/@/views/super/airag/aiapp/chat/style/highlight.less';
   import '/@/views/super/airag/aiapp/chat/style/style.less';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
 
   const { createMessage } = useMessage();
   const writeText = ref<string>('');
@@ -131,9 +132,9 @@
     let content = writeText.value || aiText.value;
     if (generating.value) {
       content +=
-        ' <span class="typing-dot"></span><span class="typing-dot" style="animation-delay: 0.2s"></span><span class="typing-dot" style="animation-delay: 0.4s"></span>';
+        ' <span class="typing-dot"></span><span class="typing-dot typing-dot-delay-1"></span><span class="typing-dot typing-dot-delay-2"></span>';
     }
-    return mdi.render(content);
+    return sanitizeRichText(mdi.render(content));
   });
 
   /**
@@ -578,6 +579,14 @@
     background-color: #999;
     vertical-align: baseline;
     animation: typing-dot 1.2s infinite ease-in-out;
+  }
+
+  :deep(.typing-dot-delay-1) {
+    animation-delay: 0.2s;
+  }
+
+  :deep(.typing-dot-delay-2) {
+    animation-delay: 0.4s;
   }
 
   @keyframes typing-dot {

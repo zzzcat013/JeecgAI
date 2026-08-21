@@ -219,6 +219,8 @@ export interface HelpComponentProps {
   text: any;
   // colour
   color: string;
+  // Tooltip background colour
+  backgroundColor?: string;
   // font size
   fontSize: string;
   icon: string;

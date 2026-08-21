@@ -5,7 +5,7 @@
 </template>
 <script lang="ts" setup>
   import { ref, unref } from 'vue';
-  import { rules } from '/@/utils/helper/validator';
+  import { rules, createPasswordValidator } from '/@/utils/helper/validator';
   import { defHttp } from '/@/utils/http/axios';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import BasicForm from '/@/components/Form/src/BasicForm.vue';
@@ -43,10 +43,11 @@
             required: true,
             message: t('layout.changePassword.pleaseEnterNewPassword'),
           },
+          //update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
           {
-            pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
-            message: '密码由 8 位及以上数字、大小写字母和特殊符号组成！',
-          },  
+            validator: createPasswordValidator(),
+          },
+          //update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
         ],
       },
       {

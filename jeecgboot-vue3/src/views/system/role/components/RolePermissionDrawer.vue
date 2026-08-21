@@ -1,5 +1,5 @@
 <template>
-  <BasicDrawer v-bind="$attrs" @register="registerDrawer" width="650px" destroyOnClose showFooter>
+  <BasicDrawer v-bind="$attrs" @register="registerDrawer" width="650px" destroyOnClose showFooter rootClassName="jeecg-role-auth-drawer">
     <template #title>
       角色权限配置
       <a-dropdown>
@@ -20,10 +20,23 @@
           </a-menu>
         </template>
       </a-dropdown>
+      <a-input-search
+        v-model:value="searchValue"
+        placeholder="按名称搜索"
+        allowClear
+        class="title-search"
+        @search="onSearch"
+        @change="onSearch"
+      />
     </template>
+    <div ref="treeWrapRef" class="perm-tree-wrap">
     <BasicTree
       ref="treeRef"
       checkable
+      highlight
+      expandOnSearch
+      :height="treeHeight"
+      :fieldNames="{ key: 'key', title: 'slotTitle' }"
       :treeData="treeData"
       :checkedKeys="checkedKeys"
       :expandedKeys="expandedKeys"
@@ -39,6 +52,7 @@
         <Icon v-if="ruleFlag" icon="ant-design:align-left-outlined" style="margin-left: 5px; color: red"></Icon>
       </template>
     </BasicTree>
+    </div>
     <!--右下角按钮-->
     <template #footer>
       <!-- <PopConfirmButton title="确定放弃编辑？" @confirm="closeDrawer" okText="确定" cancelText="取消"></PopConfirmButton> -->
@@ -50,7 +64,7 @@
   </BasicDrawer>
 </template>
 <script lang="ts" setup>
-  import { ref, computed, unref, onMounted } from 'vue';
+  import { ref, computed, unref, onMounted, onUnmounted, nextTick } from 'vue';
   import { BasicDrawer, useDrawer, useDrawerInner } from '/@/components/Drawer';
   import { BasicTree, TreeItem } from '/@/components/Tree';
   import { PopConfirmButton } from '/@/components/Button';
@@ -73,6 +87,42 @@
   const treeRef = ref(null);
   const loading = ref(false);
 
+  // 代码逻辑说明: 虚拟滚动——给 antd Tree 一个数字 height 即开启，只渲染可见节点，解决大数据量渲染卡顿
+  // 树容器的包裹层，用于实测树在视口中的实际顶部位置
+  const treeWrapRef = ref<HTMLElement | null>(null);
+  const treeHeight = ref(400);
+  // 按真实几何位置精确计算：antd 虚拟列表顶部 → 抽屉体内容底部 的距离。
+  // 这些位置都不随 treeHeight 变化（由其上方/外层固定元素决定），故无反馈死循环，测一次即可。
+  function calcTreeHeight() {
+    const el = unref(treeWrapRef);
+    if (!el) {
+      treeHeight.value = window.innerHeight - 220;
+      return;
+    }
+    const bodyWrap = el.closest('.scrollbar__wrap') as HTMLElement | null; // 抽屉体滚动视口(带16px内边距)
+    const list = el.querySelector('.ant-tree-list') as HTMLElement | null; // antd 虚拟列表容器
+    if (bodyWrap && list) {
+      const bottom = bodyWrap.getBoundingClientRect().bottom - 16; // 扣除底部内边距
+      const listTop = list.getBoundingClientRect().top;
+      treeHeight.value = Math.max(200, Math.floor(bottom - listTop - 4));
+      return;
+    }
+    // 兜底
+    const avail = bodyWrap?.clientHeight || (el.closest('.ant-drawer-body') as HTMLElement)?.clientHeight || window.innerHeight - 120;
+    treeHeight.value = Math.max(200, Math.floor(avail - 90));
+  }
+  function handleWindowResize() {
+    calcTreeHeight();
+  }
+  onMounted(() => {
+    window.addEventListener('resize', handleWindowResize);
+  });
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleWindowResize);
+  });
+
+  //标题栏搜索关键字
+  const searchValue = ref('');
   //展开折叠的key
   const expandedKeys = ref<any>([]);
   //父子节点选中状态是否关联 true不关联，false关联
@@ -100,6 +150,8 @@
     checkedKeys.value = permResult;
     defaultCheckedKeys.value = permResult;
     setDrawerProps({ loading: false });
+    // 抽屉渲染完成后测算一次虚拟滚动高度（高度源为固定的抽屉体视口，无需自动重算）
+    nextTick(calcTreeHeight);
   });
   /**
   * 2024-02-28
@@ -177,6 +229,12 @@
   }
 
   /**
+   * 标题栏按名称搜索权限树
+   */
+  function onSearch() {
+    getTree()?.setSearchValue(unref(searchValue));
+  }
+  /**
    * 选中节点，打开数据权限抽屉
    */
   function onTreeNodeSelect(key) {
@@ -195,6 +253,7 @@
     defaultCheckedKeys.value = [];
     selectedKeys.value = [];
     roleId.value = '';
+    searchValue.value = '';
   }
   /**
    * 获取tree实例
@@ -281,6 +340,21 @@
 </script>
 
 <style lang="less" scoped>
+  /** 树容器包裹层 */
+  .perm-tree-wrap {
+    /** 让 BasicTree 自带的 ScrollContainer 不参与滚动/不限高/不显示滚动条，滚动完全交给 antd 虚拟列表，
+        避免重复滚动条，也避免高度链相互影响导致的卡死 */
+    :deep(.scroll-container),
+    :deep(.scrollbar__wrap),
+    :deep(.scrollbar__view) {
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    :deep(.scrollbar__bar) {
+      display: none !important;
+    }
+  }
   /** 固定操作按钮 */
   .jeecg-basic-tree {
     position: absolute;
@@ -292,6 +366,12 @@
     width: 100%;
     border-bottom: 1px solid #f0f0f0;
   }
+  // 标题栏搜索框：靠右、固定在标题行，不随内容滚动
+  .title-search {
+    float: right;
+    width: 200px;
+    margin-right: 12px;
+  }
   .more-icon {
 /*    font-size: 20px !important;
     color: black;
@@ -302,5 +382,17 @@
   }
   :deep(.jeecg-tree-header) {
     border-bottom: none;
+  }
+</style>
+
+<!-- 非 scoped 全局样式：抽屉经 Teleport 渲染到 body，scoped 选择器无法命中；
+     用唯一 rootClassName 限定，仅隐藏本抽屉内所有自定义滚动条，滚动统一交给 antd 虚拟列表，互不影响其它弹窗 -->
+<style lang="less">
+  .jeecg-role-auth-drawer .scrollbar__bar {
+    display: none !important;
+  }
+  /** 抽屉体那层禁止滚动，物理上杜绝"借用外层滚动"；滚动只由 antd 虚拟列表负责（高度已精确计算不会裁剪） */
+  .jeecg-role-auth-drawer .ant-drawer-body > .scrollbar > .scrollbar__wrap {
+    overflow: hidden !important;
   }
 </style>

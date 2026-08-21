@@ -11,6 +11,9 @@ enum Api {
   getThirdUserBindByWechat = '/sys/thirdApp/getThirdUserBindByWechat',
   deleteThirdAccount = '/sys/thirdApp/deleteThirdAccount',
   deleteThirdAppConfig = '/sys/thirdApp/deleteThirdAppConfig',
+  // update-begin---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成
+  syncFeishuDepartUserToLocal = '/sys/thirdApp/sync/feishu/departAndUser/toLocal',
+  // update-end---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成
 }
 
 /**
@@ -78,4 +81,11 @@ export const deleteThirdAppConfig = (params, handleSuccess) => {
   return defHttp.delete({ url: Api.deleteThirdAppConfig, params }, { joinParamsToUrl: true }).then(() => {
     handleSuccess();
   });
+};
+
+/**
+ * 同步飞书部门和用户到本地（飞书→本地）
+ */
+export const syncFeishuDepartUserToLocal = () => {
+  return defHttp.get({ url: Api.syncFeishuDepartUserToLocal, timeout: 120000 }, { isTransformResponse: false });
 };

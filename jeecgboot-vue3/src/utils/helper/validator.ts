@@ -1,5 +1,6 @@
 import { dateUtil } from '/@/utils/dateUtil';
 import { duplicateCheck } from '/@/views/system/user/user.api';
+import { defHttp } from '/@/utils/http/axios';
 
 export const rules = {
   rule(type, required) {
@@ -125,6 +126,102 @@ export const rules = {
     ] as ArrayRule;
   },
 };
+
+//update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度校验工具函数-----------
+/**
+ * 判断密码是否存在3位及以上连续递增的数字或字母
+ */
+function hasConsecutiveChars(password: string): boolean {
+  const arr = password.split('');
+  for (let i = 1; i < arr.length - 1; i++) {
+    const first = arr[i - 1].charCodeAt(0);
+    const second = arr[i].charCodeAt(0);
+    const third = arr[i + 1].charCodeAt(0);
+    if ((third - second === 1) && (second - first === 1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 简单密码校验：8位及以上，包含字母+数字+特殊符号
+ */
+export function validateSimplePassword(value: string, oldPassword?: string) {
+  if (!value) {
+    return Promise.resolve();
+  }
+  if (oldPassword && value === oldPassword) {
+    return Promise.reject('不能使用系统密码作为新密码!');
+  }
+  const reg = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/;
+  if (!reg.test(value)) {
+    return Promise.reject('密码由 8 位及以上数字、大小写字母和特殊符号组成！');
+  }
+  return Promise.resolve();
+}
+
+/**
+ * 三级等保强密码校验：8位及以上，必须包含数字+大写+小写+特殊符号，不允许3位连续/重复字符
+ */
+export function validateStrongPassword(value: string, oldPassword?: string) {
+  if (!value) {
+    return Promise.resolve();
+  }
+  if (oldPassword && value === oldPassword) {
+    return Promise.reject('不能使用系统密码作为新密码!');
+  }
+  if (value.length < 8) {
+    return Promise.reject('密码长度不能少于8位');
+  }
+  const hasNumber = /[0-9]/.test(value);
+  const hasLowercase = /[a-z]/.test(value);
+  const hasUppercase = /[A-Z]/.test(value);
+  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(value);
+  if (!(hasNumber && hasLowercase && hasUppercase && hasSpecialChar)) {
+    return Promise.reject('密码必须包含数字、大小写字母和特殊字符');
+  }
+  if (hasConsecutiveChars(value)) {
+    return Promise.reject('密码不能出现3位及以上的连续数字或字母');
+  }
+  if (/(.)\1{2,}/.test(value)) {
+    return Promise.reject('密码不能出现相同字符连续3位或以上');
+  }
+  return Promise.resolve();
+}
+
+/**
+ * 缓存三级等保密码开关值（只从 API 取一次）
+ */
+let _enableStrongPwdCache: boolean | null = null;
+
+async function fetchEnableStrongPwd(): Promise<boolean> {
+  if (_enableStrongPwdCache !== null) {
+    return _enableStrongPwdCache;
+  }
+  try {
+    const data = await defHttp.get({ url: '/sys/user/getUserInfo' });
+    _enableStrongPwdCache = data?.enableStrongPwd ?? false;
+  } catch {
+    _enableStrongPwdCache = false;
+  }
+  return _enableStrongPwdCache;
+}
+
+/**
+ * 根据三级等保开关创建密码校验 validator（从 API 获取配置并缓存）
+ * @param oldPassword 旧密码（可选，用于禁止与旧密码相同）
+ */
+export function createPasswordValidator(oldPassword?: string) {
+  return async (_: any, value: string) => {
+    const enableStrongPwd = await fetchEnableStrongPwd();
+    if (enableStrongPwd) {
+      return validateStrongPassword(value, oldPassword);
+    }
+    return validateSimplePassword(value, oldPassword);
+  };
+}
+//update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】三级等保密码强度校验工具函数-----------
 
 /**
  * 唯一校验函数，给原生<a-form>使用，vben的表单校验建议使用上述rules

@@ -17,7 +17,7 @@
   import { BasicDrawer, useDrawerInner } from '/@/components/Drawer';
   import { BasicForm, useForm } from '/@/components/Form/index';
   import { authFormSchema } from '../OpenApiAuth.data';
-  import { saveOrUpdate } from '../OpenApiAuth.api';
+  import { saveOrUpdate, getGenAKSK } from '../OpenApiAuth.api';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { USER_INFO_KEY } from '/@/enums/cacheEnum';
   import { getAuthCache } from '/@/utils/auth';
@@ -45,10 +45,13 @@
     if (unref(isUpdate)) {
       await setFieldsValue({ ...data.record });
     } else {
-      // New record: set current user
+      // New record: set current user and auto-generate AK/SK
       const userData = getAuthCache(USER_INFO_KEY) as any;
+      const akskArr = await getGenAKSK({});
       await setFieldsValue({
         systemUserId: userData?.id || '',
+        ak: akskArr[0],
+        sk: akskArr[1],
       });
     }
     setProps({ disabled: !data?.showFooter });

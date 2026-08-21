@@ -17,6 +17,7 @@ import { createImgPreview } from '/@/components/Preview';
 import data from "emoji-mart-vue-fast/data/apple.json";
 import { EmojiIndex } from "emoji-mart-vue-fast/src";
 import { encryptByBase64 } from '/@/utils/cipher';
+import { sanitizeCommentHtml } from '/@/utils/htmlSanitizer';
 
 enum Api {
   list = '/sys/comment/listByForm',
@@ -422,7 +423,7 @@ export function useEmojiHtml(globalEmojiIndex){
     if(!text){
       return ''
     }
-    return text.replace(COLONS_REGEX, function (match, p1, p2) {
+    const emojiHtml = text.replace(COLONS_REGEX, function (match, p1, p2) {
       const before = p1 || ''
       if (endsWith(before, 'alt="') || endsWith(before, 'data-text="')) {
         return match
@@ -433,7 +434,7 @@ export function useEmojiHtml(globalEmojiIndex){
       }
       return before + emoji2Html(emoji)
     })
-    return text;
+    return sanitizeCommentHtml(emojiHtml);
   }
 
   function endsWith(str, temp){

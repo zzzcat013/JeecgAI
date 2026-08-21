@@ -49,14 +49,14 @@
         >
           <span>{{cgBIBtnMap['add'].buttonName}}</span>
         </a-button>
-<!--    <a-button-->
-<!--        v-if="buttonSwitch.import && cgBIBtnMap['import'].enabled"-->
-<!--        type="primary"-->
-<!--        :preIcon="cgBIBtnMap['import'].buttonIcon"-->
-<!--        @click="onImportExcel"-->
-<!--    >-->
-<!--        <span>{{cgBIBtnMap['import'].buttonName}}</span>-->
-<!--      </a-button>-->
+        <a-button
+            v-if="buttonSwitch.import && cgBIBtnMap['import'].enabled"
+            type="primary"
+            :preIcon="cgBIBtnMap['import'].buttonIcon"
+            @click="onImportExcel"
+        >
+          <span>{{cgBIBtnMap['import'].buttonName}}</span>
+        </a-button>
         <a-button
             v-if="buttonSwitch.export && cgBIBtnMap['export'].enabled"
             type="primary"
@@ -122,9 +122,9 @@
       <template #htmlSlot="{ text, column, record }">
         <!-- update-begin--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
         <template v-if="column.fieldHref">
-          <a v-html="text" @click="handleClickFieldHref(column.fieldHref, record)"></a>
+          <a v-html="sanitizeRichText(text)" @click="handleClickFieldHref(column.fieldHref, record)"></a>
         </template>
-        <div v-else v-html="text"></div>
+        <div v-else v-html="sanitizeRichText(text)"></div>
         <!-- update-end--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
       </template>
 
@@ -166,6 +166,12 @@
     <!-- 详情弹框 -->
     <online-detail-modal :id="ID" @register="registerDetailModal"/>
 
+    <!-- 弹窗给href到另外一张表单用-详情表单 -->
+    <online-detail-modal :id="hrefMainTableId" @register="registerOnlineHrefModal" :defaultFullscreen="false"/>
+
+    <!-- 弹窗到另外一张表单用-可编辑表单-关联记录的字段可在列表上打开modal编辑数据 -->
+    <online-pop-modal ref="onlinePopModalRef" :id="popTableId" @register="registerPopModal" @success="reload" request topTip></online-pop-modal>
+
     <!-- 流程图查看modal -->
     <BpmGraphicModal @register="registerBpmModal"></BpmGraphicModal>
     <!-- 页面loading[主要为了js增强使用] -->
@@ -189,8 +195,11 @@
   import { getRefPromise } from '../../hooks/auto/useAutoForm';
   import OnlineQueryForm from '../comp/OnlineQueryForm.vue';
   import OnlineSuperQuery from '../comp/superquery/SuperQuery.vue';
+  import OnlinePopModal from '../comp/OnlinePopModal.vue';
+  import { useOnlineListPopEvent } from '../../hooks/auto/useOnlinePopEvent';
   import { Tree } from "../../util/constant";
   import { Loading } from '/@/components/Loading';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
 
   export default {
     name: 'DefaultOnlineList',
@@ -203,6 +212,7 @@
       OnlineSuperQuery,
       OnlineCustomModal,
       OnlineDetailModal,
+      OnlinePopModal,
       Loading,
     },
     setup() {
@@ -290,6 +300,12 @@
         handleColumnResult,
         hrefComponent,
         viewOnlineCellImage,
+        hrefMainTableId,
+        registerOnlineHrefModal,
+        registerPopModal,
+        openPopModal,
+        onlinePopModalRef,
+        popTableId,
         handleClickFieldHref,
       } = useTableColumns(onlineTableContext, onlineExtConfigJson);
 
@@ -353,6 +369,25 @@
         await getRefPromise(superQueryButtonRef)
         superQueryButtonRef.value.init(json);
       }
+
+      /**
+       * list页面打开 其他表单弹窗
+       * @param params
+       */
+      function openOnlinePopModal(params) {
+        console.log('openOnlinePopModal', params);
+        popTableId.value = params.id;
+        let data = {
+          title: params.describe,
+        };
+        if (params.record && params.record.id) {
+          data['record'] = params.record;
+          data['isUpdate'] = true;
+        }
+        openPopModal(true, data);
+      }
+      //绑定弹窗事件
+      useOnlineListPopEvent(openOnlinePopModal);
 
       /*-------------------------------以下方法是树列表专有的，或复写或新增-【树】----------------------------*/
 
@@ -465,6 +500,7 @@
       }
 
       const that = {
+        sanitizeRichText,
         ID,
         // 查询区域
         onlineQueryFormOuter,
@@ -522,6 +558,11 @@
         registerImportModal,
         importUrl,
         handleFormConfig,
+        onlinePopModalRef,
+        hrefMainTableId,
+        registerOnlineHrefModal,
+        registerPopModal,
+        popTableId,
 
         //其他
         tableReloading,

@@ -155,7 +155,9 @@
 
   // 编辑用户信息
   function editUserInfo(record) {
-    openDrawer(true, { isUpdate: true, record, departDisabled: true });
+    //update-begin---author:wangshuai ---date:20260811  for：[LHZP-1141]【系统管理】我的部门编辑用户所属部门和角色没显示出来------------
+    openDrawer(true, { isUpdate: true, record, departDisabled: true, roleDisabled: true, departPostDisabled: true });
+    //update-end---author:wangshuai ---date:20260811  for：[LHZP-1141]【系统管理】我的部门编辑用户所属部门和角色没显示出来------------
   }
 
   // 选择添加已有用户

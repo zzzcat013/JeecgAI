@@ -87,7 +87,7 @@ export const deleteUserGroup = (params, handleSuccess) => {
 export const batchDeleteUserGroup = (params, handleSuccess) => {
   Modal.confirm({
     title: '确认删除',
-    content: '是否删除选中数据',
+    content: '是否确认取消关联选中用户？',
     okText: '确认',
     cancelText: '取消',
     onOk: () => {

@@ -1,7 +1,7 @@
 <template>
   <!-- 列表 -->
   <BasicTable
-    v-if="!tableReloading"
+    v-if="!tableReloading && (loading || columns.length)"
     ref="onlineTable"
     rowKey="jeecg_row_key"
     :canResize="true"
@@ -34,9 +34,9 @@
     <template #htmlSlot="{ text, column, record }">
       <!-- update-begin--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
       <template v-if="column.fieldHref">
-        <a v-html="text" @click="handleClickFieldHref(column.fieldHref, record)"></a>
+        <a v-html="sanitizeRichText(text)" @click="handleClickFieldHref(column.fieldHref, record)"></a>
       </template>
-      <div v-else v-html="text"></div>
+      <div v-else v-html="sanitizeRichText(text)"></div>
       <!-- update-end--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
     </template>
 
@@ -49,6 +49,11 @@
     </template>
   </BasicTable>
 
+  <!-- update-begin--author:liaozhiyang---date:20260810---for:子表字段全部隐藏时展示友好的空状态 -->
+  <div v-else-if="!tableReloading" class="inner-sub-table-empty">
+    <a-empty :image="Empty.PRESENTED_IMAGE_SIMPLE" description="暂无可展示内容" />
+  </div>
+  <!-- update-end--author:liaozhiyang---date:20260810---for:子表字段全部隐藏时展示友好的空状态 -->
 
   <!-- 详情弹框 -->
   <online-detail-modal :id="ID" @register="registerDetailModal" :source="INNER_TABLE"/>
@@ -76,6 +81,7 @@
 
 <script setup name="OnlCgformInnerSubTable">
   import { ref, watch } from 'vue';
+  import { Empty } from 'ant-design-vue';
   import { BasicTable } from '/@/components/Table';
   import { useMessage } from '/@/hooks/web/useMessage';
   import OnlineCustomModal from '../default/OnlineCustomModal.vue';
@@ -89,6 +95,7 @@
   import OnlinePopModal from '../comp/OnlinePopModal.vue';
   import { INNER_TABLE } from '../../util/constant';
   import { ACTION_COLUMN_FLAG } from '/@/components/Table/src/const';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
 
   /**
     1.内嵌子表单没有分页
@@ -97,7 +104,7 @@
     4.查询始终都是主表数据id（外键不起作用）
     5.内嵌子表单没有新增和编辑，没有操作列
   */
-  const props = defineProps(['subTableId', 'subTableName', 'mTableSelectedRcordId']);
+  const props = defineProps(['subTableId', 'subTableName', 'mTableSelectedRcordId', 'subTableSuperQuery']);
   const { createMessage: $message } = useMessage();
   // 这行代码应该在每次进入新的路由都会走，不管该路由有没有被缓存--
   const {
@@ -156,14 +163,25 @@
     popTableId,
     handleClickFieldHref,
   } = useTableColumns(onlineTableContext, onlineExtConfigJson);
-  // 监听表单配置ID
+  // 监听表单配置ID 与 子表高级查询条件
+  // 首次进入拉取列配置 + 数据，后续过滤条件变化只重新 loadData
+  let subTableInited = false;
   watch(
-    ID,
+    [ID, () => props.subTableSuperQuery],
     () => {
-      console.log('watched id is change...');
-      initAutoList();
+      console.log('watched id or subTableSuperQuery is change...');
+      // 把主表拆分出来的子表高级查询条件合并到子表 context
+      if (props.subTableSuperQuery) {
+        onlineTableContext['superQuery'] = props.subTableSuperQuery;
+      }
+      if (!subTableInited) {
+        subTableInited = true;
+        initAutoList();
+      } else {
+        loadData();
+      }
     },
-    { immediate: true }
+    { immediate: true, deep: true }
   );
   /**重新加载online配置*/
   async function initAutoList() {
@@ -243,4 +261,15 @@
     font-style: italic;
     cursor: pointer;
   }
+  // update-begin--author:liaozhiyang---date:20260810---for:子表字段全部隐藏时展示友好的空状态
+  .inner-sub-table-empty {
+    display: flex;
+    min-height: 100px;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed #d9d9d9;
+    border-radius: 2px;
+    background: #fafafa;
+  }
+  // update-end--author:liaozhiyang---date:20260810---for:子表字段全部隐藏时展示友好的空状态
 </style>

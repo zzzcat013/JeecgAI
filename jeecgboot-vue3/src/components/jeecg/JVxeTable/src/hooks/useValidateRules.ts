@@ -22,12 +22,18 @@ export function useValidateRules(args: HandleArgs) {
           delete rule.pattern;
         } else {
           // 兼容Online表单的特殊规则
+          let reg: any = rule.pattern;
           for (let foo of fooPatterns) {
             if (foo.value === rule.pattern) {
-              rule.pattern = foo.pattern;
+              reg = foo.pattern;
               break;
             }
           }
+          // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-172】行编辑pattern校验空值时不应触发，仅有值时校验（非空由required规则负责）
+          const regExp = reg instanceof RegExp ? reg : new RegExp(reg);
+          delete rule.pattern;
+          rule.validator = emptySkipPatternValidator(regExp);
+          // update-end--author:liaozhiyang---date:20260714---for：【LHZP-172】行编辑pattern校验空值时不应触发，仅有值时校验（非空由required规则负责）
         }
       } else if (typeof rule.handler === 'function') {
         // 自定义函数校验
@@ -77,6 +83,19 @@ function handlerConvertToValidator(event) {
     });
   });
 }
+
+// update-begin--author:liaozhiyang---date:20260714---for：【LHZP-172】行编辑pattern校验空值时不应触发，仅有值时校验（非空由required规则负责）
+/** pattern 校验器：空值不校验（非空交给 required 规则），仅当有值时做正则校验 */
+function emptySkipPatternValidator(regExp: RegExp) {
+  return function (event) {
+    const { cellValue, rule } = event;
+    if (cellValue === '' || cellValue === null || cellValue === undefined) {
+      return Promise.resolve();
+    }
+    return regExp.test(String(cellValue)) ? Promise.resolve() : Promise.reject(new Error(rule.message));
+  };
+}
+// update-end--author:liaozhiyang---date:20260714---for：【LHZP-172】行编辑pattern校验空值时不应触发，仅有值时校验（非空由required规则负责）
 
 // 兼容 online 的规则
 const fooPatterns = [

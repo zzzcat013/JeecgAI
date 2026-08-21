@@ -29,6 +29,10 @@ export const thirdAppFormSchema: FormSchema[] = [
     field: 'agentId',
     component: 'Input',
     required: true,
+    ifShow: ({ values }) => {
+    // 飞书没有Agentld的配置
+      return values.thirdType !== 'feishu';
+    }
   },
   {
     label: 'AppKey',

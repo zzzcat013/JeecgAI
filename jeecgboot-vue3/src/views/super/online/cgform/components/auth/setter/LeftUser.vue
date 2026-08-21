@@ -39,6 +39,7 @@
                 label: '账号',
                 field: 'username',
                 component: 'JInput',
+                colProps: { class: 'onl-auth-user-query-item' },
                 componentProps: {
                   placeholder: '输入账号',
                 },
@@ -47,11 +48,13 @@
                 label: '姓名',
                 field: 'realname',
                 component: 'JInput',
+                colProps: { class: 'onl-auth-user-query-item' },
                 componentProps: {
                   placeholder: '输入姓名',
                 },
               },
             ],
+            actionColOptions: { class: 'onl-auth-user-query-actions' },
           },
           canResize: false,
           clickToRowSelect: true,

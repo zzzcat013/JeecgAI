@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+  <div>
     <BasicModal destroyOnClose @register="registerModal" :canFullscreen="false" :width="width" :title="title" :footer="null">
       <!--  嵌入表单    -->
       <div v-if="type === 'menu'">
@@ -95,13 +95,21 @@
       const [registerModal, { closeModal, setModalProps }] = useModalInner(async (data) => {
         type.value = data.type;
         appData.value = data.data;
-        appData.value.menu = "/ai/chat/"+ data.data.id
+        // 配置菜单：登录态内部路由，不带 shareToken
+        appData.value.menu = '/ai/chat/' + data.data.id;
+        const shareToken = data.data.shareToken || data.data.share_token;
+        if (shareToken) {
+          appData.value.shareToken = shareToken;
+        }
         activeKey.value = 1;
         let minHeight = 220;
         if(data.type === 'web'){
           title.value = '嵌入网站';
           width.value = '640px';
-          minHeight = 500
+          minHeight = 500;
+          if (data.data.status === 'release' && !shareToken) {
+            $message.createMessage.warning('分享链接无效，请重新发布后再嵌入');
+          }
         }else{
           title.value = '配置菜单';
           width.value = '500px';
@@ -126,14 +134,26 @@
       }
 
       /**
+       * 聊天页公开地址（含 shareToken）
+       */
+      function getShareChatPath() {
+        const shareToken = appData.value.shareToken || appData.value.share_token;
+        if (!shareToken) {
+          return '/ai/app/chat/' + appData.value.id;
+        }
+        return '/ai/app/chat/' + appData.value.id + '?shareToken=' + shareToken;
+      }
+
+      /**
        * 获取当前文本
        */
       function getIframeText(value) {
         let locationUrl = document.location.protocol +"//" + window.location.host;
+        const chatPath = getShareChatPath();
         //update-begin---author:wangshuai---date:2025-03-20---for:【QQYUN-11649】【AI】应用嵌入，支持一个小图标点击出聊天---
         if(value === 1){
           return '<iframe\n' +
-              '   src="'+locationUrl+'/ai/app/chat/'+appData.value.id+'"\n' +
+              '   src="'+locationUrl+chatPath+'"\n' +
               '   style="width: 100%; height: 100%;">\n' +
               '</iframe>';
         }else{
@@ -142,10 +162,14 @@
             if(!isDevMode()){
               path = "/chat/chat.js";
             }
+            const shareToken = appData.value.shareToken || appData.value.share_token || '';
             let text ='<script src=' + locationUrl + path +' id="e7e007dd52f67fe36365eff636bbffbd">'+'<'+'/script>';
             text += '\n <'+'script>\n';
             text += '    createAiChat({\n' +
                     '       appId:"'+ appData.value.id +'",\n';
+            if (shareToken) {
+              text += '       shareToken:"'+ shareToken +'",\n';
+            }
             text += '       // 支持top-left左上, top-right右上, bottom-left左下, bottom-right右下\n';
             text += '       iconPosition:"bottom-right"\n';
             text += '    })\n';

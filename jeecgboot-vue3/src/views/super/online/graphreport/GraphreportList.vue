@@ -35,7 +35,7 @@
   import { ref, defineComponent, h } from 'vue';
   import { router } from '/@/router';
   import { useListPage } from '/@/hooks/system/useListPage';
-  import { doBatchDelete, list, Api, queryParamsList } from './graphreport.api';
+  import { doBatchDelete, list, Api, queryParamsList, doCopy } from './graphreport.api';
   import { ActionItem, BasicTable, TableAction } from '/@/components/Table';
   import ExcelButton from '/@/components/jeecg/ExcelButton.vue';
   import { useModal } from '/@/components/Modal';
@@ -49,7 +49,7 @@
     components: {GraphreportAigcModal, ExcelButton, BasicTable, TableAction, GraphreportModal },
     setup() {
       // 列表页面公共参数、方法
-      const { prefixCls, doRequest, doDeleteRecord, tableContext } = useListPage({
+      const { prefixCls, doRequest, doDeleteRecord, tableContext, createConfirm: $confirm } = useListPage({
         designScope: 'online-graphreport-list',
         tableProps: {
           api: list,
@@ -147,6 +147,30 @@
       }
 
       /**
+       * 复制图表
+       * @param record
+       */
+      function onCopyReport(record) {
+        $confirm({
+          title: '复制图表',
+          content: '是否确认复制该图表？',
+          iconType: 'warning',
+          closable: true,
+          onOk() {
+            return doCopy(record.id)
+              .then(() => {
+                // 成功提示由 defHttp 自动弹出（后端 Result 的 message），这里不再手动弹，避免重复提示
+                // 强制跳到第 1 页再刷新：新复制的图表落在第 1 页，普通 reload() 沿用 current 会看不到新数据
+                reload({ page: 1 });
+              })
+              .catch((err) => {
+                return Promise.reject(err);
+              });
+          },
+        });
+      }
+
+      /**
        * 操作栏
        */
       function getTableAction(record) {
@@ -172,6 +196,10 @@
             label: '配置地址',
             class: ['low-app-hide'],
             onClick: () => onShowOnlineUrl(record),
+          },
+          {
+            label: '复制',
+            onClick: () => onCopyReport(record),
           },
           {
             label: '删除',

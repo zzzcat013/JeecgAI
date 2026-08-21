@@ -20,8 +20,6 @@
             <Icon icon="mdi:chevron-down" />
           </a-button>
         </a-dropdown>
-        <!-- 高级查询 -->
-        <super-query :config="superQueryConfig" @search="handleSuperQuery" />
         <a-button type="default" v-auth="'wordtpl:template:add'" @click="handleGenResume" preIcon="ant-design:plus-outlined"> 生成简历 </a-button>
       </template>
       <!--操作栏-->
@@ -64,7 +62,7 @@
       </a-form>
     </BasicModal>
 
-    <BasicModal :loading="resumeLoading" v-bind="$attrs" :canFullscreen="false" @register="resumeModal" title="生成简历" :width="628" destroyOnClose @ok="handleGenResumeOk">
+    <BasicModal :loading="resumeLoading" v-bind="$attrs" :canFullscreen="false" @register="resumeModal" title="生成简历" :width="628" destroyOnClose @ok="handleGenResumeOk" @cancel="handleGenResumeCancel">
       <a-form :model="genResumeData" :label-col="{ span: 4 }" :wrapper-col="{ span: 20 }">
         <a-form-item class="field-clos" label="基础信息" name="content">
           <a-input v-model:value="genResumeData.content" style="width: 90%" placeholder="请输入基础信息" />
@@ -139,11 +137,13 @@
   const currentTpl = reactive({});
   const genWordData = reactive({});
   const tplFieldList = reactive([]);
-  const genResumeData = reactive({
+  const defaultGenResumeData = {
     content: '张三；电话：186xxxxxxxx；邮箱：zhangsan@ex.com',
     profile: '拥有13年开发经验，8年项目管理经验，6年系统架构经验，曾在多个平台级产品中担任核心负责人，具备从0到1搭建平台、从1到100推动演进的能力。',
-  });
+  };
+  const genResumeData = reactive({ ...defaultGenResumeData });
   const resumeLoading = ref(false);
+  let resumeRequestId = 0;
 
   // 高级查询配置
   const superQueryConfig = reactive(superQuerySchema);
@@ -172,6 +172,9 @@
    * 生成简历事件
    */
   function handleGenResume() {
+    resumeRequestId++;
+    resumeLoading.value = false;
+    Object.assign(genResumeData, defaultGenResumeData);
     openResumeModal(true, {
       isUpdate: false,
       showFooter: true,
@@ -245,8 +248,12 @@
       inputParams: genResumeData,
       responseMode: 'blocking',
     };
+    const requestId = ++resumeRequestId;
     resumeLoading.value = true;
     generateResume(params, (resp) => {
+      if (requestId !== resumeRequestId) {
+        return;
+      }
       if(resp && resp.success){
         closeResumeModal();
         resumeLoading.value = false;
@@ -255,7 +262,16 @@
         createMessage.error('生成简历失败: ' + resp.message);
         resumeLoading.value = false;
       }
+    }).catch(() => {
+      if (requestId === resumeRequestId) {
+        resumeLoading.value = false;
+      }
     });
+  }
+
+  function handleGenResumeCancel() {
+    resumeRequestId++;
+    resumeLoading.value = false;
   }
 
   function extractTplFields(record) {

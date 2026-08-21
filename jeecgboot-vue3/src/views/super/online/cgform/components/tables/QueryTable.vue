@@ -58,6 +58,10 @@
             // update-begin--author:liaozhiyang---date:20240529---for：【TV360X-415】个性化配置控件类型增加popup字典组件
             { title: 'Popup字典', value: 'popup_dict' },
             // update-end--author:liaozhiyang---date:20240529---for：【TV360X-415】个性化配置控件类型增加popup字典组件
+            // update-begin--author:liaozhiyang---date:20260810---for：【单表@自定义查询】生成数据时正确展示关联记录和他表字段控件类型
+            { title: '关联记录', value: 'link_table' },
+            { title: '他表字段', value: 'link_table_field' },
+            // update-end--author:liaozhiyang---date:20260810---for：【单表@自定义查询】生成数据时正确展示关联记录和他表字段控件类型
           ],
           defaultValue: 'text',
           placeholder: '请选择${title}',

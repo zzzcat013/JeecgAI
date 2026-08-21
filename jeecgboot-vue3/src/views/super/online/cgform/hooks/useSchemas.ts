@@ -413,7 +413,7 @@ export function useExtendConfigFormSchemas(_props, handlers) {
   const mapFormSchema = bindMapFormSchema<SpanType>(
     {
       left: {
-        colProps: { xs: 24, sm: 7 },
+        colProps: { xs: 24, sm: 9 },
         itemProps: {
           labelCol: { xs: 24, sm: 11 },
           wrapperCol: { xs: 24, sm: 13 },
@@ -421,10 +421,10 @@ export function useExtendConfigFormSchemas(_props, handlers) {
         style: { width: '100%' },
       },
       right: {
-        colProps: { xs: 24, sm: 17 },
+        colProps: { xs: 24, sm: 15 },
         itemProps: {
-          labelCol: { xs: 24, sm: 3 },
-          wrapperCol: { xs: 24, sm: 20 },
+          labelCol: { xs: 24, sm: 4 },
+          wrapperCol: { xs: 24, sm: 19 },
         },
         style: { width: '100%' },
       },
@@ -438,7 +438,14 @@ export function useExtendConfigFormSchemas(_props, handlers) {
     return !(tableType === 3 && relationType === 1);
   }
 
-  const formSchemas: FormSchema[] = [
+  // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源（附表跟随主表，不单独配置）
+  function isNotSubTable() {
+    const { tableType } = _props.parentForm.getFieldsValue(['tableType']);
+    return tableType !== 3;
+  }
+  // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
+
+  const baseFormSchemas: FormSchema[] = [
     // 弹窗
     mapFormSchema(
       {
@@ -463,11 +470,11 @@ export function useExtendConfigFormSchemas(_props, handlers) {
         component: 'InputNumber',
         ifShow: isNotOneToOneSub,
         componentProps: {
-          style: 'width: 80%',
+          style: 'width: 70%',
           placeholder: '弹窗最小宽度（单位：px）',
         },
         // update-begin--author:liaozhiyang---date:20240520---for：【TV360X-77】弹窗全屏后，输入宽度框禁用
-        dynamicDisabled: ({ model }) => model.modelFullscreen,
+        dynamicDisabled: ({ model }) => !!model.modelFullscreen,
         // update-end--author:liaozhiyang---date:20240520---for：【TV360X-77】弹窗全屏后，输入宽度框禁用
       },
       'right'
@@ -554,7 +561,7 @@ export function useExtendConfigFormSchemas(_props, handlers) {
         component: 'Input',
         ifShow: isNotOneToOneSub,
         componentProps: {
-          style: 'width: 80%',
+          style: 'width: 70%',
         },
         dynamicDisabled: ({ model }) => !model.reportPrintShow,
         dynamicRules: ({ model }) => {
@@ -620,6 +627,9 @@ export function useExtendConfigFormSchemas(_props, handlers) {
           buttonStyle: 'solid',
         },
         defaultValue: 1,
+        // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-69】树表时固定操作列禁用
+        dynamicDisabled: () => _props.parentForm.getFieldsValue(['isTree']).isTree === 'Y',
+        // update-end--author:liaozhiyang---date:20260713---for：【LHZP-69】树表时固定操作列禁用
       },
       'left'
     ),
@@ -633,10 +643,12 @@ export function useExtendConfigFormSchemas(_props, handlers) {
             { label: '固定到右侧', value: 'right' },
             { label: '固定到左侧', value: 'left' },
           ],
-          style: 'width: 80%',
+          style: 'width: 70%',
         },
         defaultValue: 'right',
-        dynamicDisabled: ({ model }) => !model.tableFixedAction,
+        // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-69】树表时固定方式禁用
+        dynamicDisabled: ({ model }) => !model.tableFixedAction || _props.parentForm.getFieldsValue(['isTree']).isTree === 'Y',
+        // update-end--author:liaozhiyang---date:20260713---for：【LHZP-69】树表时固定方式禁用
         dynamicRules: ({ model }) => {
           return [{ required: !!model.tableFixedAction, message: '请选择固定方式！' }];
         },
@@ -677,6 +689,7 @@ export function useExtendConfigFormSchemas(_props, handlers) {
         label: '表单Label长度',
         field: 'formLabelLengthShow',
         component: 'RadioButtonGroup',
+        helpMessage: '字段备注的文字个数',
         componentProps: {
           options: [
             { label: '开启', value: 1 },
@@ -694,7 +707,7 @@ export function useExtendConfigFormSchemas(_props, handlers) {
         field: 'formLabelLength',
         component: 'InputNumber',
         componentProps: {
-          style: 'width: 80%',
+          style: 'width: 70%',
           placeholder: '自定义表单Label长度',
         },
         dynamicDisabled: ({ model }) => !model.formLabelLengthShow,
@@ -729,6 +742,7 @@ export function useExtendConfigFormSchemas(_props, handlers) {
         field: 'externalLinkActions',
         component: 'JCheckbox',
         ifShow: isNotOneToOneSub,
+        itemProps: { colon: true },
         componentProps: {
           options: [
             {label: '新增', value: 'add'},
@@ -740,8 +754,135 @@ export function useExtendConfigFormSchemas(_props, handlers) {
       },
       'right'
     ),
+    // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
+    mapFormSchema(
+      {
+        label: '开启多数据源',
+        field: 'enableMultiDataSource',
+        component: 'RadioButtonGroup',
+        ifShow: isNotSubTable,
+        // update-begin--author:jeecg---date:20260513---for：【QQYUN-15337】开启多数据源处增加使用说明/注意事项
+        helpMessage: [
+          '开启后：本表单的同步建表、数据增删改查、列表查询、导入导出都走选定的数据源；附表自动跟随主表。',
+          '✓ 关联记录/下拉关联已支持多数据源，会自动按被关联表所属表单的数据源路由，无需额外配置。',
+          '⚠ 对接了流程审批(BPM)的表单不要配数据源——流程引擎走主库，请把对接流程的表单放在主库（不开启多数据源）。',
+          '⚠ 数据源变更后该表单及其附表会被置为"未同步"，需重新同步建表；物理表不会自动迁库，旧库的表/数据需自行清理。',
+        ],
+        helpComponentProps: {
+          maxWidth: '550px',
+          showIndex: true,
+          fontSize: '13px',
+          color: '#4e5969',
+          backgroundColor: '#ffffff',
+        },
+        // update-end--author:jeecg---date:20260513---for：【QQYUN-15337】开启多数据源处增加使用说明/注意事项
+        componentProps: {
+          options: [
+            { label: '开启', value: 1 },
+            { label: '关闭', value: 0 },
+          ],
+          buttonStyle: 'solid',
+          defaultValue: 0,
+          onChange: handlers.onEnableMultiDataSourceChange,
+        },
+      },
+      'left'
+    ),
+    mapFormSchema(
+      {
+        label: '选择数据源',
+        field: 'dbSource',
+        component: 'JDictSelectTag',
+        ifShow: isNotSubTable,
+        itemProps: { colon: true },
+        componentProps: {
+          dictCode: 'sys_data_source,name,code',
+          style: 'width: 70%',
+          // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】允许不选数据源（不选时走默认数据源）
+          placeholder: '请选择数据源（不选则走默认数据源；同步建表与数据增删改查均走该数据源）',
+          // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】允许不选数据源（不选时走默认数据源）
+        },
+        dynamicDisabled: ({ model }) => !model.enableMultiDataSource,
+      },
+      'right'
+    ),
+    // 附表：仅当已继承到主表数据源时，只读展示该数据源（未继承/默认数据源时不展示此字段）
+    mapFormSchema(
+      {
+        label: '数据源',
+        field: 'dbSource',
+        component: 'JDictSelectTag',
+        ifShow: ({ model }) => !isNotSubTable() && !!model.dbSource,
+        helpMessage: '附表的数据源跟随主表，请在对应主表的扩展配置中设置',
+        componentProps: {
+          dictCode: 'sys_data_source,name,code',
+          disabled: true,
+        },
+      },
+      'left'
+    ),
+    // 占位符，与上面的只读数据源凑成一行
+    mapFormSchema(
+      {
+        label: '',
+        field: 'dbSource',
+        component: 'Input',
+        ifShow: ({ model }) => !isNotSubTable() && !!model.dbSource,
+        render: () => '',
+      },
+      'right'
+    ),
+    // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
+    // 图片导出方式
+    mapFormSchema(
+      {
+        label: '图片导出方式',
+        field: 'imageExportMode',
+        component: 'RadioButtonGroup',
+        helpMessage: '嵌入图片会增大 Excel 文件体积；图片路径适合仅保留文件地址的场景',
+        itemProps: { class: 'image-export-mode' },
+        componentProps: {
+          options: [
+            { label: '嵌入图片', value: 'embed' },
+            { label: '图片路径', value: 'path' },
+          ],
+          buttonStyle: 'solid',
+        },
+        defaultValue: 'path',
+      },
+      'left'
+    ),
+    // 此处为占位符
+    mapFormSchema(
+      {
+        label: '',
+        field: 'imageExportMode',
+        component: 'InputNumber',
+        render: () => '',
+      },
+      'right'
+    ),
   ];
 
+  // update-begin--author:jeecg---date:20260810---for：【LHZP-122】一对多附表仅允许配置弹窗默认全屏、弹窗宽度和表单 Label 长度，其余扩展配置统一禁用
+  const oneToManySubEnabledFields = new Set(['modelFullscreen', 'modalMinWidth', 'formLabelLengthShow', 'formLabelLength']);
+  const formSchemas = baseFormSchemas.map((schema) => {
+    if (oneToManySubEnabledFields.has(schema.field)) {
+      return schema;
+    }
+    const originalDynamicDisabled = schema.dynamicDisabled;
+    return {
+      ...schema,
+      dynamicDisabled: (params) => {
+        const { tableType, relationType } = _props.parentForm.getFieldsValue(['tableType', 'relationType']);
+        if (tableType === 3 && relationType === 0) {
+          return true;
+        }
+        return typeof originalDynamicDisabled === 'function' ? originalDynamicDisabled(params) : originalDynamicDisabled ?? false;
+      },
+    };
+  });
+  // update-end--author:jeecg---date:20260810---for：【LHZP-122】一对多附表仅允许配置弹窗默认全屏、弹窗宽度和表单 Label 长度，其余扩展配置统一禁用
   return { formSchemas };
 }
 

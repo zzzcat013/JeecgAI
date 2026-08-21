@@ -36,7 +36,7 @@ export const schemas: FormSchema[] = [
   },
   {
     label: 'Api树选择',
-    field: 'apiSelect',
+    field: 'apiTreeSelect',
     component: 'ApiTreeSelect',
     componentProps: {
       /* 请求api,返回结果
@@ -236,7 +236,7 @@ export const schemas: FormSchema[] = [
       //起始选择code，见配置的分类字典的类型编码
       pcode: 'A04',
       //父级id
-      pid:'',
+      pid:'0',
       //返回key
       back:'id',
     },

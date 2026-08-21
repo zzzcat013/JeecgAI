@@ -4,7 +4,7 @@
 
 <script lang="ts" setup>
   import { ref, inject, onMounted, watch } from 'vue';
-  import { queryIdTree } from '../depart.user.api';
+  import { queryDepartByIds, queryIdTree } from '../depart.user.api';
   import { useBaseInfoForm } from '../depart.user.data';
   import { Description, useDescription } from '/@/components/Description/index';
 
@@ -26,6 +26,15 @@
 
   function setData(data) {
     setDescProps({ data });
+    if (!data?.id || data.parentId) {
+      return;
+    }
+    const departId = data.id;
+    queryDepartByIds({ deptIds: departId }).then((departList) => {
+      if (props.data?.id === departId && departList?.[0]) {
+        setDescProps({ data: { ...data, ...departList[0] } });
+      }
+    });
   }
 
   onMounted(() => {

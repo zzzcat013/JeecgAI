@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="depart-tree-container">
     <a-tree
       v-if="treeData.length > 0"
       showIcon
@@ -68,3 +68,10 @@
     },
   });
 </script>
+
+<style scoped lang="less">
+  .depart-tree-container {
+    max-height: 520px;
+    overflow-y: auto;
+  }
+</style>

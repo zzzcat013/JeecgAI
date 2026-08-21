@@ -18,7 +18,7 @@
   import { unref } from 'vue';
   import UserSelectModal from './modal/UserSelectModal.vue';
   import JSelectBiz from './base/JSelectBiz.vue';
-  import { defineComponent, ref, reactive, watchEffect, watch, provide } from 'vue';
+  import { defineComponent, ref, reactive, watchEffect, watch, provide, computed } from 'vue';
   import { useModal } from '/@/components/Modal';
   import { propTypes } from '/@/utils/propTypes';
   import { useRuleFormItem } from '/@/hooks/component/useFormItem';
@@ -147,7 +147,10 @@
         selectValues.value = values;
         send(values);
       }
-      const getBindValue = Object.assign({}, unref(props), unref(attrs));
+      // 【修复】原写法是 setup 期一次性 Object.assign 快照，
+      // 父组件 updateSchema 改 props 后 v-bind="getBindValue" 不会重新求值
+      // 改为 computed 后，props/attrs 任一变化都会重新合并后透传给 UserSelectModal
+      const getBindValue = computed(() => Object.assign({}, unref(props), unref(attrs)));
       // 代码逻辑说明: 【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
       const handleClose = () => {
         if (tempSave.length) {

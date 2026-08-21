@@ -31,6 +31,14 @@
         if (isFunction(componentProps)) {
           componentProps = componentProps({schema, formModel}) ?? {};
         }
+
+        //update-begin---wangshuai---date:20260804  for：[LHZP-126]筛选 年、年月 快速选择不需要------------
+        const picker = componentProps.picker;
+        if (schema.component === 'DatePickerInFilter' && ['year', 'month'].includes(picker)) {
+          componentProps = { ...componentProps, allowSelectRange: false };
+        }
+        //update-end---author:wangshuai ---date:20260804  for：[LHZP-126]筛选 年、年月 快速选择不需要------------
+        
         return componentProps as Recordable;
       });
 

@@ -21,7 +21,7 @@
       <a-upload
         :accept="acceptFileType"
         name="file"
-        :data="{ isup: 1 }"
+        :data="uploadData"
         :multiple="false"
         :action="uploadAction"
         :headers="uploadHeaders"
@@ -29,7 +29,7 @@
         v-bind="cellProps"
         @change="handleChangeUpload"
       >
-        <a-button v-if="!hasFile" preIcon="ant-design:upload">{{ originColumn.btnText || '上传图片' }}</a-button>
+        <a-button v-if="!hasFile" class="j-vxe-upload-trigger" size="small" preIcon="ant-design:upload">{{ originColumn.btnText || '图片' }}</a-button>
         <div v-if="hasFile && imgList.length < maxCount" class="j-vxe-plus" @click="">
           <Icon icon="ant-design:plus" />
         </div>

@@ -5,6 +5,20 @@
       <!--插槽:table标题-->
       <template #tableTitle>
         <a-button type="primary" @click="handleAdd" preIcon="ant-design:plus-outlined"> 新增</a-button>
+        <a-dropdown v-if="selectedRowKeys.length > 0">
+          <template #overlay>
+            <a-menu>
+              <a-menu-item key="1" @click="batchHandleDelete">
+                <Icon icon="ant-design:delete-outlined"></Icon>
+                删除
+              </a-menu-item>
+            </a-menu>
+          </template>
+          <a-button
+            >批量操作
+            <Icon icon="mdi:chevron-down"></Icon>
+          </a-button>
+        </a-dropdown>
       </template>
       <!--操作栏-->
       <template #action="{ record }">
@@ -35,7 +49,7 @@
   import AiEvaluatorDebugModal from './components/AiEvaluatorDebugModal.vue';
   import AiragInvokeRecordsDrawer from './components/AiragInvokeRecordsDrawer.vue';
   import { columns, searchFormSchema } from './AiragExtData.data';
-  import { list, deleteOne } from './AiragExtData.api';
+  import { list, deleteOne, batchDelete } from './AiragExtData.api';
   //注册model
   const [registerModal, { openModal }] = useModal();
   //注册评测集model
@@ -100,6 +114,12 @@
    */
   async function handleDelete(record) {
     await deleteOne({ id: record.id }, handleSuccess);
+  }
+  /**
+   * 批量删除事件
+   */
+  async function batchHandleDelete() {
+    await batchDelete({ ids: selectedRowKeys.value }, handleSuccess);
   }
   /**
    * 调试事件

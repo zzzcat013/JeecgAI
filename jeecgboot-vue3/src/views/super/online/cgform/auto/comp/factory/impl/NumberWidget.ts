@@ -44,6 +44,9 @@ export default class NumberWidget extends IFormSchema {
     if (this.dbPointLength >= 0) {
       props['precision'] = this.dbPointLength;
     }
+    if (this.onlyInteger) {
+      props['precision'] = 0;
+    }
     return props;
   }
 }

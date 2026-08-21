@@ -366,7 +366,7 @@ export function useOnlineTableContext(params: any = {}) {
       } else if (onlineTableContext['isInnerSubTable'] === true) {
         // update-begin--author:liaozhiyang---date:20230822---for：【QQYUN-6305】内嵌主题一对多
         url = `${onlineTableContext.onlineUrl.getData}${onlineTableContext['innerSubTableId']}`;
-        params = {pageSize: -521, }
+        params = Object.assign(params,{pageSize: -521 });
         // update-begin--author:liaozhiyang---date:20240514---for：【QQYUN-9340】内嵌子表数据都查出来了
         if (onlineTableContext['innerSubTableFk'] && onlineTableContext['mTableSelectedRcordId']) {
           params[onlineTableContext['innerSubTableFk']] = onlineTableContext['mTableSelectedRcordId'];
@@ -432,9 +432,11 @@ export function useOnlineTableContext(params: any = {}) {
     };
     if (onlineTableContext.isTree() === true) {
       // update-begin--author:liaozhiyang---date:20231205---for：【issues/888】online树表子节点搜索不生效且有警告
-      if (!!queryParam || Object.keys(queryParam).length <= 0) {
+      // update-begin--author:liusq---date:20260807---for：【树表查询】命中子级数据时返回子级及完整祖先层级
+      if (!hasTreeQueryCondition()) {
         treeParam['hasQuery'] = 'false';
       }
+      // update-end--author:liusq---date:20260807---for：【树表查询】命中子级数据时返回子级及完整祖先层级
       // update-end--author:liaozhiyang---date:20231205---for：【issues/888】online树表子节点搜索不生效且有警告
     }
     let params = Object.assign({}, treeParam, acceptHrefParams, queryParam, { column: sortField, order: sortType });
@@ -467,9 +469,15 @@ export function useOnlineTableContext(params: any = {}) {
     if (Number(result.total) > 0) {
       if (onlineTableContext.isTree() === true) {
         dataSource.value = getTreeDataByResult(result.records);
-        nextTick(() => {
-          loadDataByExpandedRows(dataSource.value);
-        });
+        // update-begin--author:liusq---date:20260807---for：【树表查询】查询时不回填历史展开节点的无关子级数据
+        if (hasTreeQueryCondition()) {
+          expandedRowKeys.value = [];
+        } else {
+          nextTick(() => {
+            loadDataByExpandedRows(dataSource.value);
+          });
+        }
+        // update-end--author:liusq---date:20260807---for：【树表查询】查询时不回填历史展开节点的无关子级数据
       } else {
         // update-begin--author:liaozhiyang---date:20250508---for：【issues/8168】id重复排序数据重了
         dataSource.value = [];
@@ -579,20 +587,35 @@ export function useOnlineTableContext(params: any = {}) {
       pagination.value = { ...pagination.value, current: parameter.mode == 'search' || !pagination.value.current ? 1 : pagination.value.current };
       // update-end--author:liaozhiyang---date:20231207---for：【QQYUN-7414】online操作除了查询其他数据刷新都是当前页（包括新增）
     }
-    // update-begin--author:liaozhiyang---date:20231128---for：【QQYUN-7260】erp主表编辑时保存子表记录
-    if (params['themeTemplate'] !== ERP) {
+    // update-begin--author:liusq---date:20260713---for：【LHZP-118】搜索时清空主表选中，确保子表同步
+    if (parameter.mode === 'search') {
       onlineTableContext.clearSelectedRow();
+      // update-end--author:liaozhiyang---date:20260713---for：【LHZP-118】搜索时清空主表选中，确保子表同步
+    } else if (params['themeTemplate'] !== ERP) {
+      // update-begin--author:liaozhiyang---date:20231128---for：【QQYUN-7260】erp主表编辑时保存子表记录
+      onlineTableContext.clearSelectedRow();
+      // update-end--author:liaozhiyang---date:20231128---for：【QQYUN-7260】erp主表编辑时保存子表记录
     }
-    // update-end--author:liaozhiyang---date:20231128---for：【QQYUN-7260】erp主表编辑时保存子表记录
     //loading.value = true
     await loadData();
     //loading.value = false
   }
 
   //------------------------树形列表--------------------------
+  function hasTreeQueryCondition() {
+    const { queryParam, superQuery } = onlineTableContext;
+    const hasBasicQuery = !!queryParam && Object.values(queryParam).some((value) => value !== undefined && value !== null && value !== '');
+    return hasBasicQuery || (Array.isArray(superQuery?.params) && superQuery.params.length > 0);
+  }
+
   function getTreeDataByResult(result) {
     if (result) {
       return result.map((item) => {
+        // 查询结果已包含祖先链时保留真实子节点，不能再替换成懒加载占位节点
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          item.children = getTreeDataByResult(item.children);
+          return item;
+        }
         //判断是否标记了带有子节点
         let hasChildrenField = onlineTableContext['hasChildrenField'];
         if (item[hasChildrenField] == '1') {

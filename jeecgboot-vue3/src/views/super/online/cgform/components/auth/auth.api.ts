@@ -11,6 +11,7 @@ export enum Api {
   validData = '/online/cgform/api/validAuthData',
   saveField = '/online/cgform/api/roleColumnAuth',
   batchAuthField = '/online/cgform/api/authColumn/batch',
+  batchAuthButton = '/online/cgform/api/authButton/batch',
 }
 
 // 字段权限，查询数据
@@ -32,6 +33,8 @@ export const authButtonLoadData = (cgformId, params?) => defHttp.get({ url: `${A
 export const authButtonEnable = (params) => defHttp.post({ url: Api.authButton, params });
 // 按钮权限，禁用
 export const authButtonDisable = (id: string, params?) => defHttp.put({ url: `${Api.authButton}/${id}`, params });
+// 按钮权限，批量更新启用状态
+export const batchAuthButtonUpdateStatus = (params) => defHttp.put({ url: Api.batchAuthButton, params });
 
 // 数据权限，查询数据
 export const authDataLoadData = (cgformId, params?) => defHttp.get({ url: `${Api.authData}/${cgformId}`, params });

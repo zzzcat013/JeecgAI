@@ -11,6 +11,9 @@ import xinference from './icon/xinference.svg';
 import vllm from './icon/vllm.png';
 import imstdio from './icon/imstdio.png';
 import gemini from './icon/gemini.png';
+import kimi from './icon/kimi.ico';
+import minimax from './icon/minimax.png';
+import volcengine from './icon/volcengine.png';
 import { ref } from 'vue';
 
 /**
@@ -67,13 +70,24 @@ export const formSchema: FormSchema[] = [
   {
     label: 'Secret Key',
     field: 'secretKey',
-    required: true,
+    required: false,
     component: 'InputPassword',
     ifShow: ({ values }) => {
-      if(values.provider==='DEEPSEEK' || values.provider==="OLLAMA" || values.provider==="OPENAI"
-        || values.provider==="ZHIPU" || values.provider==="QWEN" || values.provider==="ANTHROPIC" 
-        || values.provider==="XINFERENCE" || values.provider==="VLLM" ||  values.provider === 'LMSTDIO'
-        || values.provider === "GOOGLE"){
+      if (
+        values.provider === 'DEEPSEEK' ||
+        values.provider === 'OLLAMA' ||
+        values.provider === 'OPENAI' ||
+        values.provider === 'ZHIPU' ||
+        values.provider === 'QWEN' ||
+        values.provider === 'ANTHROPIC' ||
+        values.provider === 'XINFERENCE' ||
+        values.provider === 'VLLM' ||
+        values.provider === 'LMSTDIO' ||
+        values.provider === 'GOOGLE' ||
+        values.provider === 'KIMI' ||
+        values.provider === 'MINIMAX' ||
+        values.provider === 'VOLCENGINE'
+      ) {
         return false;
       }
       return true;
@@ -125,4 +139,7 @@ export const imageList = ref<any>({
   VLLM: vllm,
   LMSTDIO: imstdio,
   GOOGLE: gemini,
+  KIMI: kimi,
+  MINIMAX: minimax,
+  VOLCENGINE: volcengine,
 });

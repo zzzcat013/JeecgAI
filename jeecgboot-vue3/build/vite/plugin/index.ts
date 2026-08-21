@@ -62,7 +62,17 @@ export async function createVitePlugins(
     }),
   ];
 
-  vitePlugins.push(UnoCSS({ presets: [presetUno(), presetTypography()] }));
+  // update-begin--author:copilot---date:20260711---for:【依赖升级排查】屏蔽被 UnoCSS 误识别为原子类的业务字符串/注释文本
+  // 源码中存在 '[orderby:...]'、'[09:00]' 等业务字符串/注释文本，会被 UnoCSS 静态扫描误判为形如 [prop:value] 的
+  // 任意值原子类，生成的 CSS 规则值不是合法 CSS（如包含 JS 表达式片段），旧版 esbuild/lightningcss minify 较宽松未报错，
+  // vite8 lightningcss 严格校验会直接构建失败，故通过 blocklist 屏蔽这些非预期匹配。
+  vitePlugins.push(
+    UnoCSS({
+      presets: [presetUno(), presetTypography()],
+      blocklist: [/^\[orderby:.*\]$/, /^\[uploading:.*\]$/, /^\[\d{2}:\d{2}\]$/],
+    })
+  );
+  // update-end--author:copilot---date:20260711---for:【依赖升级排查】屏蔽被 UnoCSS 误识别为原子类的业务字符串/注释文本
   // update-begin--author:liaozhiyang---date:20260302---for:【QQYUN-14806】antd采用unplugin-vue-components实现按需加载
   // unplugin-vue-components: ant-design-vue 组件自动按需导入
   vitePlugins.push(

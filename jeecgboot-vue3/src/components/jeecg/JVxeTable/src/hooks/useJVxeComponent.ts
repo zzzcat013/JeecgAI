@@ -186,6 +186,28 @@ export function useJVxeComponent(props: JVxeComponent.Props) {
     { immediate: true }
   );
 
+  // update-begin--author:liaozhiyang---date:20250526---for：【QQYUN-15511】一对多子表的options通过js修改后，刷新后编辑回显的不是label
+  // 监听 options 变化（解决 动态更新options时需重新翻译）
+  watch(
+    () => originColumn.value?.options,
+    () => {
+      if (props.renderType === JVxeRenderType.spaner && enhanced.translate.enabled === true) {
+        if (isFunction(enhanced.translate.handler)) {
+          const newValue = value.value;
+          if (newValue === undefined || newValue === null) return;
+          let res = enhanced.translate.handler(newValue, ctx);
+          if (isPromise(res)) {
+            res.then((v) => (innerValue.value = v));
+          } else {
+            innerValue.value = res;
+          }
+        }
+      }
+    },
+    { deep: true }
+  );
+  // update-end--author:liaozhiyang---date:20250526---for：【QQYUN-15511】一对多子表的options通过js修改后，刷新后编辑回显的不是label
+
   /** 通用处理 change 事件 */
   function handleChangeCommon($value, force = false) {
     const newValue = enhanced.getValue($value, ctx);

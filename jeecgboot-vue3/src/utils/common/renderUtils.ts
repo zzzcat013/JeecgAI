@@ -13,8 +13,10 @@ const render = {
   /**
    * 渲染列表头像
    */
-  renderAvatar: ({ record }) => {
-    if (record.avatar) {
+  renderAvatar: (param) => {
+    if (param == null) return h('span', '');
+    const record = (typeof param === 'object' && 'record' in param) ? param.record : null;
+    if (record && record.avatar) {
       let avatarList = record.avatar.split(',');
       return h(
         'span',
@@ -61,7 +63,9 @@ const render = {
    * 渲染图片
    * @param text
    */
-  renderImage: ({ text }) => {
+  renderImage: (param) => {
+    if (param == null) return h('span', '');
+    const text = typeof param === 'string' ? param : param.text;
     if (!text) {
       return h(Image, {
         width: 30,
@@ -106,7 +110,9 @@ const render = {
    * 渲染a标签
    * @param text
    */
-  renderHref: ({ text }) => {
+  renderHref: (param) => {
+    if (param == null) return '';
+    let text = typeof param === 'string' ? param : param.text;
     if (!text) {
       return '';
     }

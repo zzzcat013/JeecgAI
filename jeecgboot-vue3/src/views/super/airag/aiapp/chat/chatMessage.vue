@@ -45,10 +45,10 @@
           </a-col>
         </a-row>
       </div>
-      <div class="thinkArea" style="margin-bottom: 10px" v-if="!isCard && !isCardConfig && (eventType === 'thinking' || eventType === 'thinking_end')">
+      <div class="thinkArea" style="margin-bottom: 10px" v-if="!isCard && !isCardConfig && isThinkingEvent">
         <a-collapse v-model:activeKey="activeKey" ghost>
           <a-collapse-panel :key="uuid" :header="loading?'正在思考中':'思考结束'">
-            <ThinkText :text="text" :inversion="inversion" :error="error" :loading="loading"></ThinkText>
+            <ThinkText :text="thinkingText" :inversion="inversion" :error="error" :loading="loading"></ThinkText>
           </a-collapse-panel>
         </a-collapse>
       </div>
@@ -82,8 +82,48 @@
 
   const uuid = ref<any>(buildUUID());
   const activeKey = ref<any>(uuid.value);
+  const isThinkingEvent = computed(() => props.eventType === 'thinking' || props.eventType === 'thinking_end');
+  const thinkingText = computed(() => {
+    const text = props.text ?? '';
+    // update-begin--author:wangshuai---date:20260813---for：【LHZP-1615】这种程序底层语言不应该不返回显示把？
+    if (typeof text !== 'string') {
+      return text;
+    }
+    return text
+      .replace(/<jeecg-tool-exec\b[^>]*>[\s\S]*?<\/jeecg-tool-exec>/gi, '')
+      .split('\n')
+      .filter((line) => !isToolExecPayload(line))
+      .join('\n')
+      .trim();
+    // update-end--author:wangshuai---date:20260813---for：【LHZP-1615】这种程序底层语言不应该不返回显示把？
+  });
+
+  /**
+   * 判断思考文本中的单行 JSON 是否为工具执行记录。
+   */
+  function isToolExecPayload(text: string): boolean {
+    const value = text.trim();
+    if (!value.startsWith('{') || !value.endsWith('}')) {
+      return false;
+    }
+    try {
+      const record = JSON.parse(value);
+      return (
+        !!record &&
+        typeof record === 'object' &&
+        !Array.isArray(record) &&
+        typeof record.name === 'string' &&
+        Object.prototype.hasOwnProperty.call(record, 'input') &&
+        Object.prototype.hasOwnProperty.call(record, 'output') &&
+        Object.prototype.hasOwnProperty.call(record, 'loading')
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
   const getText = computed(()=>{
-    let text = props.text || props.retrievalText;
+    let text = isThinkingEvent.value ? thinkingText.value : props.text || props.retrievalText;
     if(text){
       text = text.trim();
     }
@@ -373,13 +413,24 @@
     padding-right: 0.75rem;
   }
   .retrieval:after{
-    animation: blink 1s steps(5, start) infinite;
+    animation: ai-chat-cursor-blink 1s step-end infinite;
     color: #000;
     content: '_';
     font-weight: 700;
     margin-left: 3px;
     vertical-align: baseline;
   }
+  // update-begin--author:liaozhiyang---date:20260805---for：【LHZP-1436】思考加载的动画独立命名避免和codeMirror冲突
+  @keyframes ai-chat-cursor-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  // update-end--author:liaozhiyang---date:20260805---for：【LHZP-1436】思考加载的动画独立命名避免和codeMirror冲突
   .card{
     width: 100%;
     background-color: unset;

@@ -43,7 +43,7 @@
     //不显示查询和重置按钮
     showActionButtonGroup: false,
     //默认row行配置,当 layout 为 inline 生效
-    rowProps: { gutter: 24, justify: 'center', align: 'middle' },
+    rowProps: { gutter: [24, 24], justify: 'center', align: 'middle' },
     //全局col列占比(每列显示多少位)，和schemas中的colProps属性一致
     baseColProps: { span: 12 },
     //row行的样式

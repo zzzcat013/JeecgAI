@@ -1,7 +1,7 @@
 <template>
   <a-row :class="['p-4', `${prefixCls}--box`]" type="flex" :gutter="10">
     <a-col :xl="10" :lg="24" :md="24" style="margin-bottom: 10px">
-      <DepartLeftTree ref="leftTree" @select="onTreeSelect" @rootTreeData="onRootTreeData" />
+      <DepartLeftTree ref="leftTree" @select="onTreeSelect" @rootTreeData="onRootTreeData" @dragSuccess="onDepartDragSuccess" />
     </a-col>
     <a-col :xl="14" :lg="24" :md="24" style="margin-bottom: 10px">
       <div style="height: 100%;" :class="[`${prefixCls}`]">
@@ -47,6 +47,7 @@
   import DepartRankRelation from './components/DepartRankRelation.vue';
   import DepartUserList from './components/DepartUserList.vue';
   import DepartmentHeadList from './components/DepartmentHeadList.vue';
+  import { clearDepartPathNameCache } from '@/utils/common/compUtils';
 
   const { prefixCls } = useDesign('depart-manage');
   provide('prefixCls', prefixCls);
@@ -75,7 +76,17 @@
   }
 
   function onSuccess() {
+    clearDepartPathNameCache();
+    reRender.value = Math.random();
     leftTree.value.loadRootTreeData();
+  }
+
+  /**
+   * 部门层级调整后刷新用户列表岗位信息
+   */
+  function onDepartDragSuccess() {
+    clearDepartPathNameCache();
+    reRender.value = Math.random();
   }
 </script>
 

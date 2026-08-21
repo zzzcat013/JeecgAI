@@ -58,7 +58,15 @@
           <presetQuestion @out-question="handleOutQuestion" :quickCommandData="quickCommandData"></presetQuestion>
         </div>
         <div class="bottomArea">
-          <a-button type="text" class="delBtn" @click="handleDelSession()">
+          <a-popconfirm
+            placement="topLeft"
+            title="确认清除当前会话？"
+            ok-text="清除"
+            cancel-text="取消"
+            :overlayStyle="{ 'z-index': 9999 }"
+            @confirm="handleDelSession"
+          >
+          <a-button type="text" class="delBtn">
             <svg
               t="1706504908534"
               class="icon"
@@ -76,6 +84,7 @@
               />
             </svg>
           </a-button>
+          </a-popconfirm>
           <a-button v-if="type === 'view'" type="text" class="contextBtn" :class="[usingContext && 'enabled']" @click="handleUsingContext">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -234,7 +243,7 @@
                         :class="{ 'enabled': enableDraw }"
                         @click="handleGenerateImage">
                       <svg style="margin-right: 6px" :style="enableDraw ? { color: '#06f' } : { color: '#3d4353' }" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class=""><path d="M12 2.3584C14.1681 2.35841 16.1541 2.52965 17.7266 2.72754C19.9228 3.00409 21.6336 4.66074 21.9365 6.85352C22.1348 8.28975 22.2998 10.0677 22.2998 12L22.293 12.7168C22.2586 14.3712 22.1101 15.8897 21.9365 17.1465L21.9043 17.3496C21.5268 19.4411 19.8545 21.0045 17.7266 21.2725L17.1182 21.3457C15.655 21.511 13.8972 21.6416 12 21.6416L11.1963 21.6338C9.60724 21.6034 8.13686 21.4874 6.88281 21.3457L6.27441 21.2725C4.14635 21.0046 2.47428 19.4411 2.09668 17.3496L2.06445 17.1465C1.89093 15.8897 1.74239 14.3712 1.70801 12.7168L1.7002 12C1.7002 10.3092 1.82669 8.737 1.99121 7.4082L2.06445 6.85352C2.35801 4.72923 3.9719 3.10743 6.06934 2.75684L6.27441 2.72754C7.84674 2.52969 9.83219 2.35841 12 2.3584ZM11.9775 13.3496C11.4613 13.3496 10.9378 13.4818 10.2207 13.8066C9.48747 14.1388 8.61112 14.6435 7.37793 15.3555L3.76367 17.4424C4.13152 18.6436 5.16153 19.5204 6.47363 19.6855C7.99607 19.8771 9.91342 20.042 12 20.042C14.0865 20.042 16.0039 19.8771 17.5264 19.6855C18.8303 19.5214 19.8566 18.6546 20.2305 17.4648L16.5771 15.3555C15.344 14.6435 14.4676 14.1388 13.7344 13.8066C13.0173 13.4818 12.4938 13.3496 11.9775 13.3496ZM12 3.95801C9.91342 3.95802 7.99607 4.12286 6.47363 4.31445C4.98011 4.50243 3.85117 5.61215 3.64941 7.07324C3.45876 8.45412 3.2998 10.1566 3.2998 12C3.2998 13.3468 3.38385 14.6183 3.50391 15.7441L6.57715 13.9707C7.78367 13.2741 8.73894 12.7218 9.56055 12.3496C10.3981 11.9702 11.1542 11.75 11.9775 11.75C12.8008 11.75 13.557 11.9702 14.3945 12.3496C15.2161 12.7218 16.1714 13.2741 17.3779 13.9707L20.4922 15.7686C20.6134 14.6367 20.7002 13.3565 20.7002 12C20.7002 10.1566 20.5422 8.4541 20.3516 7.07324C20.1498 5.61218 19.0198 4.50249 17.5264 4.31445C16.0039 4.12287 14.0865 3.95802 12 3.95801ZM7.73438 7.0625C8.76128 7.0625 9.59375 7.89497 9.59375 8.92188C9.59375 9.94878 8.76128 10.7812 7.73438 10.7812C6.70747 10.7812 5.875 9.94878 5.875 8.92188C5.875 7.89497 6.70747 7.0625 7.73438 7.0625Z" fill="currentColor"></path></svg>
-                      <span style="font-size: 14px">图像生成</span>
+                      <span style="font-size: 12px">图像生成</span>
                     </a-button>
                   </a-tooltip>
                 </div>
@@ -298,12 +307,12 @@
 
 <script setup lang="ts">
   import { Ref, watch } from 'vue';
-  import { computed, ref, createVNode, onUnmounted, onMounted, nextTick } from 'vue';
+  import { computed, ref, onUnmounted, onMounted, nextTick } from 'vue';
   import { useScroll } from './js/useScroll';
   import chatMessage from './chatMessage.vue';
   import presetQuestion from './presetQuestion.vue';
-  import { DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
-  import { message, Modal, Tabs } from 'ant-design-vue';
+  import { DeleteOutlined } from '@ant-design/icons-vue';
+  import { message, Tabs } from 'ant-design-vue';
   import './style/github-markdown.less';
   import './style/highlight.less';
   import './style/github-markdown.less';
@@ -315,6 +324,7 @@
   import { useAppInject } from "@/hooks/web/useAppInject";
   import { useGlobSetting } from "@/hooks/setting";
   import { Icon } from '/@/components/Icon';
+  import { getChatErrorMessage } from './chatError';
 
   message.config({
     prefixCls: 'ai-chat-message',
@@ -353,7 +363,20 @@
 
   const globSetting = useGlobSetting();
   const baseUploadUrl = globSetting.uploadUrl;
-  const uploadUrl = ref<string>(`${baseUploadUrl}/airag/chat/upload`);
+  // 匿名上传需携带 appId + shareToken；登录态可不带 shareToken
+  const uploadUrl = computed(() => {
+    let url = `${baseUploadUrl}/airag/chat/upload`;
+    const appId = appData.value?.id;
+    if (!appId) {
+      return url;
+    }
+    const params = new URLSearchParams();
+    params.set('appId', appId);
+    if (appData.value?.shareToken) {
+      params.set('shareToken', appData.value.shareToken);
+    }
+    return `${url}?${params.toString()}`;
+  });
   //是否为断线重连
   const isReConnect = ref<boolean>(false);
   //是否存在思考过程
@@ -529,38 +552,27 @@
    * @param id
    */
   function handleDelSession (){
-    Modal.confirm({
-      title: '清空会话',
-      icon: createVNode(ExclamationCircleOutlined),
-      content: '是否清空会话?',
-      closable: true,
-      okText: '确定',
-      cancelText: '取消',
-      wrapClassName:'ai-chat-modal',
-      async onOk() {
-        try {
-          //update-begin---author:wangshuai---date:2025-12-12---for:【QQYUN-14127】【AI】AI应用门户---
-          let url = '/airag/chat/messages/clear/' + uuid.value;
-          if(props.sessionType){
-            url += "/" + props.sessionType;
+    try {
+      //update-begin---author:wangshuai---date:2025-12-12---for:【QQYUN-14127】【AI】AI应用门户---
+      let url = '/airag/chat/messages/clear/' + uuid.value;
+      if(props.sessionType){
+        url += "/" + props.sessionType;
+      }
+      defHttp.get({
+        url: url,
+      //update-end---author:wangshuai---date:2025-12-12---for:【QQYUN-14127】【AI】AI应用门户---
+      },{ isTransformResponse: false }).then((res) => {
+        if(res.success){
+          chatData.value = [];
+          topicId.value = "";
+          if(props.prologue){
+            topChat(props.prologue);
           }
-          defHttp.get({
-            url: url,
-          //update-end---author:wangshuai---date:2025-12-12---for:【QQYUN-14127】【AI】AI应用门户---
-          },{ isTransformResponse: false }).then((res) => {
-            if(res.success){
-              chatData.value = [];
-              topicId.value = "";
-              if(props.prologue){
-                topChat(props.prologue);
-              }
-            }
-          })
-        } catch {
-          return console.log('Oops errors!');
         }
-      },
-    });
+      })
+    } catch {
+      return console.log('Oops errors!');
+    }
   };
 
   // 停止响应
@@ -632,6 +644,7 @@
         images: uploadUrlList.value?uploadUrlList.value:[],
         files: fileUrlList.value ? fileUrlList.value : [],
         appId: appData.value.id,
+        shareToken: appData.value.shareToken,
         responseMode: 'streaming',
         conversationId: uuid.value === "1002"?'':uuid.value,
         // 添加对话设置参数
@@ -685,6 +698,9 @@
       console.error(e)
       //update-end---author:wangshuai---date:2025-04-28---for:【QQYUN-12297】【AI】聊天，超时以后提示---
     });
+    if (!readableStream) {
+      return;
+    }
     await renderChatByResult(readableStream,options);
   }
   // 是否使用上下文
@@ -706,6 +722,32 @@
   }
 
   /**
+   * 判断消息是否为工具执行记录，避免底层协议数据混入思考文本。
+   */
+  function isToolExecPayload(value: unknown): boolean {
+    if (typeof value !== 'string') {
+      return false;
+    }
+    const text = value.trim();
+    if (text.includes('<jeecg-tool-exec')) {
+      return true;
+    }
+    if (!text.startsWith('{') || !text.endsWith('}')) {
+      return false;
+    }
+    try {
+      const record = JSON.parse(text);
+      return !!record && typeof record === 'object' && !Array.isArray(record)
+        && typeof record.name === 'string'
+        && Object.prototype.hasOwnProperty.call(record, 'input')
+        && Object.prototype.hasOwnProperty.call(record, 'output')
+        && Object.prototype.hasOwnProperty.call(record, 'loading');
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
    * 渲染文本
    * @param item
    * @param conversationId
@@ -716,6 +758,12 @@
     let returnText = "";
     if (item.event == 'MESSAGE' || item.event == 'THINKING' || item.event == 'THINKING_END') {
       let message = item.data?.message ?? "";
+      // 工具结果已有专用事件处理，思考中不应作为普通消息打断当前思考状态
+      // update-begin--author:wangshuai---date:20260813---for：【LHZP-1601】【AI应用】有时候思考结束还会重新思考，一直思考到思考结束好几轮
+      if (isThinking.value && isToolExecPayload(message)) {
+      // update-end--author:wangshuai---date:20260813---for：【LHZP-1601】【AI应用】有时候思考结束还会重新思考，一直思考到思考结束好几轮
+        return { returnText: text, conversationId };
+      }
       let messageText = "";
       //update-begin---author:wangshuai---date:2025-04-24---for:应该先判断是否包含card---
       if(message && message.indexOf("::card::") !== -1){
@@ -736,6 +784,7 @@
         isThinking.value = true;
       }
       if(item.event == 'MESSAGE' && isThinking.value){
+        updateChatSome(uuid.value, chatData.value.length - 1, { loading: false, eventType: 'thinking_end' });
         text = item.data.message;
         returnText = item.data.message;
         //发送用户消息
@@ -760,7 +809,7 @@
         content: messageText,
         inversion: 'ai',
         error: false,
-        loading: item.event == 'THINKING_END' ? false: true,
+        loading: true,
         conversationOptions: { conversationId: conversationId, parentMessageId: topicId.value },
         requestOptions: { prompt: message, options: { ...options } },
         referenceKnowledge: knowList.value,
@@ -1016,7 +1065,18 @@
         message.error(`${image.name} 导入失败`);
       }
     };
-    await defHttp.uploadFile({ url: "/airag/chat/upload" }, { file: image }, { success: isReturn });
+    // 与 a-upload 一致：匿名上传携带 appId + shareToken
+    let uploadApi = '/airag/chat/upload';
+    const appId = appData.value?.id;
+    if (appId) {
+      const params = new URLSearchParams();
+      params.set('appId', appId);
+      if (appData.value?.shareToken) {
+        params.set('shareToken', appData.value.shareToken);
+      }
+      uploadApi = `${uploadApi}?${params.toString()}`;
+    }
+    await defHttp.uploadFile({ url: uploadApi }, { file: image }, { success: isReturn });
   }
 
   /**
@@ -1066,6 +1126,27 @@
       }
       //update-end---author:wangshuai---date:2025-03-12---for:【QQYUN-11555】聊天时要流式显示消息---
     }
+    //update-begin---author:scott ---date:20260721  for：【issues/9787】兼容非SSE错误响应，避免错误文案滞留在buffer-----------
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      let content = buffer.startsWith('data:') ? buffer.replace('data:', '').trim() : buffer.trim();
+      try {
+        const payload = JSON.parse(content);
+        const errorMessage = getChatErrorMessage(payload);
+        if (errorMessage) {
+          updateChatFail(uuid, errorMessage);
+          localStorage.removeItem('chat_requestId_' + uuid.value);
+          handleStop();
+        } else {
+          const result = await renderText(payload, conversationId, text, options);
+          text = result.returnText;
+          conversationId = result.conversationId;
+        }
+      } catch (error) {
+        console.log('JSON解析失败, content长度:', content.length, ', error:', error);
+      }
+    }
+    //update-end---author:scott ---date:20260721  for：【issues/9787】兼容非SSE错误响应，避免错误文案滞留在buffer-----------
     //update-begin---author:wangshuai---date:2025-11-05---for: 如果是断线重连并且文本为空，需要移出前面两条会话---
     if(!text && isReConnect && chatData.value.length >1){
       //如果是断线重连的情况下，流结果为空时，移除占位的AI消息，避免空结果也新增聊天记录
@@ -1215,9 +1296,8 @@
 
         //是否显示绘图工具
         showDraw.value = metadata.izDraw === '1';
-        //是否选中生成图片（defaultSelect 为 0 时默认不选中）
-        const defaultSelect = metadata.defaultSelect || metadata.izDraw;
-        enableDraw.value = defaultSelect === '1';
+        // 绘画能力仅控制按钮是否显示，未明确配置时不默认进入图片生成模式
+        enableDraw.value = metadata.defaultSelect === '1';
         
         drawModelId.value = metadata.drawModelId;
 
@@ -1355,8 +1435,24 @@
     flex: 1;
     min-height: 0;
     .scrollArea {
+      overflow-x: hidden;
       overflow-y: auto;
       height: 100%;
+
+      // 长回复会按内容比例压缩滑块，此处仅增强聊天区滚动条的可见性，避免影响全局样式。
+      &::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        min-height: 48px;
+        border-radius: 5px;
+        background-color: rgba(144, 147, 153, 0.55);
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(96, 98, 102, 0.75);
+      }
     }
     .chatContentArea {
       padding: 10px;
@@ -1386,7 +1482,7 @@
       align-items: center;
 
       .ant-input {
-        margin: 0 8px;
+        padding-left: 12px;
       }
       .ant-input,
       .ant-btn {
@@ -1416,7 +1512,7 @@
         font-size: 18px;
       }
       .sendBtn {
-        font-size: 14px;
+        font-size: 12px;
         width: 100%;
         display: flex;
         padding: 4px 6px;
@@ -1436,6 +1532,10 @@
         :deep(.anticon){
           margin-right: 6px;
           color: #3d4353;
+        }
+        :deep(.anticon + span),
+        :deep(span + .anticon) {
+          margin-inline-start: 0;
         }
         &:hover{
           border-color: #d2d7e5;
@@ -1621,7 +1721,7 @@
       flex: 1 1;
       min-height: 48px;
       position: relative;
-      padding: 2px 10px;
+      padding: 2px 4px;
       width: 100%;
       /*begin 底部样式*/
       .textarea-action-bar {
@@ -1698,9 +1798,6 @@
   }
 </style>
 <style lang="less">
- .ai-chat-modal{
-   z-index: 9999 !important;
- }
  .ai-chat-message{
    z-index: 9999 !important;
  }

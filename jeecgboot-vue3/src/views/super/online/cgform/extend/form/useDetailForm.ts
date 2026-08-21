@@ -47,6 +47,9 @@ export interface DetailFormSchema {
   isImage?: boolean;
   isFile?: boolean;
   isCard?: boolean;
+  // update-begin--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
+  imageField?: string;
+  // update-end--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
   multi?:boolean;
   order?: any;
   dictTable?: string;
@@ -393,7 +396,15 @@ export function useDetailForm(props: any) {
     let options = ['Y', 'N'];
     if (fieldExtendJson) {
       //update-begin---author:wangshuai---date:2025-11-03---for:【issues/9036】online 表单开发， 设置字段 控件类型为开关时，查看详情页时 开关字段显示原始值---
-      options = JSON.parse(fieldExtendJson)?.switchOptions;
+      const extendConfig = JSON.parse(fieldExtendJson);
+      // update-begin--author:liaozhiyang---date:20260813---for：【LHZP-4】online详情弹窗老数据开关没渲染出来
+      if (Array.isArray(extendConfig)) {
+        // 兼容旧数据：数组本身就是开关选项  现有数据：{switchOptions:[1,2]}   旧数据：[1,2]
+        options = extendConfig;
+      } else if (Array.isArray(extendConfig?.switchOptions)) {
+        options = extendConfig.switchOptions;
+      }
+      // update-end--author:liaozhiyang---date:20260813---for：【LHZP-4】online详情弹窗老数据开关没渲染出来
       //update-end---author:wangshuai---date:2025-11-03---for:【issues/9036】online 表单开发， 设置字段 控件类型为开关时，查看详情页时 开关字段显示原始值---
     }
     let arr: any[] = [

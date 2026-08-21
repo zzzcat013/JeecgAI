@@ -26,6 +26,11 @@ export function createPlaceholderMessage(component: ComponentType) {
     // return `请选择${label}`;
     return t('common.chooseText');
   }
+  //update-begin---author:liaozhiyang ---date:20260518  for：[issues/9638]BasicForm里使用JUpload且必填时验证总是提示未上传，补Upload类必填提示前缀-----------
+  if (component.includes('Upload')) {
+    return t('common.uploadText');
+  }
+  //update-end---author:liaozhiyang ---date:20260518  for：[issues/9638]BasicForm里使用JUpload且必填时验证总是提示未上传，补Upload类必填提示前缀-----------
   return '';
 }
 

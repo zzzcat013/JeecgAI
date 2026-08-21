@@ -1,5 +1,6 @@
 import { FormSchema } from '/@/components/Table';
 import { isRoleExist } from './role.api';
+import { useDrawer, useDrawerInner } from '@/components/Drawer';
 export const columns = [
   {
     title: '角色名称',
@@ -49,6 +50,25 @@ export const searchFormSchema: FormSchema[] = [
     colProps: { span: 6 },
   },
 ];
+
+/**
+ * 租户角色查询
+ */
+export const searchTenantRoleFormSchema: FormSchema[] = [
+    {
+        field: 'roleName',
+        label: '角色名称',
+        component: 'JInput',
+        colProps: { span: 6 },
+    },
+    {
+        field: 'roleCode',
+        label: '角色编码',
+        component: 'JInput',
+        colProps: { span: 6 },
+    },
+];
+
 /**
  * 角色用户搜索form
  */
@@ -67,6 +87,26 @@ export const searchUserFormSchema: FormSchema[] = [
     colProps: { span: 8 },
     labelWidth: 74,
   },
+];
+
+/**
+ * 角色用户搜索
+ */
+export const roleUserSearchFormSchema: FormSchema[] = [
+    {
+        field: 'username',
+        label: '用户账号',
+        component: 'Input',
+        colProps: { span: 8 },
+        labelWidth: 74,
+    },
+    {
+        field: 'realname',
+        label: '用户名称',
+        component: 'Input',
+        colProps: { span: 8 },
+        labelWidth: 74,
+    },
 ];
 
 export const formSchema: FormSchema[] = [

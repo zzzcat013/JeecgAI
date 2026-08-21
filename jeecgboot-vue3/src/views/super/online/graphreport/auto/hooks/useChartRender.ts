@@ -12,6 +12,7 @@ import LineMulti from '/@/components/chart/LineMulti.vue';
 import { defHttp } from '/@/utils/http/axios';
 import { useMessage } from '/@/hooks/web/useMessage';
 import { isFunction } from '/@/utils/is';
+import { formatToDate } from '/@/utils/dateUtil';
 
 export const ChartRenderProps = {
   // 图表标题
@@ -84,7 +85,7 @@ export function useChartRender(props: PropsType, { emit }) {
       {
         title: '#',
         key: 'rowIndex',
-        width: '10%',
+        width: 60,
         align: 'center',
         customRender: function ({ record, index }) {
           if (record.isTotal === true) {
@@ -209,6 +210,14 @@ export function useChartRender(props: PropsType, { emit }) {
   });
   // 数据表格的固定属性
   const tableProps = computed(() => {
+    // update-begin--author:liaozhiyang---date:20260720---for：【LHZP-1041】字段多时，表格内容挤压到一块了
+    // 根据列宽总和计算横向滚动宽度，字段过多时表格可横向滚动而不是压缩换行
+    let scrollX = 0;
+    for (const col of tableParams.columns) {
+      const w = parseInt(col.width);
+      scrollX += isNaN(w) ? 150 : w;
+    }
+    // update-end--author:liaozhiyang---date:20260720---for：【LHZP-1041】字段多时，表格内容挤压到一块了
     return {
       size: 'middle',
       rowKey: 'id',
@@ -216,6 +225,7 @@ export function useChartRender(props: PropsType, { emit }) {
       pagination: pageSwitch.value ? { pageSize: 10 } : false,
       columns: tableParams.columns,
       dataSource: tableParams.dataSource,
+      scroll: { x: scrollX },
       style: { borderTop: '1px solid #e8e8e8' },
     };
   });
@@ -265,8 +275,23 @@ export function useChartRender(props: PropsType, { emit }) {
       let clickType = params.seriesType;
       let fn: Fn = extendJsHandler.value.click[clickType];
       if (isFunction(fn)) {
+        normalizeExtendJsEventParams(params);
         fn.call(onClickThis, params);
       }
+    }
+  }
+
+  /** 字典字段点击时，JS增强使用原始值，显示文本通过 displayName 获取 */
+  function normalizeExtendJsEventParams(params) {
+    let rawName = params.data?.rawName;
+    if (rawName === undefined && (params.seriesType === 'line' || params.seriesType === 'bar')) {
+      const chartData = params.seriesType === 'line' ? lineParams.chartData : barParams.chartData;
+      rawName = chartData.find((item) => item.type === params.seriesName && item.name === params.name)?.rawName;
+    }
+    if (rawName !== undefined) {
+      params.displayName = params.name;
+      params.rawName = rawName;
+      params.name = rawName;
     }
   }
 
@@ -324,13 +349,15 @@ export function useChartRender(props: PropsType, { emit }) {
     let chartData: Recordable[] = [];
     for (let yField of yaxisFields) {
       for (let item of data) {
-        let name = item[xaxisField];
+        const rawName = item[xaxisField];
+        let name = rawName;
         // 判断是否有字典
         if (dictList) {
           name = filterDictText(dictList, name);
         }
         chartData.push({
           name: name,
+          rawName,
           value: item[yField],
           type: fieldMap.get(yField)?.fieldTxt || yField,
         });
@@ -362,13 +389,15 @@ export function useChartRender(props: PropsType, { emit }) {
     if (graphTypes.includes('pie')) {
       let chartData: Recordable[] = [];
       for (let item of data) {
-        let name = item[xaxisField];
+        const rawName = item[xaxisField];
+        let name = rawName;
         // 判断是否有字典
         if (dictList) {
           name = filterDictText(dictList, name);
         }
         chartData.push({
           name: name,
+          rawName,
           value: item[yField],
         });
       }
@@ -399,12 +428,15 @@ export function useChartRender(props: PropsType, { emit }) {
         if (item.isShow === 'Y') {
           let column: Recordable = {
             align: 'center',
-            width: '10%',
+            width: 150,
+            ellipsis: true,
             title: item.fieldTxt,
             dataIndex: item.fieldName,
           };
           if (item.dictCode) {
             column.customRender = ({ text }) => filterDictText(dictOptions[item.fieldName], text);
+          } else if (item.fieldType === 'Date') {
+            column.customRender = ({ text, record }) => (record.isTotal || !text ? text : formatToDate(text));
           }
           tableColumns.push(column);
           // 判断是否计算总数
@@ -418,6 +450,9 @@ export function useChartRender(props: PropsType, { emit }) {
         isTotals.forEach((column) => {
           let count = 0;
           tableParams.dataSource.forEach((row) => {
+            // update-begin--author:liaozhiyang---date:20260805---for：【LHZP-1056】空字符串需过滤掉
+            if (row[column]=='' || row[column]==null || isNaN(parseFloat(row[column]))) return;
+            // update-end--author:liaozhiyang---date:20260805---for：【LHZP-1056】空字符串需过滤掉
             count += parseFloat(row[column]);
           });
           totalRow[column] = isNaN(count) ? '包含非数字内容' : count.toFixed(2);

@@ -11,7 +11,7 @@
                 <Icon icon="ant-design:delete-outlined"></Icon>
                 批量删除
               </a-menu-item>
-              <a-menu-item key="1" @click="batchHandleRevert">
+              <a-menu-item key="2" @click="batchHandleRevert">
                 <Icon icon="ant-design:redo-outlined"></Icon>
                 批量还原
               </a-menu-item>

@@ -393,6 +393,12 @@ export function useFormItems(props, onlineFormRef) {
         fieldExtendJson = { [key]: formLabelLength };
       }
       data.fieldExtendJson = JSON.stringify(fieldExtendJson);
+    } else if (data?.fieldExtendJson) {
+      // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-34】查询label设置的长度应该只对查询区域的字符长度生效，不应该对表单长度生效
+      const fieldExtendJson = JSON.parse(data?.fieldExtendJson);
+      delete fieldExtendJson.labelLength;
+      data.fieldExtendJson = JSON.stringify(fieldExtendJson);
+      // update-end--author:liaozhiyang---date:20260714---for：【LHZP-34】查询label设置的长度应该只对查询区域的字符长度生效，不应该对表单长度生效
     }
   }
 
@@ -540,6 +546,8 @@ export function useFormItems(props, onlineFormRef) {
  * 处理online子表 jvxeTable的列配置信息
  */
 export function useOnlineVxeTableColumns(subInfo, callback?){
+  const uploadColumnMinWidth = 180;
+  const uploadColumnTypes = ['image', 'file'];
   // 新旧jvxetable 列的类型不一致
   const vxeTypeMap = {
     inputNumber: 'input-number',
@@ -556,9 +564,35 @@ export function useOnlineVxeTableColumns(subInfo, callback?){
     if (column.type === 'radio') {
       column.type = 'select';
     } else if (vxeTypeMap[column.type]) {
-      column.type = vxeTypeMap[column.type];
+      const originalType = column.type;
+      column.type = vxeTypeMap[originalType];
+      // Online数字字段的小数位数传递给JVxeTable，确保行编辑与弹窗编辑的精度处理一致
+      if (originalType === 'inputNumber' && typeof column.dbPointLength === 'number') {
+        column.props = {
+          ...(column.props ?? {}),
+          precision: column.dbPointLength,
+        };
+      }
     } else if (column.type === 'popup') {
       handleSubPopup(column);
+    } else if (column.type === 'popup_dict') {
+      // update-begin--author:liaozhiyang---date:20260507---for：【issues/7617】vxetable子表支持popup字典
+      const { dictTable, dictCode, dictText } = column;
+      column.fieldConfig = `${dictTable},${dictText ?? ''},${dictCode ?? ''}`;
+      column.type = 'popupDict';
+      column.multi = true;
+      const str = column.fieldExtendJson;
+      if (str) {
+        try {
+          const json = JSON.parse(str);
+          if (json.multiSelect === false) {
+            column.multi = false;
+          }
+        } catch (e) {
+          console.log('子表获取popupdict的扩展配置出现错误', e);
+        }
+      }
+      // update-end--author:liaozhiyang---date:20260507---for：【issues/7617】vxetable子表支持popup字典
     } else if (column.type === 'link_table') {
       handleSubLinkTable(column, subInfo.columns);
     } else if (column.type === 'link_table_field') {
@@ -605,8 +639,10 @@ export function useOnlineVxeTableColumns(subInfo, callback?){
     }
     // update-end--author:liaozhiyang---date:20260413---for:【issues/7633】online子表支持分类字典树，自定义树
     //update-begin-author:taoyan date:2022-4-24 for: VUEN-855 对多子表 文件、图片右侧少个边框
-    if ((column.width == 120 || column.width == '120px') && (column.type == 'image' || column.type == 'file')) {
-      column.width = '130px';
+    // 图片、附件列需要为上传图标、按钮文字和单元格内边距预留空间，避免内容被裁剪
+    const columnWidth = Number.parseFloat(column.width);
+    if (uploadColumnTypes.includes(column.type) && columnWidth > 0 && columnWidth < uploadColumnMinWidth) {
+      column.width = `${uploadColumnMinWidth}px`;
     }
     //如果没有宽度 默认设置一个宽度
     if (!column.width) {
@@ -765,8 +801,8 @@ export function useOnlineFormContext(props) {
 
   const getSubAddBtnCfg = createBIButtonCfg('form_sub_add', ['ant-design:plus-outlined', '新增'])
   const getSubRemoveBtnCfg = createBIButtonCfg('form_sub_batch_delete', ['ant-design:minus-outlined', '删除'])
-  const getSubOpenAddBtnCfg = createBIButtonCfg('form_sub_open_add', ['ant-design:expand-alt-outlined', '新增'])
-  const getSubOpenEditBtnCfg = createBIButtonCfg('form_sub_open_edit', ['ant-design:form-outlined', ''])
+  const getSubOpenAddBtnCfg = createBIButtonCfg('form_sub_open_add', ['ant-design:form-outlined', '新增'])
+  const getSubOpenEditBtnCfg = createBIButtonCfg('form_sub_open_edit', ['ant-design:form-outlined', '弹窗编辑'])
 
   return {
     onlineFormContext,
@@ -1014,6 +1050,11 @@ export function getDetailFormSchemas(props) {
                   if(json.multiSelect==true){
                     temp['multi'] = true;
                   }
+                  // update-begin--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
+                  if(json.imageField){
+                    temp['imageField'] = json.imageField;
+                  }
+                  // update-end--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
                 }catch (e) {
                   console.error('解析json字符串出错', item.fieldExtendJson)
                 }

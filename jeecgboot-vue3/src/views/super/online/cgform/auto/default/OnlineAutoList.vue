@@ -132,9 +132,9 @@
       <template #htmlSlot="{ text, column, record }">
         <!-- update-begin--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
         <template v-if="column.fieldHref">
-          <a v-html="text" @click="handleClickFieldHref(column.fieldHref, record)"></a>
+          <a v-html="sanitizeRichText(text)" @click="handleClickFieldHref(column.fieldHref, record)"></a>
         </template>
-        <div v-else v-html="text"></div>
+        <div v-else v-html="sanitizeRichText(text)"></div>
         <!-- update-end--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
       </template>
 
@@ -209,6 +209,7 @@
   import OnlinePopModal from '../comp/OnlinePopModal.vue';
   import { NORMAL } from "../../util/constant";
   import { Loading } from '/@/components/Loading';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
 
   export default {
     name: 'OnlineAutoList',
@@ -351,7 +352,20 @@
         tableType.value = columnResult.tableType;
         // update-end--author:liaozhiyang---date:20250403---for：【QQYUN-11801】生成测试数据
         // 2.加载数据
-        await loadData();
+        // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+        let hasDefaultQuery = false;
+        try {
+          const queryForm = await getRefPromise(onlineQueryFormOuter);
+          if (queryForm && typeof queryForm.whenFirstQueryDecided === 'function') {
+            hasDefaultQuery = await queryForm.whenFirstQueryDecided();
+          }
+        } catch (e) {
+          hasDefaultQuery = false;
+        }
+        if (!hasDefaultQuery) {
+          await loadData();
+        }
+        // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
         loading.value = false;
         // 3.执行js增强 setup
         onlineTableContext.execButtonEnhance('setup');
@@ -410,6 +424,7 @@
       useOnlineListPopEvent(openOnlinePopModal);
       
       const that = {
+        sanitizeRichText,
         ID,
         // 查询区域
         onlineQueryFormOuter,

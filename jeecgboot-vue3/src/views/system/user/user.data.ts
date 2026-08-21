@@ -1,7 +1,7 @@
 import { BasicColumn } from '/@/components/Table';
 import { FormSchema } from '/@/components/Table';
 import { getAllRolesListNoByTenant, getDepPostIdByDepId } from './user.api';
-import { rules } from '/@/utils/helper/validator';
+import { rules, createPasswordValidator } from '/@/utils/helper/validator';
 import { render } from '/@/utils/common/renderUtils';
 import { getDepartPathNameByOrgCode, getDepartName, getMultiDepartPathName, getDepartPathName } from '@/utils/common/compUtils';
 import { h } from 'vue';
@@ -82,6 +82,9 @@ export const columns: BasicColumn[] = [
     resizable: true,
     dataIndex: 'mainDepPostId',
     customRender: ({ record, text })=>{
+      if(!text){
+        return '';
+      }
       return getDepartName(getDepartPathName(record.mainDepPostId_dictText,text,false));
     }
   },
@@ -160,7 +163,7 @@ export const searchFormSchema: FormSchema[] = [
   {
     label: '手机号码',
     field: 'phone',
-    component: 'Input',
+    component: 'JInput',
     //colProps: { span: 6 },
   },
   {
@@ -215,10 +218,11 @@ export const formSchema: FormSchema[] = [
         required: true,
         message: '请输入登录密码',
       },
+      //update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
       {
-        pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
-        message: '密码由 8 位及以上数字、大小写字母和特殊符号组成！',
+        validator: createPasswordValidator(),
       },
+      //update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
     ],
   },
   {
@@ -254,6 +258,7 @@ export const formSchema: FormSchema[] = [
     field: 'positionType',
     required: false,
     component: 'JDictSelectTag',
+    helpMessage: '此职务为字典项，非职务等级，无法用于流程审批',
     componentProps: {
       dictCode: "user_position",
       mode: 'multiple',
@@ -283,16 +288,21 @@ export const formSchema: FormSchema[] = [
 
         onSelect: (options, values) => {
           const { updateSchema } = formActionType;
+          const departIds = values ? values.value.join(',') : '';
           //所属部门修改后更新负责部门下拉框数据
           updateSchema([
             //修改主岗位和兼职岗位的参数
             {
               field: 'mainDepPostId',
-              componentProps: { params: { departIds: values?values.value.join(","): "" } },
+              //update-begin---wangshuai---date:20260803  for：[LHZP-742]系统用户岗位 选择完部门之后 主岗位和兼职岗位没有实时刷新，需要重新保存之后才好用------------
+              componentProps: { key: departIds, params: { departIds } },
+              //update-end---author:wangshuai ---date:20260803  for：[LHZP-742]系统用户岗位 选择完部门之后 主岗位和兼职岗位没有实时刷新，需要重新保存之后才好用------------
             },
             {
               field: 'otherDepPostId',
-              componentProps: { params: { departIds: values?values.value.join(","): "" } },
+              //update-begin---wangshuai---date:20260803  for：[LHZP-742]系统用户岗位 选择完部门之后 主岗位和兼职岗位没有实时刷新，需要重新保存之后才好用------------
+              componentProps: { key: departIds, params: { departIds } },
+              //update-end---wangshuai---date:20260803  for：[LHZP-742]系统用户岗位 选择完部门之后 主岗位和兼职岗位没有实时刷新，需要重新保存之后才好用------------
             }
           ]);
           //更新负责部门的option
@@ -515,10 +525,11 @@ export const formPasswordSchema: FormSchema[] = [
         required: true,
         message: '请输入登录密码',
       },
+      //update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
       {
-        pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
-        message: '密码由 8 位及以上数字、大小写字母和特殊符号组成！',
+        validator: createPasswordValidator(),
       },
+      //update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
     ],
   },
   {

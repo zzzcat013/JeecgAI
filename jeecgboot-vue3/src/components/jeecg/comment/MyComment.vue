@@ -45,7 +45,7 @@
 </template>
 
 <script lang="ts">
-  import {ref, watch, computed, inject} from 'vue';
+  import { ref, watch, computed, nextTick } from 'vue';
   import { propTypes } from '/@/utils/propTypes';
   import { UserAddOutlined, PaperClipOutlined, SmileOutlined } from '@ant-design/icons-vue';
   import { Tooltip } from 'ant-design-vue';
@@ -130,7 +130,7 @@
         emit('cancel');
       }
 
-      const commentRef = ref();
+      const commentRef = ref<HTMLTextAreaElement | null>(null);
       watch(
         () => props.inputFocus,
         (val) => {
@@ -275,9 +275,14 @@
       function handleBlur() {
         showHtml.value = true;
         // 代码逻辑说明: 解决多行获取焦点和失去焦点时滚动位置不一致
-        setTimeout(() => {
-          commentContentRef.value!.scrollTop = commentRef.value.scrollTop;
-        }, 0);
+        nextTick(() => {
+          const commentContentElement = commentContentRef.value;
+          const commentElement = commentRef.value;
+          if (!commentContentElement || !commentElement) {
+            return;
+          }
+          commentContentElement.scrollTop = commentElement.scrollTop;
+        });
       }
       
       const commentActive = ref(false);

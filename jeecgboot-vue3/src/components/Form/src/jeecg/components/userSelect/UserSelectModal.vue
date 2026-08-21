@@ -162,6 +162,7 @@
         if (props.izExcludeMy) {
           excludeUserIdList.value.push(userStore.getUserInfo.id);
         }
+        resetFilterState();
         //加载用户列表
         loadUserList();
       });
@@ -180,6 +181,7 @@
         selectedDepart.value = '';
       }
       function onDepartChange() {
+        pageNo.value = 1;
         loadUserList();
       }
       /*--------------部门下拉框，用于筛选用户---------------*/
@@ -187,6 +189,17 @@
       /*--------------第一页 搜索框---------------*/
       const searchInputStatus = ref(false);
       const searchText = ref('');
+
+      /**
+       * 清空数据
+       */
+      function resetFilterState() {
+        selectedDepart.value = '';
+        searchText.value = '';
+        searchInputStatus.value = false;
+        pageNo.value = 1;
+      }
+      
       function showSearchInput(e) {
         e && prevent(e);
         searchInputStatus.value = true;

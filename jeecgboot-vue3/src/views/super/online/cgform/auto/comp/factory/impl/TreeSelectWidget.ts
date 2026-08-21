@@ -13,6 +13,8 @@ export default class TreeSelectWidget extends IFormSchema {
   pidValue: string;
   /*是否有子节点*/
   hasChildField: string;
+  /*是否转换（取反）是否有子节点的值*/
+  converIsLeafVal: number;
 
   constructor(key, data) {
     super(key, data);
@@ -22,6 +24,7 @@ export default class TreeSelectWidget extends IFormSchema {
     // update-begin--author:liaozhiyang---date:20240509---for：【issues/6197】解决自定义树组件是否含有子节点功能不生效
     this.hasChildField = data['hasChildField'];
     // update-end--author:liaozhiyang---date:20240509---for：【issues/6197】解决自定义树组件是否含有子节点功能不生效
+    this.converIsLeafVal = data['converIsLeafVal'];
   }
 
   getItem(): FormSchema {
@@ -35,6 +38,7 @@ export default class TreeSelectWidget extends IFormSchema {
         // update-begin--author:liaozhiyang---date:20240509---for：【issues/6197】解决自定义树组件是否含有子节点功能不生效
         hasChildField: this.hasChildField,
         // update-end--author:liaozhiyang---date:20240509---for：【issues/6197】解决自定义树组件是否含有子节点功能不生效
+        converIsLeafVal: this.converIsLeafVal,
       },
     });
   }

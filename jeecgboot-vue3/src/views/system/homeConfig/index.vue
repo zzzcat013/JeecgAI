@@ -38,7 +38,10 @@
   import HomeConfigModal from './components/HomeConfigModal.vue';
   import { columns, searchFormSchema } from './home.data';
   import { useListPage } from '/@/hooks/system/useListPage';
-  import { list, deleteIndex, batchDelete } from './home.api';
+  import { useMessage } from '/@/hooks/web/useMessage';
+  import { list, deleteIndex, batchDelete, changeStatus } from './home.api';
+
+  const { createMessage } = useMessage();
 
   //弹窗配置
   const [register, { openModal }] = useModal();
@@ -59,7 +62,7 @@
         },
       },
       actionColumn: {
-        width: 80,
+        width: 140,
       },
       //自定义默认排序
       defSort: {
@@ -96,6 +99,16 @@
     });
   }
   /**
+   * 启用/禁用事件
+   */
+  async function handleChangeStatus(record) {
+    const newStatus = record.status == 1 ? 0 : 1;
+    await changeStatus({ id: record.id, status: newStatus }, () => {
+      createMessage.success(newStatus == 1 ? '启用成功' : '禁用成功');
+      reload();
+    });
+  }
+  /**
    * 批量删除事件
    */
   async function batchHandleDelete() {
@@ -113,6 +126,13 @@
       {
         label: '编辑',
         onClick: handleEdit.bind(null, record),
+      },
+      {
+        label: record.status == 1 ? '禁用' : '启用',
+        popConfirm: {
+          title: `是否${record.status == 1 ? '禁用' : '启用'}？`,
+          confirm: handleChangeStatus.bind(null, record),
+        },
       },
       {
         label: '删除',

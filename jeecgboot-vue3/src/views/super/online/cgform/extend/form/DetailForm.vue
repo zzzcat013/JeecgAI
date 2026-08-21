@@ -12,7 +12,7 @@
           <div class="item-content" v-else-if="item.view == 'textarea'" v-html="textareaLineBreak(detailFormData[item.field])"></div>
           <div class="item-content" style="display: block;padding-top:10px" v-else-if="item.isCard">
             <span v-if="!detailFormData[item.field]"></span>
-            <link-table-card v-else disabled detail :value="detailFormData[item.field]" :valueField="item.dictCode" :textField="item.dictText" :tableName="item.dictTable" :multi="item.multi"></link-table-card>
+            <link-table-card v-else disabled detail :value="detailFormData[item.field]" :valueField="item.dictCode" :textField="item.dictText" :tableName="item.dictTable" :multi="item.multi" :imageField="item.imageField"></link-table-card>
           </div>
           <div class="item-content" v-else-if="item.isImage">
             <div class="ant-upload-list ant-upload-list-picture-card" style="display: flex">
@@ -24,7 +24,6 @@
                         <img :src="url" alt="图片不存在" class="ant-upload-list-item-image" @click="handleViewImage(item.field)" />
                       </div>
                       <span class="ant-upload-list-item-actions">
-                        <download-outlined @click="handleDownloadFile(url)" />
                         <eye-outlined @click="handleViewImage(item.field)" />
                       </span>
                     </div>
@@ -265,12 +264,20 @@
   .ant-upload-list-text {
     .ant-upload-span {
       display: flex;
+      // update-begin--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
       .ant-upload-list-item-name {
         margin: 0 6px;
+        min-width: 0;
+        flex: 1;
       }
       .ant-upload-list-item-card-actions {
-        display: none;
+        display: inline-flex;
+        align-items: center;
+        margin-left: auto;
+        padding-right: 8px;
+        cursor: pointer;
       }
+      // update-end--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
       a {
         color: rgba(51, 51, 51, 0.88);
       }
@@ -286,14 +293,22 @@
           max-width: 120px;
           cursor: pointer;
         }
-        .ant-upload-list-item-actions {
-          .anticon:first-child {
-            margin:0 6px;
-          }
-        }
+        // update-begin--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
         .ant-upload-list-item-actions {
           display: none;
+          position: absolute;
+          inset: 0;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          font-size: 18px;
+          background: rgba(0, 0, 0, 0.45);
+          cursor: pointer;
         }
+        &:hover .ant-upload-list-item-actions {
+          display: flex;
+        }
+        // update-end--author:liaozhiyang---date:20260811---for:【LHZP-4】online详情关联记录加上图片显示及文件下载及图片预览
       }
     }
     // update-begin--author:liaozhiyang---date:20231228---for：【TV360X-15】详情文件和图片样式美化

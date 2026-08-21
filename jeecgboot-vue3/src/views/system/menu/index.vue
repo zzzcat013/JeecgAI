@@ -46,6 +46,7 @@
   const [registerDrawer, { openDrawer }] = useDrawer();
   const [registerDrawer1, { openDrawer: openDataRule }] = useDrawer();
   const { t } = useI18n();
+  let collapseBeforeFetch = () => {};
 
   // 自定义菜单名称列渲染
   columns[0].customRender = function ({ text, record }) {
@@ -85,6 +86,10 @@
       bordered: true,
       showIndexColumn: false,
       tableSetting: { fullScreen: true },
+      beforeFetch: (params) => {
+        collapseBeforeFetch();
+        return params;
+      },
       formConfig: {
         // 代码逻辑说明: 【QQYUN-5873】查询区域lablel默认居左
         labelWidth: 74,
@@ -100,7 +105,16 @@
     },
   });
   //注册table数据
-  const [registerTable, { reload, expandAll, collapseAll }] = tableContext;
+  const [registerTable, { reload, expandAll, collapseAll, getDataSource, setProps }] = tableContext;
+  collapseBeforeFetch = collapseAll;
+
+  /**
+   * 只展开根节点，避免一次性渲染全部菜单和按钮权限节点导致页面卡顿
+   */
+  function expandFirstLevel() {
+    const rootKeys = getDataSource().map((item) => item.id).filter(Boolean);
+    setProps({ expandedRowKeys: rootKeys });
+  }
 
   /**
    * 选择列配置

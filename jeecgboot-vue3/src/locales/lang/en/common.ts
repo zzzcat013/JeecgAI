@@ -11,6 +11,7 @@ export default {
 
   inputText: 'Please enter',
   chooseText: 'Please choose',
+  uploadText: 'Please upload',
 
   redo: 'Refresh',
   back: 'Back',
