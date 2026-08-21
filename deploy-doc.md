@@ -346,9 +346,20 @@ cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
 - 文档管理“导入知识库”继续使用当前已生成的 Markdown。
 - AIRag 的文档解析继续由远程 MinerU API 处理，不受主业务容器是否安装 `magic-pdf` 影响。
 - AI5G 转换结果只上传主 Markdown 和 Markdown 引用的图片，MinerU 生成的 PDF/JSON 中间文件不上传 MinIO。
-- 当前环境 Flyway 为关闭状态，部署前需手工应用 `V20260820_1__ai5g_docfile_mineru_async.sql`、`V20260820_2__ai5g_docfile_manifest_remark.sql`、`V20260820_3__ai5g_doc_overview_menu.sql`、`V20260820_4__ai5g_docfile_fix_size.sql` 和 `V20260820_5__ai5g_docfile_tombstone.sql` 五个数据库变更；其中第三个变更用于新增“文档管理概览”菜单，第四个变更用于修复转换后被 Markdown 文本大小覆盖的源文件大小，第五个变更用于删除文档后的 MinIO 清理墓碑表。
+- 当前环境 Flyway 为关闭状态，部署前需手工应用 `V20260820_1__ai5g_docfile_mineru_async.sql` 至 `V20260820_7__ai5g_ops_agent_flow.sql` 数据库变更；其中第三个变更用于新增“文档管理概览”菜单，第四个变更用于修复转换后被 Markdown 文本大小覆盖的源文件大小，第五个变更用于删除文档后的 MinIO 清理墓碑表，第六个变更用于 AI5G 角色首页授权，第七个变更用于将“5G专网运维智能体”正式应用切换到新的 ToB/ToC 分流流程，并修复知识库附件正文误判、把非现场知识检索 `topNumber` 提高到 10。
+- AI5G 智能体结构化查询依赖 `jeecg-boot/db/ai5g/ai5g_domain_query_plugin.sql`，ToB/ToC 业务表脚本位于 `org/jeecg/modules/biz/ai5g/sql/`，首次部署时需一并应用。
 
-### 10.5 不建议的做法
+### 10.5 5G专网运维智能体
+
+- 正式应用：`2083017548267618305`
+- 正式流程：`2082795096418247001`
+- 分流规则：非5G专网问题直接提示不在受理范围；ToB/ToC 现场问题先查对应数据库，再结合知识库回答；非现场知识问题直接使用对应知识库回答。
+- 结构化查询：`AI5G专网查询插件`，按 `biz_ai5g_query_scope` 限制为 ToB/ToC 只读查询，禁止模型编造项目名、固定IP、ICCID、MSISDN、DNN、ServiceID等数据。
+- 严格回答：数据库未命中时回复“未找到相关记录”，知识库未命中时回复“知识库中暂未找到相关记录”，并要求补充项目名、固定IP、ICCID、MSISDN等关键信息。
+- 知识库检索：当前为 pgvector 向量检索，未启用 rerank；流程非现场知识节点 `topNumber=10`、`similarity=0.7`，平台聚合上下文上限 4000 字符。
+- 后续优化：可评估 pgvector 混合检索（`SearchMode.HYBRID` + RRF）和 DashScope `gte-rerank-v2` 精排，先在 AI5G 流程内做效果对比，再决定是否下沉到通用知识库链路。
+
+### 10.6 不建议的做法
 
 - 不建议把 `magic-pdf` 混装进主业务容器。
 - 不建议依赖宿主机安装的软件去给 Docker 容器提供 `soffice`。

@@ -95,6 +95,38 @@
 - `EmbeddingHandler` 读取 `filePath` 后做分段、向量化并写入 pgvector。
 - 命中结果的图片展示依赖 Markdown 中的图片 URL 可被前端直接访问。
 
+## 5G专网运维智能体
+
+正式应用：`2083017548267618305`
+正式流程：`2082795096418247001`
+流程脚本：`jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V20260820_7__ai5g_ops_agent_flow.sql`
+
+### 分流规则
+- 与5G专网、ToB物联网专网或ToC随行专网完全无关的问题：直接提示不在受理范围。
+- 具体ToB现场项目问题：先查ToB数据库，再结合ToB知识库回答。
+- ToB非现场知识问题：使用ToB非现场知识库回答。
+- 具体ToC现场项目问题：先查ToC数据库，再结合ToC知识库回答。
+- ToC非现场知识问题：使用ToC非现场知识库回答。
+- 无法判断业务方向：要求补充项目名称、固定IP、ICCID、MSISDN、DNN、ServiceID等关键信息。
+
+### 数据来源
+- 结构化查询走 `AI5G专网查询插件`，范围配置在 `biz_ai5g_query_scope`，脚本为 `jeecg-boot/db/ai5g/ai5g_domain_query_plugin.sql`。
+- ToB 现场数据：`biz_5g_tob_*` 与 `biz_5g_tob_cpe_sim_view`。
+- ToC 随行专网数据：`biz_5g_toc_*` 与 `biz_5g_toc_project_overview_view`。
+- 非现场/通用规范：AIRag 知识库，主要覆盖5G专网交付支撑方案、MEC部署、开通流程、项目纳管、切片等。
+
+### 严格回答约束
+- 数据库未命中时严格回复“未找到相关记录”，并请用户补充项目名、项目编码、固定IP、ICCID、MSISDN、车辆/设备编号等。
+- 知识库未命中时严格回复“知识库中暂未找到相关记录”。
+- 禁止编造、禁止推测、禁止隐瞒空结果。
+- 知识库引用中的附件名/文件名属于知识库内容；只要正文片段已给出，必须按正文回答，不得声称“未提供该附件具体内容”。
+
+### 检索现状
+- 当前通过平台 `EmbeddingHandler.embeddingSearch` 做向量检索，未启用 rerank。
+- 流程知识节点 `topNumber=10`、`similarity=0.7`，平台聚合上下文上限为 4000 字符。
+- 曾出现“附件7已命中但回答未提供内容”，原因是 `topNumber=5` 时附件后续分片未进入上下文，且提示词未约束附件名误判；已在 V20260820_7 中修复。
+- 后续可优化方向：pgvector `SearchMode.HYBRID` + RRF 混合检索、Qwen `gte-rerank-v2` 精排、按文档合并连续分片后再截断。
+
 ## 说明
 - Word/PDF 转 Markdown 时，Office 先通过 LibreOffice 预转 PDF，再走 MinerU 解析，失败后再走文本兜底。
 - Pandoc/Tika 兜底仅保证文本可读，不保证图片可用。
