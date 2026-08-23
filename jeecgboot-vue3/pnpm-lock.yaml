@@ -18,8 +18,8 @@ importers:
         specifier: ^3.1.1
         version: 3.1.1
       '@jeecg/aiflow':
-        specifier: 3.9.3
-        version: 3.9.3
+        specifier: 3.9.5-beta
+        version: 3.9.5-beta
       '@logicflow/core':
         specifier: ^2.2.4
         version: 2.2.4
@@ -29,6 +29,9 @@ importers:
       '@logicflow/vue-node-registry':
         specifier: ^1.2.4
         version: 1.2.4(@logicflow/core@2.2.4)(vue@3.5.39(typescript@5.9.3))
+      '@onlyoffice/document-editor-vue':
+        specifier: ^1.6.1
+        version: 1.6.1(vue@3.5.39(typescript@5.9.3))
       '@tinymce/tinymce-vue':
         specifier: 4.0.7
         version: 4.0.7(vue@3.5.39(typescript@5.9.3))
@@ -1587,8 +1590,8 @@ packages:
     resolution: {integrity: sha512-+Sg6GCR/wy1oSmQDFq4LQDAhm3ETKnorxN+y5nbLULOR3P0c14f2Wurzj3/xqPXtasLFfHd5iRFQ7AJt4KH2cw==, tarball: https://registry.npmmirror.com/@istanbuljs/schema/-/schema-0.1.6.tgz}
     engines: {node: '>=8'}
 
-  '@jeecg/aiflow@3.9.3':
-    resolution: {integrity: sha512-QCmLeEKzh8MgPNDxCbAK+dEvSOvv6/NEfgD0ENYancRFsK/ujRUbXpDC5q3mCjstY6npQXFwnsfhx16dUD7jag==}
+  '@jeecg/aiflow@3.9.5-beta':
+    resolution: {integrity: sha512-1TCInoGQJx0tRHtRzHUlUYcrDTz/tMf04P/AZQDzB7NevIXV7fNqELxjBgKcwF39U8pgB4Ov4t7pw3t+KQhFoQ==}
 
   '@jest/console@29.7.0':
     resolution: {integrity: sha512-5Ni4CU7XHQi32IJ398EEP4RrB8eV09sXP2ROqD4bksHrnTree52PsxvX8tpL8LvTZ3pFzXyPbNQReSN41CAhOg==, tarball: https://registry.npmmirror.com/@jest/console/-/console-29.7.0.tgz}
@@ -1725,6 +1728,11 @@ packages:
 
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==, tarball: https://registry.npmmirror.com/@one-ini/wasm/-/wasm-0.1.1.tgz}
+
+  '@onlyoffice/document-editor-vue@1.6.1':
+    resolution: {integrity: sha512-sdU7h684ESSdXvGNDcMf73UmToiZGMVO5QRIazTmGfm+bKOnT5ildomeagYFdnQaHQH0J28EJqc4jqXOcQbicA==}
+    peerDependencies:
+      vue: ^3.0.0
 
   '@oxc-parser/binding-android-arm-eabi@0.131.0':
     resolution: {integrity: sha512-t2xicr9pfzkSRYx5aPqZqlLaayIwJTqgQ81Jor31Xep2nGyL2Aq3d0K5wOfeR7VevaSdxaS9dzSQP9xDwn8fDg==}
@@ -5369,7 +5377,7 @@ packages:
     resolution: {integrity: sha512-sReKOYJIJf74dhJONhU4e0/shzi1trVbSWDOhKYE5XV2O+H7Sb2Dihwuc7xWxVl+DgFPyTqIN3zMfT9cq5iWDg==, tarball: https://registry.npmmirror.com/lodash.upperfirst/-/lodash.upperfirst-4.3.1.tgz}
 
   lodash@4.18.1:
-    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==, tarball: https://registry.npmmirror.com/lodash/-/lodash-4.18.1.tgz}
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==, tarball: https://registry.npmmirror.com/log-symbols/-/log-symbols-4.1.0.tgz}
@@ -9091,7 +9099,7 @@ snapshots:
 
   '@istanbuljs/schema@0.1.6': {}
 
-  '@jeecg/aiflow@3.9.3': {}
+  '@jeecg/aiflow@3.9.5-beta': {}
 
   '@jest/console@29.7.0':
     dependencies:
@@ -9353,6 +9361,11 @@ snapshots:
       fastq: 1.20.1
 
   '@one-ini/wasm@0.1.1': {}
+
+  '@onlyoffice/document-editor-vue@1.6.1(vue@3.5.39(typescript@5.9.3))':
+    dependencies:
+      lodash: 4.18.1
+      vue: 3.5.39(typescript@5.9.3)
 
   '@oxc-parser/binding-android-arm-eabi@0.131.0':
     optional: true
