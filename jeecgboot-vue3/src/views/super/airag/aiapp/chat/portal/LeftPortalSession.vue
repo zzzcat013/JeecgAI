@@ -92,6 +92,14 @@
   //应用列表
   const apps = ref([
     {
+      id: '2083017548267618305',
+      name: '5G专网运维智能体',
+      prologue: '你好，我是5G专网运维智能体。请描述你的5G专网、ToB物联网专网或ToC随行专网问题。',
+      flowId: '2082795096418247001',
+      type: 'chatFLow',
+      metadata: '{"multiSession":"0"}',
+    },
+    {
       id: '1998717610730352641',
       name: '帮我写作',
       icon: 'https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/helpWriting_1765520898059.png',

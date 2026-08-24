@@ -11,7 +11,7 @@
           <template #icon><FileTextOutlined /></template>
           文档管理
         </a-button>
-        <a-button ghost @click="go('/super/airag/aiapp/chat/AiChat')">
+        <a-button ghost @click="go('/ai/app/chat/2083017548267618305')">
           <template #icon><RobotOutlined /></template>
           AI 对话
         </a-button>
@@ -73,7 +73,7 @@
         </div>
 
         <a-space wrap>
-          <a-button type="primary" @click="go('/super/airag/aiapp/chat/AiChat')">
+          <a-button type="primary" @click="go('/ai/app/chat/2083017548267618305')">
             <template #icon><RobotOutlined /></template>
             进入 AI 对话
           </a-button>

@@ -33,6 +33,7 @@
           :showAdvertising = "showAdvertising"
           :hasExtraFlowInputs="hasExtraFlowInputs"
           :conversationSettings="getCurrentSettings"
+          :database-source-config="effectiveDatabaseSourceConfig"
           @edit-settings="handleEditSettings"
           ref="chatRef"
         ></chat>
@@ -62,8 +63,13 @@
   import { useRouter } from 'vue-router';
   import { useAppInject } from "@/hooks/web/useAppInject";
   import Loading from '@/components/Loading/src/Loading.vue';
+  import { AI5G_AGENT_APP_ID, AI5G_AGENT_DB_SOURCE_NODES } from '@/views/biz/ai5g/pages/ai5gAgentConfig';
 
   const router = useRouter();
+  const props = defineProps({
+    appId: { type: String, default: '' },
+    databaseSourceConfig: { type: Array, default: () => [] },
+  });
   const userId = useUserStore().getUserInfo?.id;
   const localKey = JEECG_CHAT_KEY + userId;
   let timer: any = null;
@@ -89,6 +95,17 @@
   };
   //应用id
   const appId = ref<string>('');
+  // 调用方可显式传配置；通用入口遇到 AI5G 应用也自动开启数据库来源展示
+  const effectiveDatabaseSourceConfig = computed(() => {
+    if (props.databaseSourceConfig && props.databaseSourceConfig.length > 0) {
+      return props.databaseSourceConfig;
+    }
+    const routeAppId = router.currentRoute.value.params.appId;
+    if (props.appId === AI5G_AGENT_APP_ID || appId.value === AI5G_AGENT_APP_ID || routeAppId === AI5G_AGENT_APP_ID) {
+      return AI5G_AGENT_DB_SOURCE_NODES;
+    }
+    return [];
+  });
   //应用数据
   const appData = ref<any>({});
   //开场白
@@ -327,10 +344,11 @@
   onMounted(() => {
     loading.value = true;
     let params: any = router.currentRoute.value.params;
-    if (params.appId) {
-      appId.value = params.appId;
-      getApplicationData(params.appId);
-      initChartData(params.appId);
+    const activeAppId = props.appId || params.appId;
+    if (activeAppId) {
+      appId.value = activeAppId;
+      getApplicationData(activeAppId);
+      initChartData(activeAppId);
     } else {
       initChartData();
       appData.value.metadata = { izDraw: '1', defaultSelect: '0' }  

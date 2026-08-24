@@ -100,6 +100,7 @@
 正式应用：`2083017548267618305`
 正式流程：`2082795096418247001`
 流程脚本：`jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V20260820_7__ai5g_ops_agent_flow.sql`
+来源标注脚本：`jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V20260820_8__ai5g_ops_agent_db_source.sql`
 
 ### 分流规则
 - 与5G专网、ToB物联网专网或ToC随行专网完全无关的问题：直接提示不在受理范围。
@@ -114,9 +115,11 @@
 - ToB 现场数据：`biz_5g_tob_*` 与 `biz_5g_tob_cpe_sim_view`。
 - ToC 随行专网数据：`biz_5g_toc_*` 与 `biz_5g_toc_project_overview_view`。
 - 非现场/通用规范：AIRag 知识库，主要覆盖5G专网交付支撑方案、MEC部署、开通流程、项目纳管、切片等。
+- 数据库命中时，流程会在回答开头保留“数据来源：AI5G专网查询插件（ToB数据库/ToC数据库）”标注；AI5G 对话入口和 AI 应用门户都会在回答下方展示对应的数据库来源标签。
 
 ### 严格回答约束
 - 数据库未命中时严格回复“未找到相关记录”，并请用户补充项目名、项目编码、固定IP、ICCID、MSISDN、车辆/设备编号等。
+- 数据库查询失败或未命中时，不得把知识库内容伪装成数据库查询结果。
 - 知识库未命中时严格回复“知识库中暂未找到相关记录”。
 - 禁止编造、禁止推测、禁止隐瞒空结果。
 - 知识库引用中的附件名/文件名属于知识库内容；只要正文片段已给出，必须按正文回答，不得声称“未提供该附件具体内容”。

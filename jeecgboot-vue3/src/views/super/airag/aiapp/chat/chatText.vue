@@ -20,6 +20,23 @@
           </a-tooltip>
         </template>
       </template>
+      <template v-if="showDbSources">
+        <a-divider orientation="left">数据库来源</a-divider>
+        <div class="db-source-list">
+          <template v-for="(item, idx) in databaseSources" :key="idx">
+            <a-tooltip :title="item.output?.substring(0, 1200)">
+              <a-tag style="background: #F7F8FA;padding-inline: 0 7px">
+                <a-space style="min-height: 30px;padding-left: 4px;">
+                  <DatabaseOutlined style="color: #1677ff" />
+                  <span>{{ item.sourceLabel }}</span>
+                  <span>{{ item.label }}</span>
+                  <span :style="{ color: item.hit ? '#389e0d' : '#cf1322' }">{{ item.statusLabel || (item.hit ? '已命中' : '未命中') }}</span>
+                </a-space>
+              </a-tag>
+            </a-tooltip>
+          </template>
+        </div>
+      </template>
       <div v-if="error" class="error-message">
         <p>{{ errorMsg }}</p>
       </div>
@@ -54,6 +71,7 @@
   import { useGlobSetting } from "@/hooks/setting";
   import { mdPluginJeecgTag, JEECG_TAG_CLASS, jeecgTagMap } from './jeecg-tags'
   import knowledgePng from '../../aiknowledge/icon/knowledge.png'
+  import { DatabaseOutlined } from '@ant-design/icons-vue';
 
   /**
    * 屏幕宽度
@@ -62,7 +80,7 @@
   const { domainUrl } = useGlobSetting();
   const { getIsMobile } = useAppInject();
 
-  const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'errorMsg', 'currentToolTag', 'loading', 'referenceKnowledge', 'isLast']);
+  const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'errorMsg', 'currentToolTag', 'loading', 'referenceKnowledge', 'databaseSources', 'isLast']);
   const textRef = ref();
   const markdownBodyRef = ref<HTMLDivElement>();
 
@@ -125,6 +143,15 @@
       return false;
     }
     return Array.isArray(referenceKnowledge) && referenceKnowledge.length > 0;
+  })
+
+  // 是否显示数据库查询来源
+  const showDbSources = computed(() => {
+    const {loading, databaseSources} = props
+    if (loading) {
+      return false;
+    }
+    return Array.isArray(databaseSources) && databaseSources.length > 0;
   })
 
   // 判断是否只有图片
@@ -461,6 +488,13 @@
         min-width: 300px;
       }
     }
+  }
+
+  .db-source-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
   }
 
 </style>

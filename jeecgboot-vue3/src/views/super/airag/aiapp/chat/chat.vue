@@ -44,6 +44,7 @@
                 :files = "item.files"
                 :retrievalText="item.retrievalText"
                 :referenceKnowledge="item.referenceKnowledge"
+                :databaseSources="item.databaseSources"
                 :eventType="item.eventType"
                 :showAvatar="item.showAvatar"
                 :isLast="index === chatData.length -1"
@@ -320,7 +321,7 @@
     prefixCls: 'ai-chat-message',
   });
 
-  const props = defineProps(['uuid', 'prologue', 'formState', 'url', 'type','historyData','chatTitle','presetQuestion','quickCommandData','showAdvertising','hasExtraFlowInputs','conversationSettings','sessionType']);
+  const props = defineProps(['uuid', 'prologue', 'formState', 'url', 'type','historyData','chatTitle','presetQuestion','quickCommandData','showAdvertising','hasExtraFlowInputs','conversationSettings','sessionType','databaseSourceConfig']);
   const emit = defineEmits(['save','reload-message-title','edit-settings']);
   const { scrollRef, scrollToBottom } = useScroll();
   const prompt = ref<string>('');
@@ -383,6 +384,8 @@
 
   // 当前正在调用的工具
   const currentToolTag = ref<string>('');
+  // AI5G 数据库查询来源
+  const databaseSources = ref<any[]>([]);
 
   function handleEnter(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -428,6 +431,7 @@
     
     if (loading.value) return;
     loading.value = true;
+    databaseSources.value = [];
 
     addChat(uuid.value, {
       dateTime: new Date().toLocaleString(),
@@ -457,6 +461,7 @@
       conversationOptions: null,
       requestOptions: { prompt: userMessage, options: { ...options } },
       referenceKnowledge: [],
+      databaseSources: [],
       eventType: 'message',
     });
 
@@ -764,6 +769,7 @@
         conversationOptions: { conversationId: conversationId, parentMessageId: topicId.value },
         requestOptions: { prompt: message, options: { ...options } },
         referenceKnowledge: knowList.value,
+        databaseSources: [...databaseSources.value],
         eventType: item.event.toLowerCase(),
       });
     }
@@ -850,6 +856,7 @@
             conversationOptions: null,
             requestOptions: { prompt: message, options: { ...options } },
             referenceKnowledge: knowList.value,
+            databaseSources: [...databaseSources.value],
             eventType: 'message',
           });
         }
@@ -864,6 +871,27 @@
           knowList.value = data
           //更新聊天信息
           updateChatSome(uuid.value, chatData.value.length - 1, {referenceKnowledge: knowList.value})
+        }
+        if(item.data.type === 'llm' && props.databaseSourceConfig && props.databaseSourceConfig.length > 0){
+          const dbNode = props.databaseSourceConfig.find((node) => node.id === item.data.id);
+          const output = dbNode ? (item.data.outputs?.[item.data.id + ".text"] ?? item.data.outputs?.text) : null;
+          if(dbNode && output !== undefined && output !== null){
+            const text = String(output).trim();
+            const isHit = text.length > 0 && !/未找到相关记录|无法完成本次查询|调用失败|token为空|HTTP [45]\d{2}|超时|INVALID_JSON|PARSE_ERROR/.test(text);
+            const statusLabel = /未找到相关记录/.test(text) || text.length === 0 ? '未命中' : (isHit ? '已命中' : '查询失败');
+            const alreadySaved = databaseSources.value.some((source) => source.id === dbNode.id);
+            if(!alreadySaved){
+              databaseSources.value.push({
+                id: dbNode.id,
+                label: dbNode.label,
+                sourceLabel: dbNode.sourceLabel,
+                output: text,
+                hit: isHit,
+                statusLabel,
+              });
+              updateChatSome(uuid.value, chatData.value.length - 1, { databaseSources: [...databaseSources.value] });
+            }
+          }
         }
       }
     }
@@ -1101,6 +1129,7 @@
       if(result && message){
         loading.value = true;
         isReConnect.value = true;
+        databaseSources.value = [];
         //发送用户消息
         addChat(uuid.value, {
           dateTime: new Date().toLocaleString(),
@@ -1127,6 +1156,7 @@
           conversationOptions: null,
           requestOptions: { prompt: message, options: { ...options } },
           referenceKnowledge: [],
+          databaseSources: [],
           eventType: 'message',
         });
         options.message = message;

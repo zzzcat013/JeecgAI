@@ -30,6 +30,7 @@
         @reload-message-title="reloadMessageTitle"
         :chatTitle="chatTitle"
         :conversationSettings="getCurrentSettings"
+        :database-source-config="databaseSourceConfig"
         @edit-settings="handleEditSettings"
         sessionType="portal"
         ref="chatRef"
@@ -47,6 +48,7 @@
   import chat from '/@/views/super/airag/aiapp/chat/chat.vue';
   import { defHttp } from '@/utils/http/axios';
   import { useUserStore } from '@/store/modules/user';
+  import { AI5G_AGENT_APP_ID, AI5G_AGENT_DB_SOURCE_NODES } from '@/views/biz/ai5g/pages/ai5gAgentConfig';
 
   const portalContainerStyle = ref<any>(null);
   //应用门户的ref
@@ -63,6 +65,8 @@
   const historyData = ref<any>();
   //应用数据
   const appData = ref<any>();
+  // AI5G 应用在门户中选择时同样展示数据库来源
+  const databaseSourceConfig = computed(() => appData.value?.id === AI5G_AGENT_APP_ID ? AI5G_AGENT_DB_SOURCE_NODES : []);
   //聊天标题
   const chatTitle = ref<any>();
   //当前会话的设置

@@ -53,7 +53,7 @@
         </a-collapse>
       </div>
       <div class="msgArea" v-else-if="!isCard && !isCardConfig" :class="showAvatar == 'no' ? 'hidden-avatar' : ''">
-        <chatText :text="text" :inversion="inversion" :error="error" :errorMsg="errorMsg" :currentToolTag="currentToolTag" :loading="loading" :referenceKnowledge="referenceKnowledge" :isLast="isLast"></chatText>
+        <chatText :text="text" :inversion="inversion" :error="error" :errorMsg="errorMsg" :currentToolTag="currentToolTag" :loading="loading" :referenceKnowledge="referenceKnowledge" :databaseSources="databaseSources" :isLast="isLast"></chatText>
       </div>
       <div v-if="presetQuestion" v-for="item in presetQuestion" class="question" @click="presetQuestionClick(item.descr)">
         <span>{{item.descr}}</span>
@@ -78,7 +78,7 @@
   import {encryptByBase64} from "@/utils/cipher";
 
   const { domainUrl, viewUrl } = useGlobSetting();
-  const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'loading','errorMsg', 'currentToolTag', 'appData','presetQuestion','images','retrievalText', 'referenceKnowledge', 'eventType', 'showAvatar',"files", 'isLast']);
+  const props = defineProps(['dateTime', 'text', 'inversion', 'error', 'loading','errorMsg', 'currentToolTag', 'appData','presetQuestion','images','retrievalText', 'referenceKnowledge', 'databaseSources', 'eventType', 'showAvatar',"files", 'isLast']);
 
   const uuid = ref<any>(buildUUID());
   const activeKey = ref<any>(uuid.value);
