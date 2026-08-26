@@ -7,6 +7,7 @@ import org.jeecg.common.constant.SymbolConstant;
 import org.jeecg.common.exception.JeecgSqlInjectionException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -312,6 +313,39 @@ public class SqlInjectionUtil {
 			}
 		}
 		return;
+	}
+
+	/**
+	 * 【issues/9840】校验前端请求传入的字典条件 SQL。
+	 * <p>
+	 * 处理规则：
+	 * 1. 仅允许字段与常量组成比较、IN、LIKE、BETWEEN、IS NULL 条件，并支持括号、AND/OR 及安全排序；
+	 * 2. 禁止子查询、函数、字段间比较、SQL 注释、追加语句、未解析占位符及非法排序表达式；
+	 * 3. 从条件语法树提取字段并执行敏感字段校验，字典返回字段由服务入口执行相同校验；
+	 * 4. 敏感字段清单由 SensitiveTableCheckUtil 统一维护，非敏感字段保持原有字典能力。
+	 * </p>
+	 *
+	 * @param table 查询表名
+	 * @param value 字典过滤条件
+	 * @author scott
+	 * @since 2026-08-25 issues/9840 字典过滤条件 SQL 注入防护
+	 */
+	public static void filterDictConditionSqlFromRequest(String table, String value) {
+		if (value == null || "".equals(value)) {
+			return;
+		}
+		String trimmed = value.trim();
+		if (trimmed.isEmpty()) {
+			return;
+		}
+		Set<String> conditionFields;
+		try {
+			conditionFields = DictSqlConditionCheckUtil.checkAndGetFields(trimmed);
+		} catch (Exception e) {
+			log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);
+			throw new JeecgSqlInjectionException(SqlInjectionUtil.SQL_INJECTION_TIP + value);
+		}
+		SensitiveTableCheckUtil.checkForbiddenFields(table, conditionFields.toArray(new String[0]));
 	}
 
     /**

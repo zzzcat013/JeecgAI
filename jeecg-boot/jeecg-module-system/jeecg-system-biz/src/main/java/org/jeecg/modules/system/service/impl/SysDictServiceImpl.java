@@ -22,6 +22,7 @@ import org.jeecg.common.system.vo.DictModelMany;
 import org.jeecg.common.system.vo.DictQuery;
 import org.jeecg.common.util.CommonUtils;
 import org.jeecg.common.util.RedisUtil;
+import org.jeecg.common.util.SensitiveTableCheckUtil;
 import org.jeecg.common.util.SqlInjectionUtil;
 import org.jeecg.common.util.dynamic.db.DbTypeUtils;
 import org.jeecg.common.util.oConvertUtils;
@@ -275,6 +276,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 	@Deprecated
 	public List<DictModel> queryTableDictItemsByCode(String tableFilterSql, String text, String code) {
 		log.debug("无缓存dictTableList的时候调用这里！");
+		SensitiveTableCheckUtil.checkForbiddenFields(tableFilterSql, text, code);
 		String str = tableFilterSql+","+text+","+code;
 		// 【QQYUN-6533】表字典白名单check
 		sysBaseAPI.dictTableWhiteListCheckByDict(tableFilterSql, text, code);
@@ -297,7 +299,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		
 		// 3.SQL注入check
 		SqlInjectionUtil.filterContentMulti(table, text, code);
-		SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+		SqlInjectionUtil.filterDictConditionSqlFromRequest(table, filterSql);
 		
 		// 4.针对采用 ${}写法的表名和字段进行转义和check
 		table = SqlInjectionUtil.getSqlInjectTableName(table);
@@ -312,11 +314,12 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 	@Override
 	public List<DictModel> queryTableDictItemsByCodeAndFilter(String table, String text, String code, String filterSql) {
 		log.debug("无缓存dictTableList的时候调用这里！");
+		SensitiveTableCheckUtil.checkForbiddenFields(table, text, code);
 
 		// 1.SQL注入校验（只限制非法串改数据库）
 		SqlInjectionUtil.specialFilterContentForDictSql(table);
 		SqlInjectionUtil.filterContentMulti(text, code);
-		SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+		SqlInjectionUtil.filterDictConditionSqlFromRequest(table, filterSql);
 		
 		String str = table+","+text+","+code;
 		// 【QQYUN-6533】表字典白名单check
@@ -348,6 +351,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 	@Cacheable(value = CacheConstant.SYS_DICT_TABLE_CACHE, unless = "#result == null ")
 	public String queryTableDictTextByKey(String table,String text,String code, String key) {
 		log.debug("无缓存dictTable的时候调用这里！");
+		SensitiveTableCheckUtil.checkForbiddenFields(table, text, code);
 		
 		String str = table+","+text+","+code;
 		// 【QQYUN-6533】表字典白名单check
@@ -378,6 +382,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 
 	@Override
 	public List<DictModel> queryTableDictTextByKeys(String table, String text, String code, List<String> codeValues, String dataSource) {
+		SensitiveTableCheckUtil.checkForbiddenFields(table, text, code);
 		String str = table+","+text+","+code;
 		//update-begin---author:chenrui ---date:20231221  for：[issues/#5643]解决分布式下表字典跨库无法查询问题------------
 		// 是否自定义数据源
@@ -403,7 +408,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		
 		// 3.SQL注入check
 		SqlInjectionUtil.filterContentMulti(table, text, code);
-		SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+		SqlInjectionUtil.filterDictConditionSqlFromRequest(table, filterSql);
 
 		// 4.针对采用 ${}写法的表名和字段进行转义和check
 		table = SqlInjectionUtil.getSqlInjectTableName(table);
@@ -459,6 +464,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		if(oConvertUtils.isEmpty(codeValuesStr)){
 			return null;
 		}
+		SensitiveTableCheckUtil.checkForbiddenFields(table, text, code);
 
 		//1.分割sql获取表名 和 条件sql
 		String filterSql = null;
@@ -470,7 +476,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 
 		// 2.SQL注入check
 		SqlInjectionUtil.filterContentMulti(table, text, code);
-		SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+		SqlInjectionUtil.filterDictConditionSqlFromRequest(table, filterSql);
 
 		String str = table+","+text+","+code;
 		// 【QQYUN-6533】表字典白名单check
@@ -554,6 +560,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 
 	@Override
 	public List<DictModel> queryLittleTableDictItems(String tableSql, String text, String code, String condition, String keyword, int pageNo, int pageSize) {
+		SensitiveTableCheckUtil.checkForbiddenFields(tableSql, text, code);
 		int current = oConvertUtils.getInt(pageNo, 1);
 		Page<DictModel> page = new Page<DictModel>(current, pageSize);
 		page.setSearchCount(false);
@@ -582,6 +589,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 	 * @return
 	 */
 	private String getFilterSql(String tableSql, String text, String code, String condition, String keyword){
+		String tableName = CommonUtils.getTableNameByTableSql(tableSql);
 		String filterSql = "";
 		String keywordSql = null;
 		String sqlWhere = "where ";
@@ -642,8 +650,8 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		// 1.1 返回条件SQL（去掉开头的 where ）
 		final String wherePrefix = "(?i)where "; // (?i) 表示不区分大小写
 		String filterSqlString = filterSql.trim().replaceAll(wherePrefix, "");
-		// 1.2 条件SQL进行漏洞 check
-		SqlInjectionUtil.specialFilterContentForDictSql(filterSqlString);
+		// 1.2 统一校验最终的条件和排序
+		SqlInjectionUtil.filterDictConditionSqlFromRequest(tableName, filterSqlString);
 		// 1.3 判断如何返回条件是 order by开头则前面拼上 1=1
 		if (oConvertUtils.isNotEmpty(filterSqlString) && filterSqlString.trim().toUpperCase().startsWith("ORDER")) {
 			filterSqlString = " 1=1 " + filterSqlString;
@@ -654,14 +662,16 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 	
 	@Override
 	public List<DictModel> queryAllTableDictItems(String table, String text, String code, String condition, String keyword) {
+		SensitiveTableCheckUtil.checkForbiddenFields(table, text, code);
+		// 拼接关键词条件前先校验字段，避免未经处理的字段进入 filterSql
+		text = SqlInjectionUtil.getSqlInjectField(text);
+		code = SqlInjectionUtil.getSqlInjectField(code);
 		// 1.获取条件sql
 		String filterSql = getFilterSql(table, text, code, condition, keyword);
 
 		// 为了防止sql（jeecg提供了防注入的方法，可以在拼接 SQL 语句时自动对参数进行转义，避免SQL注入攻击）
 		// 2.针对采用 ${}写法的表名和字段进行转义和check
 		table = SqlInjectionUtil.getSqlInjectTableName(table);
-		text = SqlInjectionUtil.getSqlInjectField(text);
-		code = SqlInjectionUtil.getSqlInjectField(code);
 		
 		List<DictModel> ls = baseMapper.queryTableDictWithFilter(table, text, code, filterSql);
     	return ls;
@@ -669,6 +679,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 
 	@Override
 	public List<TreeSelectModel> queryTreeList(Map<String, String> query, String table, String text, String code, String pidField, String pid, String hasChildField, int converIsLeafVal) {
+		SensitiveTableCheckUtil.checkForbiddenFields(table, text, code, pidField, hasChildField);
 		//为了防止sql（jeecg提供了防注入的方法，可以在拼接 SQL 语句时自动对参数进行转义，避免SQL注入攻击）
 		// 1.针对采用 ${}写法的表名和字段进行转义和check
         //update-begin---author:chenrui ---date:20251015  for：[QQYUN-13741]【客户问题 南自】online表单自定义树 表后边加条件时 不生效------------
@@ -694,7 +705,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		// 2.检测最终SQL是否存在SQL注入风险
 		String dictCode = table + "," + text + "," + code;
 		SqlInjectionUtil.filterContentMulti(dictCode);
-        SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+        SqlInjectionUtil.filterDictConditionSqlFromRequest(table, filterSql);
 
 		// 【QQYUN-6533】表字典白名单check
 		sysBaseAPI.dictTableWhiteListCheckByDict(table, text, code);
@@ -708,6 +719,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 		if (query != null) {
 			for (Map.Entry<String, String> searchItem : query.entrySet()) {
 				String fieldName = searchItem.getKey();
+				SensitiveTableCheckUtil.checkForbiddenFields(table, fieldName);
 				// update-begin---author:sjlei---date:20260413  for：【#9524】修复 SQL _tableFilterSql 注入漏洞
 				// _tableFilterSql 是服务端内部专用 key，对应 Mapper 中的 ${value} 裸拼接，
 				// 禁止从外部 condition 参数传入，防止 SQL 注入（#9520）
@@ -751,6 +763,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 
 	@Override
 	public List<DictModel> queryDictTablePageList(DictQuery query, int pageSize, int pageNo) {
+		SensitiveTableCheckUtil.checkForbiddenFields(query.getTable(), query.getText(), query.getCode());
 		Page page = new Page(pageNo,pageSize,false);
 		
 		//为了防止sql（jeecg提供了防注入的方法，可以在拼接 SQL 语句时自动对参数进行转义，避免SQL注入攻击）
@@ -821,9 +834,6 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 			return null;
 		}
 		
-		// 2.字典SQL注入风险check
-		SqlInjectionUtil.specialFilterContentForDictSql(dictCode);
-
 		if (dictCode.contains(SymbolConstant.COMMA)) {
 			// 代码逻辑说明: 下拉搜索不支持表名后加查询条件
 			String[] params = dictCode.split(",");
@@ -882,6 +892,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 				allFieldList.add(f.trim());
 			}
 		}
+		SensitiveTableCheckUtil.checkForbiddenFields(tableName, allFieldList.toArray(new String[0]));
 		sysBaseAPI.dictTableWhiteListCheckByDict(tableName, allFieldList.toArray(new String[0]));
 
 		// 1.2 SQL 注入基础检查
@@ -933,7 +944,7 @@ public class SysDictServiceImpl extends ServiceImpl<SysDictMapper, SysDict> impl
 
 		String filterSql = conditionParts.isEmpty() ? "" : String.join(" and ", conditionParts);
 		if (oConvertUtils.isNotEmpty(filterSql)) {
-			SqlInjectionUtil.specialFilterContentForDictSql(filterSql);
+			SqlInjectionUtil.filterDictConditionSqlFromRequest(tableName, filterSql);
 		}
 
 		// ---------- 4. 分页查询 ----------
