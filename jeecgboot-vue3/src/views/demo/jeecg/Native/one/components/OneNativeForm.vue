@@ -77,7 +77,7 @@
                     { source: 'name', target: 'popup' },
                     { source: 'id', target: 'popback' },
                   ]"
-                  code="report_user"
+                  code="demo"
                   :multi="true"
                   :setFieldsValue="setFieldsValue"
                 />
