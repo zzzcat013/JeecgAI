@@ -79,6 +79,8 @@ public class SysDepart implements Serializable {
 	private String qywxIdentifier;
 	/**对接钉钉的部门ID*/
 	private String dingIdentifier;
+	/**对接飞书的部门ID*/
+	private String feishuIdentifier;
 	/**创建人*/
 	private String createBy;
 	/**创建日期*/

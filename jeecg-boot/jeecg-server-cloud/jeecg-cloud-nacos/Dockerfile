@@ -20,6 +20,6 @@ WORKDIR /jeecg-cloud-nacos
 
 EXPOSE 8848 18080
 
-ADD ./target/jeecg-cloud-nacos-3.9.3.jar ./
+ADD ./target/jeecg-cloud-nacos-3.9.5.jar ./
 
-CMD sleep 30 && exec java -Djava.security.egd=file:/dev/./urandom -jar jeecg-cloud-nacos-3.9.3.jar
+CMD sleep 30 && exec java -Djava.security.egd=file:/dev/./urandom -jar jeecg-cloud-nacos-3.9.5.jar

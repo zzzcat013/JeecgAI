@@ -4,6 +4,9 @@
       <ul class="ding-menu-tab">
         <li :class="activeKey === 'ding' ? 'active' : ''" @click="dingLiClick('ding')"><a>钉钉集成</a></li>
         <li :class="activeKey === 'wechat' ? 'active' : ''" @click="dingLiClick('wechat')"><a>企业微信集成</a></li>
+        <!--update-begin---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成-->
+        <li :class="activeKey === 'feishu' ? 'active' : ''" @click="dingLiClick('feishu')"><a>飞书集成</a></li>
+        <!--update-end---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成-->
       </ul>
     </div>
     <div v-show="activeKey === 'ding'" class="base-collapse">
@@ -12,6 +15,11 @@
     <div v-show="activeKey === 'wechat'" class="base-collapse">
       <ThirdAppWeEnterpriseConfigForm />
     </div>
+    <!--update-begin---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成-->
+    <div v-show="activeKey === 'feishu'" class="base-collapse">
+      <ThirdAppFeishuConfigForm />
+    </div>
+    <!--update-end---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成-->
   </div>
 </template>
 
@@ -19,6 +27,7 @@
   import { defineComponent, ref } from 'vue';
   import ThirdAppDingTalkConfigForm from './ThirdAppDingTalkConfigForm.vue';
   import ThirdAppWeEnterpriseConfigForm from './ThirdAppWeEnterpriseConfigForm.vue';
+  import ThirdAppFeishuConfigForm from './ThirdAppFeishuConfigForm.vue';
   import { useDesign } from '/@/hooks/web/useDesign';
 
   export default defineComponent({
@@ -26,6 +35,7 @@
     components: {
       ThirdAppDingTalkConfigForm,
       ThirdAppWeEnterpriseConfigForm,
+      ThirdAppFeishuConfigForm,
     },
     setup() {
       const { prefixCls } = useDesign('j-dd-container');

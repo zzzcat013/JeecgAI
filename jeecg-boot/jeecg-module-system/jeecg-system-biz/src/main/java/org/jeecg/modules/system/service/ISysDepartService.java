@@ -87,6 +87,15 @@ public interface ISysDepartService extends IService<SysDepart>{
      * @return
      */
     List<SysDepartTreeModel> searchByKeyWord(String keyWord, String myDeptSearch, String departIds, String orgCategory, String depIds);
+
+	/**
+	 * 部门管理页面根据关键字搜索组织机构，搜索结果支持继续展开下级。
+	 *
+	 * @param keyWord 关键字
+	 * @param orgCategory 组织机构类型
+	 * @return 部门树节点
+	 */
+	List<SysDepartTreeModel> searchByKeyWordForDepartManage(String keyWord, String orgCategory);
     
     /**
      * 根据部门id删除并删除其可能存在的子级部门

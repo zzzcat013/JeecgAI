@@ -242,36 +242,42 @@
 <style lang="less" scoped>
   .ant-card {
     margin-bottom: 20px;
-    :deep(.ant-card-body){
+    :deep(.ant-card-body) {
       padding: 10px 20px;
     }
 
-    :deep(.ant-calendar-picker) {
+    // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1033】图表查询日期/数字宽度适配
+    :deep(.ant-picker),
+    :deep(.ant-calendar-picker),
+    :deep(.ant-input-number) {
       width: 100%;
     }
 
-    // 范围查询
+    // 范围查询：横向排列，左右各占一半
     :deep(.range-query) {
-      .range-span {
-        width: 12px;
-        text-align: center;
-        display: inline-block;
-      }
+      .range-query-inner {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 4px;
 
-      .ant-form-item-control {
-        .ant-calendar-picker {
-          width: calc(50% - 8px);
-
-          .ant-input {
-            width: 100%;
-          }
+        .range-span {
+          flex: none;
+          width: 12px;
+          text-align: center;
+          line-height: 32px;
         }
 
+        .ant-picker,
+        .ant-calendar-picker,
         .ant-input,
         .ant-input-number {
-          width: calc(50% - 8px);
+          flex: 1;
+          width: auto !important;
+          min-width: 0;
         }
       }
     }
+    // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1033】图表查询日期/数字宽度适配
   }
 </style>

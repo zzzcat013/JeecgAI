@@ -1,7 +1,8 @@
-<!-- 字典下拉单选 -->
+<!-- 字典下拉单选 / 远程加载下拉 -->
 <template>
   <a-select
     :value="innerValue"
+    :mode="mode"
     :disabled="disabled"
     :placeholder="placeholder"
     :filter-option="filterOptionComputed"
@@ -10,7 +11,7 @@
     :notFoundContent="loading ? undefined : null"
     allowClear
     @change="handleChange"
-    @search="handleSearch"
+    :onSearch="showSearch ? handleSearch : undefined"
     @popupScroll="handlePopupScroll"
     @dropdownVisibleChange="handleDropdownVisibleChange"
     v-bind="$attrs"
@@ -51,7 +52,6 @@
     style: { backgroundColor: string };
   }
 
-  /** 下拉单选组件的值类型（可被 change / update:value / input 等复用） */
   export type SelectSingleValue = string | number | undefined;
 
   const props = withDefaults(
@@ -59,6 +59,7 @@
       value?: SelectSingleValue;
       placeholder?: string;
       readOnly?: boolean;
+      mode?: 'multiple' | 'tags' | 'combobox';
       options?: DictOption[];
       triggerChange?: boolean;
       popContainer?: string;
@@ -67,6 +68,12 @@
       useDicColor?: boolean;
       pageSize?: number;
       scrollLoad?: boolean;
+      showSearch?: boolean;
+      filterOption?: (input: string, option: any) => boolean;
+      onSearch?: (keyword: string) => void;
+      /** 远程加载模式：启用滚动加载+远程搜索，通过 onLoad 回调获取分页数据 */
+      remoteLoad?: boolean;
+      onLoad?: (params: { keyword: string; pageNo: number; pageSize: number }) => Promise<DictOption[]>;
     }>(),
     {
       placeholder: '请选择',
@@ -78,6 +85,8 @@
       useDicColor: false,
       pageSize: 10,
       scrollLoad: false,
+      showSearch: false,
+      remoteLoad: false,
     }
   );
   const emit = defineEmits<{
@@ -88,17 +97,19 @@
   }>();
 
   // --- 选项数据 ---
-  const innerValue = ref<SelectSingleValue>(props.value ?? undefined);
+  const innerValue = ref<SelectSingleValue>();
   const dictOptions = ref<DictOption[]>([]);
   const loading = ref(false);
   const searchKeyword = ref('');
 
-  // --- 字典加载（分页滚动） ---
+  // --- 分页滚动状态 ---
   const scrollState = {
     pageNo: 1,
     hasMore: true,
     loading: false,
   };
+  /** 缓存上次滚动的目标元素，关闭下拉时复位其滚动条 */
+  let lastScrollTarget: HTMLElement | null = null;
 
   const isDictTable = computed(() => {
     if (!props.dictCode) return false;
@@ -106,6 +117,10 @@
   });
 
   const useLoadDict = computed(() => props.scrollLoad && isDictTable.value);
+
+  const useRemoteLoad = computed(() => props.remoteLoad && typeof props.onLoad === 'function');
+
+  const showSearch = computed(() => useLoadDict.value || useRemoteLoad.value || props.showSearch);
 
   const selectOptions = computed<SelectOptionItem[]>(() => {
     if (!Array.isArray(dictOptions.value)) return [];
@@ -121,6 +136,7 @@
     });
   });
 
+  // --- 字典加载 ---
   function fetchDictPage(pageNo: number, append: boolean) {
     return defHttp
       .get({
@@ -128,33 +144,52 @@
         params: { pageNo, pageSize: props.pageSize, keyword: searchKeyword.value, order: 'asc' },
       })
       .then((res: any[]) => {
-        const items: DictOption[] = (res ?? []).map((it) => ({
+        const items: DictOption[] = (res ?? []).map((it: any) => ({
           value: it.value,
           label: it.text ?? it.label,
         }));
-        if (items.length === 0) {
-          if (!append) dictOptions.value = [];
-          scrollState.hasMore = false;
-          return;
-        }
-        if (append) {
-          const existValues = new Set(dictOptions.value.map((o) => String(o.value)));
-          const newItems = items.filter((it) => !existValues.has(String(it.value)));
-          if (newItems.length > 0) {
-            dictOptions.value = [...dictOptions.value, ...newItems];
-          }
-        } else {
-          // 有选中的值且optinos中存在时，需要把选中的值在options中存在且不在新数据中的项保留（防止多次请求）
-          if (unref(innerValue) && unref(dictOptions).length) {
-            const existItem = unref(dictOptions).find((item) => String(item.value) === String(unref(innerValue)));
-            if (existItem && !items.some((item) => String(item.value) === String(existItem.value))) {
-              items.push(existItem);
-            }
-          }
-          dictOptions.value = items;
-        }
-        scrollState.pageNo = pageNo + 1;
+        processPageResult(items, pageNo, append);
       });
+  }
+
+  // --- 远程加载 ---
+  async function fetchRemotePage(pageNo: number, append: boolean) {
+    if (!props.onLoad) return;
+    try {
+      const items = await props.onLoad({
+        keyword: searchKeyword.value,
+        pageNo,
+        pageSize: props.pageSize,
+      });
+      processPageResult(items, pageNo, append);
+    } catch {
+      dictOptions.value = [];
+    }
+  }
+
+  function processPageResult(items: DictOption[], pageNo: number, append: boolean) {
+    if (!items || items.length === 0) {
+      if (!append) dictOptions.value = [];
+      scrollState.hasMore = false;
+      return;
+    }
+    if (append) {
+      const existValues = new Set(dictOptions.value.map((o) => String(o.value)));
+      const newItems = items.filter((it) => !existValues.has(String(it.value)));
+      if (newItems.length > 0) {
+        dictOptions.value = [...dictOptions.value, ...newItems];
+      }
+    } else {
+      if (unref(innerValue) && unref(dictOptions).length && !searchKeyword.value) {
+        const existItem = unref(dictOptions).find((item) => String(item.value) === String(unref(innerValue)));
+        if (existItem && !items.some((item) => String(item.value) === String(existItem.value))) {
+          items.push(existItem);
+        }
+      }
+      dictOptions.value = items;
+    }
+    scrollState.pageNo = pageNo + 1;
+    scrollState.hasMore = items.length >= (props.pageSize || 10);
   }
 
   async function loadDictOptions() {
@@ -163,13 +198,12 @@
       scrollState.hasMore = true;
       loading.value = true;
       fetchDictPage(1, false)
-        .catch(() => {
-          dictOptions.value = [];
-        })
-        .finally(() => {
-          loading.value = false;
-          ensureValueInOptions();
-        });
+        .catch(() => { dictOptions.value = []; })
+        .finally(() => { loading.value = false; ensureValueInOptions(); });
+    } else if (useRemoteLoad.value) {
+      scrollState.pageNo = 1;
+      scrollState.hasMore = true;
+      loadRemoteOptions();
     } else {
       let code = props.dictCode ?? '';
       try {
@@ -182,21 +216,26 @@
     }
   }
 
-  /** 根据 value 拉取单条字典项用于回显（编辑时当前值不在已加载选项中时） */
+  async function loadRemoteOptions() {
+    loading.value = true;
+    searchKeyword.value = '';
+    scrollState.pageNo = 1;
+    scrollState.hasMore = true;
+    fetchRemotePage(1, false)
+      .finally(() => { loading.value = false; });
+  }
+
   function fetchDictItemByValue(val: SelectSingleValue): Promise<DictOption | null> {
     if (val == null) return Promise.resolve(null);
     return defHttp
       .get({ url: `/sys/dict/loadDictItem/${props.dictCode}`, params: { key: val } })
       .then((res: any) => {
-        if (Array.isArray(res)) {
-          return { value: val, label: res[0] };
-        }
+        if (Array.isArray(res)) return { value: val, label: res[0] };
         return null;
       })
       .catch(() => null);
   }
 
-  /** 确保当前 value 在选项中（仅 useLoadDict 时：编辑时当前值不在已加载列表中则拉取单条并插入） */
   function ensureValueInOptions() {
     if (!useLoadDict.value) return;
     const val = innerValue.value;
@@ -209,53 +248,72 @@
   }
 
   const handleSearch = debounce((keyword: string) => {
-    if (!useLoadDict.value) return;
-    searchKeyword.value = keyword ?? '';
-    scrollState.pageNo = 1;
-    scrollState.hasMore = true;
-    loading.value = true;
-    fetchDictPage(1, false)
-      .catch(() => {
-        dictOptions.value = [];
-      })
-      .finally(() => {
-        loading.value = false;
-        ensureValueInOptions();
-      });
+    if (useLoadDict.value) {
+      searchKeyword.value = keyword ?? '';
+      scrollState.pageNo = 1;
+      scrollState.hasMore = true;
+      loading.value = true;
+      fetchDictPage(1, false)
+        .catch(() => { dictOptions.value = []; })
+        .finally(() => { loading.value = false; ensureValueInOptions(); });
+    } else if (useRemoteLoad.value) {
+      searchKeyword.value = keyword ?? '';
+      scrollState.pageNo = 1;
+      scrollState.hasMore = true;
+      loading.value = true;
+      fetchRemotePage(1, false)
+        .finally(() => { loading.value = false; });
+    } else if (props.onSearch) {
+      props.onSearch(keyword ?? '');
+    }
   }, 300);
 
   function handleDropdownVisibleChange(open: boolean) {
-    if (!open || !useLoadDict.value) return;
-    scrollState.pageNo = 1;
-    scrollState.hasMore = true;
-    searchKeyword.value = '';
-    loading.value = true;
-    fetchDictPage(1, false)
-      .finally(() => {
-        loading.value = false;
-        ensureValueInOptions();
-      });
+    if (!open) {
+      // 关闭时：复位缓存的滚动元素，下次打开从顶部开始
+      if (lastScrollTarget) {
+        lastScrollTarget.scrollTop = 0;
+        lastScrollTarget = null;
+      }
+      return;
+    }
+    // 打开时：清空缓存
+    lastScrollTarget = null;
+    if (useLoadDict.value) {
+      scrollState.pageNo = 1;
+      scrollState.hasMore = true;
+      searchKeyword.value = '';
+      loading.value = true;
+      fetchDictPage(1, false)
+        .finally(() => { loading.value = false; ensureValueInOptions(); });
+    } else if (useRemoteLoad.value) {
+      loadRemoteOptions();
+    }
   }
 
   function handlePopupScroll(e: Event) {
-    if (!useLoadDict.value || scrollState.loading || !scrollState.hasMore) return;
-    const target = e.target as HTMLElement;
-    const { scrollTop, scrollHeight, clientHeight } = target;
-    if (scrollTop + clientHeight < scrollHeight - 10) return;
-    scrollState.loading = true;
-    fetchDictPage(scrollState.pageNo, true)
-      .finally(() => {
-        scrollState.loading = false;
-      })
-      .catch(() => {
-        if (scrollState.pageNo > 1) {
-          scrollState.pageNo--;
-        }
-      });
+    lastScrollTarget = e.target as HTMLElement;
+    if (useLoadDict.value) {
+      if (scrollState.loading || !scrollState.hasMore) return;
+      const target = e.target as HTMLElement;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      if (scrollTop + clientHeight < scrollHeight - 10) return;
+      scrollState.loading = true;
+      fetchDictPage(scrollState.pageNo, true)
+        .finally(() => { scrollState.loading = false; })
+        .catch(() => { if (scrollState.pageNo > 1) scrollState.pageNo--; });
+    } else if (useRemoteLoad.value) {
+      if (scrollState.loading || !scrollState.hasMore) return;
+      const target = e.target as HTMLElement;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      if (scrollTop + clientHeight < scrollHeight - 10) return;
+      scrollState.loading = true;
+      fetchRemotePage(scrollState.pageNo, true)
+        .finally(() => { scrollState.loading = false; });
+    }
   }
 
   // --- 弹层挂载 & 搜索过滤 ---
-  const showSearch = computed(() => useLoadDict.value);
   function getPopupContainer(node: HTMLElement) {
     return props.popContainer ? setPopContainer(node, props.popContainer) : node?.parentNode;
   }
@@ -266,8 +324,8 @@
     return text.indexOf(input.toLowerCase()) >= 0;
   }
   const filterOptionComputed = computed(() => (input: string, option: any) => {
-    if (useLoadDict.value) return true;
-    return filterOption(input, option);
+    if (useLoadDict.value || useRemoteLoad.value) return true;
+    return props.filterOption?.(input, option) ?? filterOption(input, option);
   });
 
   // --- 选择变更 ---
@@ -283,7 +341,7 @@
 
   // --- 初始化与监听 ---
   function syncOptionsFromProps() {
-    if (props.dictCode) {
+    if (props.dictCode || props.remoteLoad) {
       loadDictOptions();
     } else {
       dictOptions.value = props.options ?? [];
@@ -294,15 +352,23 @@
   watch(
     () => props.value,
     (val) => {
-      innerValue.value = val ?? undefined;
+      let parsedVal = val ?? undefined;
+      let isMulti = props.mode === 'multiple' || props.mode === 'tags';
+      if (isMulti && typeof parsedVal === 'string') {
+        parsedVal = parsedVal.split(',').map((v) => v.trim()).filter((v) => v !== '');
+      }
+      innerValue.value = parsedVal;
       if (useLoadDict.value) ensureValueInOptions();
+    },
+    {
+      immediate: true,
     }
   );
 
   watch(
     () => props.options,
     () => {
-      if (!props.dictCode) dictOptions.value = props.options ?? [];
+      if (!props.dictCode && !props.remoteLoad) dictOptions.value = props.options ?? [];
     }
   );
 

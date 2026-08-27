@@ -3,21 +3,28 @@ package org.jeecg.modules.airag.app.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import com.alibaba.fastjson.JSONObject;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.CommonConstant;
+import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.util.CommonUtils;
 import org.jeecg.config.shiro.IgnoreAuth;
 import org.jeecg.modules.airag.app.service.IAiragChatService;
+import org.jeecg.modules.airag.app.service.impl.AiragChatRateLimitService;
 import org.jeecg.modules.airag.app.vo.AiDrawGenerateVo;
 import org.jeecg.modules.airag.app.vo.AiWriteGenerateVo;
 import org.jeecg.modules.airag.app.vo.ChatConversation;
 import org.jeecg.modules.airag.app.vo.ChatSendParams;
+import org.jeecg.modules.airag.common.vo.event.EventData;
+import org.jeecg.modules.airag.common.vo.event.EventFlowData;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.UUID;
 
 
 
@@ -34,6 +41,9 @@ public class AiragChatController {
 
     @Autowired
     IAiragChatService chatService;
+
+    @Autowired
+    AiragChatRateLimitService rateLimitService;
 
     @Value(value = "${jeecg.path.upload}")
     private String uploadpath;
@@ -54,8 +64,21 @@ public class AiragChatController {
      */
     @IgnoreAuth
     @PostMapping(value = "/send")
-    public SseEmitter send(@RequestBody ChatSendParams chatSendParams) {
-        return chatService.send(chatSendParams);
+    public SseEmitter send(@RequestBody ChatSendParams chatSendParams, HttpServletRequest request) {
+        try {
+            rateLimitService.checkSendLimit(request);
+        } catch (Exception e) {
+            log.warn("AI聊天发送接口限流: {}", e.getMessage());
+            return buildErrorEmitter(e.getMessage());
+        }
+        //update-begin---author:scott ---date:20260721  for：【issues/9787】匿名访问校验失败按SSE错误协议返回-----------
+        try {
+            return chatService.send(chatSendParams);
+        } catch (JeecgBootException e) {
+            log.warn("AI聊天发送接口访问校验失败: {}", e.getMessage());
+            return buildErrorEmitter(e.getMessage());
+        }
+        //update-end---author:scott ---date:20260721  for：【issues/9787】匿名访问校验失败按SSE错误协议返回-----------
     }
 
     /**
@@ -73,9 +96,45 @@ public class AiragChatController {
     public SseEmitter sendByGet(@RequestParam("content") String content,
                                 @RequestParam(value = "conversationId", required = false) String conversationId,
                                 @RequestParam(value = "topicId", required = false) String topicId,
-                                @RequestParam(value = "appId", required = false) String appId) {
+                                @RequestParam(value = "appId", required = false) String appId,
+                                @RequestParam(value = "shareToken", required = false) String shareToken,
+                                HttpServletRequest request) {
+        try {
+            rateLimitService.checkSendLimit(request);
+        } catch (Exception e) {
+            log.warn("AI聊天发送接口限流: {}", e.getMessage());
+            return buildErrorEmitter(e.getMessage());
+        }
         ChatSendParams chatSendParams = new ChatSendParams(content, conversationId, topicId, appId);
-        return chatService.send(chatSendParams);
+        chatSendParams.setShareToken(shareToken);
+        //update-begin---author:scott ---date:20260721  for：【issues/9787】兼容GET发送接口的匿名访问校验错误协议-----------
+        try {
+            return chatService.send(chatSendParams);
+        } catch (JeecgBootException e) {
+            log.warn("AI聊天GET发送接口访问校验失败: {}", e.getMessage());
+            return buildErrorEmitter(e.getMessage());
+        }
+        //update-end---author:scott ---date:20260721  for：【issues/9787】兼容GET发送接口的匿名访问校验错误协议-----------
+    }
+
+    /**
+     * 构造聊天错误 SSE 响应
+     *
+     * @param errorMessage 错误消息
+     * @return SseEmitter
+     */
+    private SseEmitter buildErrorEmitter(String errorMessage) {
+        SseEmitter emitter = new SseEmitter(0L);
+        String requestId = UUID.randomUUID().toString();
+        EventData eventData = new EventData(requestId, null, EventData.EVENT_FLOW_ERROR);
+        eventData.setData(EventFlowData.builder().success(false).message(errorMessage).build());
+        try {
+            emitter.send(SseEmitter.event().data(JSONObject.toJSONString(eventData)));
+        } catch (Exception e) {
+            log.error("发送聊天错误SSE事件失败", e);
+        }
+        emitter.complete();
+        return emitter;
     }
 
     /**
@@ -87,8 +146,9 @@ public class AiragChatController {
      */
     @IgnoreAuth
     @GetMapping(value = "/init")
-    public Result<?> initChat(@RequestParam(name = "id", required = true) String id) {
-        return chatService.initChat(id);
+    public Result<?> initChat(@RequestParam(name = "id", required = true) String id,
+                              @RequestParam(name = "shareToken", required = false) String shareToken) {
+        return chatService.initChat(id, shareToken);
     }
 
     /**
@@ -245,6 +305,14 @@ public class AiragChatController {
     @IgnoreAuth
     @PostMapping(value = "/upload")
     public Result<?> upload(HttpServletRequest request, HttpServletResponse response) throws Exception {
+        rateLimitService.checkUploadLimit(request);
+        // 匿名上传必须携带已发布应用的分享令牌；登录用户放行
+        try {
+            chatService.validateAnonymousShareAccess(request.getParameter("appId"), request.getParameter("shareToken"));
+        } catch (JeecgBootException e) {
+            return Result.error(e.getMessage());
+        }
+
         String bizPath = "airag";
 
         MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;

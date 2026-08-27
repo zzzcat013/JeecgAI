@@ -9,6 +9,7 @@
         valueFormat="YYYY-MM-DD"
         :placeholder="'请选择' + item.label"
         v-model:value="queryParam[item.field]"
+        style="width: 100%"
       ></a-date-picker>
     </template>
     <template v-else>
@@ -40,6 +41,7 @@
         :show-time="true"
         valueFormat="YYYY-MM-DD HH:mm:ss"
         v-model:value="queryParam[item.field]"
+        style="width: 100%"
       ></a-date-picker>
     </template>
     <template v-else>
@@ -66,7 +68,7 @@
       <span :title="item.label" class="label-text">{{ item.label }}</span>
     </template>
     <template v-if="single_mode === item.mode">
-      <a-date-picker :placeholder="'请选择' + item.label" mode="time" valueFormat="HH:mm:ss" v-model:value="queryParam[item.field]"></a-date-picker>
+      <a-date-picker :placeholder="'请选择' + item.label" mode="time" valueFormat="HH:mm:ss" v-model:value="queryParam[item.field]" style="width: 100%"></a-date-picker>
     </template>
     <template v-else>
       <a-date-picker
@@ -115,6 +117,7 @@
       :pidField="item.pidField"
       :pidValue="item.pidValue"
       :hasChildField="item.hasChildField"
+      :converIsLeafVal="item.converIsLeafVal"
       load-triggle-change
     >
     </JTreeSelect>
@@ -131,7 +134,12 @@
     <template #label>
       <span :title="item.label" class="label-text">{{ item.label }}</span>
     </template>
-    <JOnlineSearchSelect v-model:value="queryParam[item.field]" :placeholder="'请选择'+item.label" :fieldId="item.fieldId"/>
+    <JOnlineSearchSelect
+      v-model:value="queryParam[item.field]"
+      :placeholder="'请选择' + item.label"
+      :fieldId="item.fieldId"
+      :reportId="item.reportId"
+    />
   </a-form-item>
 
   <a-form-item v-else-if="item.view === CompTypeEnum.SelUser" :labelCol="labelCol" :class="'jeecg-online-search'">
@@ -324,4 +332,10 @@
     text-overflow: ellipsis;
     overflow-wrap: break-word;
   }
+
+  /* update-begin--author:liaozhiyang---date:20260804---for：【LHZP-983】查询日期/日期时间组件宽度撑满 */
+  .jeecg-online-search :deep(.ant-picker) {
+    width: 100%;
+  }
+  /* update-end--author:liaozhiyang---date:20260804---for：【LHZP-983】查询日期/日期时间组件宽度撑满 */
 </style>

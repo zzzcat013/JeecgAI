@@ -126,13 +126,16 @@
    * 构建提示词
    * @param values
    */
-  function buildPrompt(values: any): string {
-    // 若用户自定义了提示词则以用户输入为主（仍会在开头列出图的顺序说明）
+  function buildPrompt(values: any, clothCount: number): string {
     const userPrompt: string = (values.userPrompt || '').toString().trim();
-    // 如果用户输入了提示词，则把用户提示放在后面，不生成自动 prompt 内容
-    if (userPrompt) {
-      return `用户提示:\n${userPrompt}`;
-    }
+    const modelImageNumber = clothCount + 1;
+    const clothImageNumbers = Array.from({ length: clothCount }, (_, index) => `[图${index + 1}]`).join('、');
+    const fixedPrompt =
+      `图片角色：${clothImageNumbers}是必须使用的服装素材，[图${modelImageNumber}]是模特目标图。` +
+      `以[图${modelImageNumber}]为唯一画布，将${clothImageNumbers}中的服装准确穿到模特身上。` +
+      '必须保留服装素材的款式、颜色、图案、领口、袖型和装饰细节，不得自行设计或替换成其他服装；' +
+      '仅修改模特的服装区域，保持人物身份、面部、发型、姿态、身材、背景和构图不变，服装贴合自然，光影一致，写实高清。';
+    return userPrompt ? `${fixedPrompt}\n补充要求：${userPrompt}` : fixedPrompt;
   }
   
   //update-begin---wangshuai---date:20260415  for：[QQYUN-14944]AI 改成异步的，支持切换菜单------------
@@ -182,13 +185,9 @@
       loading.value = true;
       generatedResult.value = '';
 
-      // 组装图片 URL（模特 + 服装），按顺序：模特图为图一，后面依次为服装图片（图二/图三）
-      const imgUrls: string[] = [];
-      if (values.modelImage) {
-        const modelFirst = (values.modelImage || '').toString().split(',')[0];
-        if (modelFirst) imgUrls.push(modelFirst);
-      }
-      imgUrls.push(...validCloth);
+      // 多图融合以最后一张图作为目标画布：服装素材在前，模特图在最后
+      const modelImage = (values.modelImage || '').toString().split(',')[0];
+      const imgUrls: string[] = [...validCloth, modelImage];
 
       if (genType.value === 'image') {
         values.imageSize = '720*1280';
@@ -197,7 +196,7 @@
         loading.value = false;
         return;
       }
-      const prompt = buildPrompt(values);
+      const prompt = buildPrompt(values, validCloth.length);
 
       const params: Record<string, any> = {
         drawModelId: values.drawModelId,
@@ -263,7 +262,7 @@
   // 示例提示词操作
   function useExample1() {
     const example =
-      '图像映射: 图一=模特; 图二=服装素材。任务: 将图二整体替换到图一身上，保持模特面部与姿态不变，服装贴合自然，光影一致;服装贴合自然，光影一致，风格写实高清。请输出高质量合成图';
+      '完整替换模特原有服装，优先还原服装素材的版型、颜色、纹理和装饰细节。';
     const modelImage = 'https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/model_1772695749704.jpg';
     clothUploads.value = 'https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/dress_1772700962866.jpg';
     setFieldsValue({ userPrompt: example, modelImage: modelImage });
@@ -271,7 +270,7 @@
 
   function useExample2() {
     const example =
-      '图像映射: 图一=模特; 图二=上衣素材; 图三=下装素材(可选)。任务: 仅将图二的上衣替换到图一上半身(胸部/肩部/袖口)，严格不修改面部或下半身; 对齐按肩线/胸围并融合光照; 风格写实高清。请输出高质量合成图';
+      '图1为上衣素材，图2为下装素材；分别准确替换模特的上衣和下装，组成完整穿搭，不得混淆两件服装。';
     const modelImage = 'https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/model_1772695749704.jpg';
     clothUploads.value =
       'https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/jacket_1772701290346.jpg,https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/pants_1772701320192.jpg';

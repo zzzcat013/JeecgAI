@@ -102,7 +102,7 @@
             online
             :status="superQueryStatus"
             :queryBtnCfg="cgBIBtnMap['super_query']"
-            @search="handleSuperQuery"
+            @search="handleSuperQueryWithSubTable"
         />
       </template>
 
@@ -115,6 +115,7 @@
               :subTableId="item.id"
               :mTableSelectedRcordId="expandedRowKeys[0]"
               :subTableName="item.tableName"
+              :subTableSuperQuery="subTableSuperQueryMap[item.id]"
             ></OnlCgformInnerSubTable>
           </a-tab-pane>
         </a-tabs>
@@ -135,9 +136,9 @@
       <template #htmlSlot="{ text, column, record }">
         <!-- update-begin--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
         <template v-if="column.fieldHref">
-          <a v-html="text" @click="handleClickFieldHref(column.fieldHref, record)"></a>
+          <a v-html="sanitizeRichText(text)" @click="handleClickFieldHref(column.fieldHref, record)"></a>
         </template>
-        <div v-else v-html="text"></div>
+        <div v-else v-html="sanitizeRichText(text)"></div>
         <!-- update-end--author:liaozhiyang---date:20240517---for：【TV360X-129】增加富文本控件配置href跳转 -->
       </template>
 
@@ -212,6 +213,7 @@
   import OnlCgformInnerSubTable from './OnlCgformInnerSubTable.vue';
   import { INNER_TABLE } from '../../util/constant';
   import { Loading } from '/@/components/Loading';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
 
   const innerSubTable = reactive({
     tabNav: [],
@@ -219,6 +221,8 @@
   });
   const expandedRowKeys = ref([]);
   const mainTableSelectedRowRcord = ref(null);
+  // 主表高级查询中属于各内嵌子表的过滤条件，按子表 ID 索引
+  const subTableSuperQueryMap = ref({});
   const { createMessage: $message } = useMessage();
   // 这行代码应该在每次进入新的路由都会走，不管该路由有没有被缓存--
   const {
@@ -331,7 +335,20 @@
     let columnResult = await getColumnList(INNER_TABLE);
     handleTableConfig(columnResult);
     // 2.加载数据
-    await loadData();
+    // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+    let hasDefaultQuery = false;
+    try {
+      const queryForm = await getRefPromise(onlineQueryFormOuter);
+      if (queryForm && typeof queryForm.whenFirstQueryDecided === 'function') {
+        hasDefaultQuery = await queryForm.whenFirstQueryDecided();
+      }
+    } catch (e) {
+      hasDefaultQuery = false;
+    }
+    if (!hasDefaultQuery) {
+      await loadData();
+    }
+    // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
     loading.value = false;
     // 3.执行js增强 setup
     onlineTableContext.execButtonEnhance('setup');
@@ -358,6 +375,8 @@
    */
   function queryWithCondition(data) {
     onlineTableContext['queryParam'] = data;
+    // 普通查询与高级查询互斥：执行普通查询时清空拆分到子表的过滤条件
+    clearSubTableSuperQuery();
     reload({mode:'search'});
   }
 
@@ -402,6 +421,39 @@
     subMenu.sort((a, b) => a.order - b.order);
     innerSubTable.tabNav = subMenu;
   };
+
+  /**
+   * 高级查询事件包装：除了原有逻辑外，把子表字段（key 含逗号，格式 "子表名,字段名"）
+   * 按子表 ID 分组后下发给对应子表组件，使内嵌子表也能响应高级查询条件
+   */
+  function handleSuperQueryWithSubTable(params, matchType) {
+    handleSuperQuery(params, matchType);
+    // 拆分：{ 子表ID: { params, matchType } }
+    const map = {};
+    if (params && params.length && innerSubTable.tabNav.length > 0) {
+      for (const item of params) {
+        if (!item.field || typeof item.field !== 'string') continue;
+        const idx = item.field.indexOf(',');
+        if (idx <= 0) continue;
+        const tableName = item.field.substring(0, idx);
+        const fieldName = item.field.substring(idx + 1);
+        const sub = innerSubTable.tabNav.find((s) => s.tableName === tableName);
+        if (!sub) continue;
+        if (!map[sub.id]) {
+          map[sub.id] = { params: [], matchType: matchType };
+        }
+        map[sub.id].params.push({ ...item, field: fieldName });
+      }
+    }
+    subTableSuperQueryMap.value = map;
+  }
+
+  /**
+   * 切换展开行或主表重载时清空子表过滤条件，避免历史过滤残留
+   */
+  function clearSubTableSuperQuery() {
+    subTableSuperQueryMap.value = {};
+  }
 
   const handleExpand = (expanded, record) => {
     expandedRowKeys.value = [];

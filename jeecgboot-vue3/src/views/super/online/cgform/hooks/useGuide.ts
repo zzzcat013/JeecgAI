@@ -21,6 +21,7 @@ export const useGuide = () => {
       prevLabel: '上一步',
       //skipLabel: '跳过',
       doneLabel: '完成',
+      disableInteraction: true,
       steps: [
         {
           title: '第一步',

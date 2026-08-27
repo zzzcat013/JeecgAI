@@ -1,7 +1,14 @@
 <template>
-  <ConfigProvider :theme="{ token: { fontSize: 13 } }">
-    <BasicModal @register="registerModal" title="表单扩展配置项" :width="1000" @ok="handleOk" @cancel="handleCancel">
-      <BasicForm @register="registerForm" />
+  <ConfigProvider :theme="{ token: { fontSize: 13, controlHeight: 28 } }">
+    <BasicModal
+      @register="registerModal"
+      title="表单扩展配置项"
+      :width="900"
+      :bodyStyle="{ padding: '24px 28px 12px' }"
+      @ok="handleOk"
+      @cancel="handleCancel"
+    >
+      <BasicForm class="onl-cgform-ext-config-form" @register="registerForm" />
     </BasicModal>
   </ConfigProvider>
 </template>
@@ -32,6 +39,9 @@
         onJoinQueryChange,
         onReportPrintShowChange,
         onFormLabelLengthShow,
+        // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
+        onEnableMultiDataSourceChange,
+        // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
       });
 
       // 表单配置
@@ -103,6 +113,15 @@
         await clearValidate('formLabelLength');
       }
 
+      // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源：关闭多数据源时清空已选数据源
+      async function onEnableMultiDataSourceChange(value) {
+        if (value == 0) {
+          await setFieldsValue({ dbSource: '' });
+        }
+        await clearValidate('dbSource');
+      }
+      // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
+
       // 联合查询更改事件
       function onJoinQueryChange(value) {
         if (value === 1) {
@@ -139,9 +158,13 @@
 </script>
 
 <style scoped lang="less">
-  .onl-cgform-ext-config-form.ant-form-inline {
+  .onl-cgform-ext-config-form {
     :deep(.ant-form-item) {
-      margin-bottom: 8px;
+      margin-bottom: 14px;
+    }
+
+    :deep(.image-export-mode .ant-radio-button-wrapper) {
+      padding-inline: 8px;
     }
   }
 </style>

@@ -121,7 +121,7 @@ public class SysDepartTreeModel implements Serializable{
         this.directorUserIds = sysDepart.getDirectorUserIds();
         this.positionId = sysDepart.getPositionId();
         this.depPostParentId = sysDepart.getDepPostParentId();
-        if(0 == sysDepart.getIzLeaf()){
+        if(null != sysDepart.getIzLeaf() && 0 == sysDepart.getIzLeaf()){
             this.isLeaf = false;
         }else{
             this.isLeaf = true;

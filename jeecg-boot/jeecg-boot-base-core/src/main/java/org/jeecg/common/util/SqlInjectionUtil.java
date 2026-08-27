@@ -7,6 +7,7 @@ import org.jeecg.common.constant.SymbolConstant;
 import org.jeecg.common.exception.JeecgSqlInjectionException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -124,7 +125,10 @@ public class SqlInjectionUtil {
 		checkSqlAnnotation(value);
 		// 转为小写进行后续比较
 		value = value.toLowerCase().trim();
-		
+		//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+		value = value.replaceAll("\\s+", " ");
+		//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+
 		// 二、SQL注入检测存在绕过风险 (普通文本校验)
 		//https://gitee.com/jeecg/jeecg-boot/issues/I4NZGE
 		String[] xssArr = XSS_STR.split("\\|");
@@ -149,7 +153,9 @@ public class SqlInjectionUtil {
 
 		// 四、SQL注入检测存在绕过风险 (正则校验)
 		for (String regularOriginal : XSS_REGULAR_STR_ARRAY) {
-			String regular = ".*" + regularOriginal + ".*";
+			//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
+			String regular = "(?s).*" + regularOriginal + ".*";
+			//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
 			if (Pattern.matches(regular, value)) {
 				log.error(SqlInjectionUtil.SQL_INJECTION_KEYWORD_TIP, regularOriginal);
 				log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);
@@ -274,7 +280,10 @@ public class SqlInjectionUtil {
 		// 一、校验sql注释 不允许有sql注释
 		checkSqlAnnotation(value);
 		value = value.toLowerCase().trim();
-		
+		//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+		value = value.replaceAll("\\s+", " ");
+		//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+
 		// 二、SQL注入检测存在绕过风险 (普通文本校验)
 		for (int i = 0; i < xssArr.length; i++) {
 			if (isExistSqlInjectKeyword(value, xssArr[i])) {
@@ -294,7 +303,9 @@ public class SqlInjectionUtil {
 
 		// 三、SQL注入检测存在绕过风险 (正则校验)
 		for (String regularOriginal : XSS_REGULAR_STR_ARRAY) {
-			String regular = ".*" + regularOriginal + ".*";
+			//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
+			String regular = "(?s).*" + regularOriginal + ".*";
+			//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
 			if (Pattern.matches(regular, value)) {
 				log.error(SqlInjectionUtil.SQL_INJECTION_KEYWORD_TIP, regularOriginal);
 				log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);
@@ -302,6 +313,39 @@ public class SqlInjectionUtil {
 			}
 		}
 		return;
+	}
+
+	/**
+	 * 【issues/9840】校验前端请求传入的字典条件 SQL。
+	 * <p>
+	 * 处理规则：
+	 * 1. 仅允许字段与常量组成比较、IN、LIKE、BETWEEN、IS NULL 条件，并支持括号、AND/OR 及安全排序；
+	 * 2. 禁止子查询、函数、字段间比较、SQL 注释、追加语句、未解析占位符及非法排序表达式；
+	 * 3. 从条件语法树提取字段并执行敏感字段校验，字典返回字段由服务入口执行相同校验；
+	 * 4. 敏感字段清单由 SensitiveTableCheckUtil 统一维护，非敏感字段保持原有字典能力。
+	 * </p>
+	 *
+	 * @param table 查询表名
+	 * @param value 字典过滤条件
+	 * @author scott
+	 * @since 2026-08-25 issues/9840 字典过滤条件 SQL 注入防护
+	 */
+	public static void filterDictConditionSqlFromRequest(String table, String value) {
+		if (value == null || "".equals(value)) {
+			return;
+		}
+		String trimmed = value.trim();
+		if (trimmed.isEmpty()) {
+			return;
+		}
+		Set<String> conditionFields;
+		try {
+			conditionFields = DictSqlConditionCheckUtil.checkAndGetFields(trimmed);
+		} catch (Exception e) {
+			log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);
+			throw new JeecgSqlInjectionException(SqlInjectionUtil.SQL_INJECTION_TIP + value);
+		}
+		SensitiveTableCheckUtil.checkForbiddenFields(table, conditionFields.toArray(new String[0]));
 	}
 
     /**
@@ -318,7 +362,10 @@ public class SqlInjectionUtil {
 		// 一、校验sql注释 不允许有sql注释
 		checkSqlAnnotation(value);
 		value = value.toLowerCase().trim();
-		
+		//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+		value = value.replaceAll("\\s+", " ");
+		//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】修复换行符绕过SQL注入检测-----------
+
 		// 二、SQL注入检测存在绕过风险 (普通文本校验)
 		for (int i = 0; i < xssArr.length; i++) {
 			if (isExistSqlInjectKeyword(value, xssArr[i])) {
@@ -338,7 +385,9 @@ public class SqlInjectionUtil {
 
 		// 三、SQL注入检测存在绕过风险 (正则校验)
 		for (String regularOriginal : XSS_REGULAR_STR_ARRAY) {
-			String regular = ".*" + regularOriginal + ".*";
+			//update-begin---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
+			String regular = "(?s).*" + regularOriginal + ".*";
+			//update-end---author:wangshuai ---date:2026-06-16  for：【issue/9677】正则加DOTALL模式，防止换行绕过-----------
 			if (Pattern.matches(regular, value)) {
 				log.error(SqlInjectionUtil.SQL_INJECTION_KEYWORD_TIP, regularOriginal);
 				log.error(SqlInjectionUtil.SQL_INJECTION_TIP_VARIABLE, value);

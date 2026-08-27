@@ -430,22 +430,53 @@ export function useListButton(onlineTableContext, extConfigJson: Ref<ExtConfigTy
       $message.warning('请选择一条记录！');
       return false;
     } else {
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-839】批量删除与「更多-删除」一致，流程已发起的记录不可删
+      const selectedRows = onlineTableContext['selectedRows'] || [];
+      const rowMap = new Map();
+      selectedRows.forEach((row) => {
+        if (row && row.id != null) {
+          rowMap.set(String(row.id), row);
+        }
+      });
+      // update-end--author:liaozhiyang---date:20260804---for：【LHZP-839】批量删除与「更多-删除」一致，流程已发起的记录不可删
       let idSet: any = [];
+      let skippedCount = 0;
       arr.forEach(function (val) {
         let temp = val;
         //树形列表 key后面会带有_loadChild
         if (temp && temp.endsWith('_loadChild')) {
           temp = temp.replace('_loadChild', '');
         }
+        // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-839】批量删除与「更多-删除」一致，流程已发起的记录不可删
+        // 允许删除：bpm_status 为空，或值为 1（待提交）
+        const record = rowMap.get(String(temp));
+        if (record) {
+          const bpmStatusValue = getBpmStatusValue(record);
+          const canDelete = (bpmStatusValue && bpmStatusValue == '1') || !bpmStatusValue;
+          if (!canDelete) {
+            skippedCount++;
+            return;
+          }
+        }
+        // update-end--author:liaozhiyang---date:20260804---for：【LHZP-839】批量删除与「更多-删除」一致，流程已发起的记录不可删
         // 去重
         if (idSet.indexOf(temp) < 0) {
           idSet.push(temp);
         }
       });
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-839】批量删除与「更多-删除」一致，流程已发起的记录不可删
+      if (idSet.length <= 0) {
+        $message.warning('选中数据均不可删除（流程已发起）！');
+        return false;
+      }
+      if (skippedCount > 0) {
+        $message.warning(`有 ${skippedCount} 条流程已发起的数据不可删除，将跳过`);
+      }
+      // update-end--author:liaozhiyang---date:20260804---for：【LHZP-839】批量删除与「更多-删除」一致，流程已发起的记录不可删
       let ids = idSet.join(',');
       Modal.confirm({
         title: '确认删除',
-        content: '是否删除选中数据',
+        content: skippedCount > 0 ? `是否删除可删除的 ${idSet.length} 条数据？` : '是否删除选中数据',
         okText: '确认',
         cancelText: '取消',
         onOk: async () => {
@@ -580,6 +611,8 @@ export function useListButton(onlineTableContext, extConfigJson: Ref<ExtConfigTy
     let url = `${onlineTableContext.onlineUrl.importXls}${onlineTableContext.ID}`;
     if (onlineTableContext['isErpSubTable'] === true) {
       url = `${url}?tabletype=3`;
+    } else if (onlineTableContext.isTree() === true) {
+      url = `${url}?tabletype=2`;
     }
     return url;
     // update-end--author:liaozhiyang---date:20240428---for：【issues/6124】当用户没有【Online表单开发】页面的权限时用户无权删除和导出从表数据
@@ -602,13 +635,17 @@ export function useListButton(onlineTableContext, extConfigJson: Ref<ExtConfigTy
       if (onlineTableContext['foreignKeyField'] && onlineTableContext['foreignKeyValue']) {
         params[onlineTableContext['foreignKeyField']] = onlineTableContext['foreignKeyValue'];
       }
+    } else if (onlineTableContext.isTree() === true) {
+      // 树表导出需携带类型，后端据此保留节点层级并在文件中写入导入规则说明。
+      tabletype = { tabletype: 2 };
     }
     // update-end--author:liaozhiyang---date:20230818---for：【QQYUN-5803】online一对多Erp风格
     //console.log("导出参数",params)
     let paramsStr = JSON.stringify(filterObj(params));
     let url = `${onlineTableContext.onlineUrl.exportXls}${onlineTableContext.ID}`;
     const description = onlineTableContext.description;
-    return handleExportXlsx(description, url, { paramsStr: paramsStr, ...tabletype });
+    const imageExportMode = extConfigJson.value?.imageExportMode || 'path';
+    return handleExportXlsx(description, url, { paramsStr: paramsStr, imageExportMode, ...tabletype });
   }
 
   /**

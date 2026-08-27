@@ -66,23 +66,14 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
           find: 'vue-i18n',
           replacement: 'vue-i18n/dist/vue-i18n.cjs.js',
         },
-        // /@/xxxx => src/xxxx
+        // /@/xxxx、@/xxxx => src/xxxx
         {
-          find: /\/@\//,
+          find: /\/?@\//,
           replacement: pathResolve('src') + '/',
         },
-        // /#/xxxx => types/xxxx
+        // /#/xxxx、#/xxxx => types/xxxx
         {
-          find: /\/#\//,
-          replacement: pathResolve('types') + '/',
-        },
-        {
-          find: /@\//,
-          replacement: pathResolve('src') + '/',
-        },
-        // /#/xxxx => types/xxxx
-        {
-          find: /#\//,
+          find: /\/?#\//,
           replacement: pathResolve('types') + '/',
         },
       ],
@@ -97,16 +88,26 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
       port: VITE_PORT,
       proxy: createProxy(VITE_PROXY),
       ...serverOptions,
-      // update-begin--author:liaozhiyang---date:20260306---for:【QQYUN-14801】启动时预构建部分入口页面，访问时更快
+      // 启动时预构建部分常用入口页面，访问时更快
       warmup: {
         clientFiles: [
           './src/main.ts',
           './src/App.vue',
           './src/views/system/loginmini/MiniLogin.vue',
-          'src/layouts/default/index.vue'
+          'src/layouts/default/index.vue',
+          'src/views/dashboard/Analysis/index.vue',
+          'src/views/dashboard/workbench/index.vue',
+          'src/views/system/user/index.vue',
+          'src/views/system/role/index.vue',
+          'src/views/system/depart/index.vue',
+          'src/views/system/menu/index.vue',
+          'src/views/system/dict/index.vue',
+          'src/views/super/online/cgform/index.vue',
+          'src/views/super/online/cgform/auto/default/OnlineAutoList.vue',
+          'src/views/super/airag/aiapp/AiAppList.vue',
         ],
       },
-      // update-end--author:liaozhiyang---date:20260306---for:【QQYUN-14801】启动时预构建部分入口页面，访问时更快
+      // update-end--author:liaozhiyang---date:20260306---for:【QQYUN-14801】vite启动的时候，预构建一些入口页面，访问时快一些
     },
     build: {
       // Vite 8 默认使用 Oxc minifier；'esbuild' 已 deprecated。
@@ -123,6 +124,10 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
           // 官方推荐写法：id.includes('node_modules') + split('node_modules/') 取出包名，再映射到 chunk 名（依赖包从大到小排列）
           manualChunks(id: string) {
             const normalizedId = id.replace(/\\/g, '/');
+            // tinymceGlobalShim 必须和 tinymce 核心/插件打进同一 chunk，保证 window.tinymce 挂载早于各 plugin/theme 顶层代码执行
+            if (normalizedId.includes('/src/utils/tinymceGlobalShim')) {
+              return 'tinymce-vendor';
+            }
             if (!normalizedId.includes('node_modules/')) {
               return;
             }
@@ -132,6 +137,12 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
               vue: 'vue-vendor',
               'vue-router': 'vue-vendor',
               'emoji-mart-vue-fast': 'emoji-mart-vue-fast',
+              html2canvas: 'html2canvas-vendor',
+              'pinyin-pro': 'pinyin-pro-vendor',
+              'vue-grid-layout': 'grid-layout-vendor',
+              vuedraggable: 'vuedraggable-vendor',
+              tinymce: 'tinymce-vendor',
+              '@tinymce/tinymce-vue': 'tinymce-vendor',
             };
             return packageToChunk[pkgName];
           },
@@ -153,6 +164,8 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
       __APP_INFO__: JSON.stringify(__APP_INFO__),
     },
     css: {
+      // warmup 并发较高时，Less worker 与主线程通信可能超过 Vite 内部超时时间
+      preprocessorMaxWorkers: 0,
       preprocessorOptions: {
         less: {
           modifyVars: generateModifyVars(),
@@ -173,19 +186,14 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
         },
       },
       // @iconify/iconify: The dependency is dynamically and virtually loaded by @purge-icons/generated, so it needs to be specified explicitly
+      // vite8 显式预构建路由独有的重量级依赖，避免首次打开对应路由时因运行时才发现依赖而产生大量瀑布式请求
       include: [
-        // 强制预构建clipboard，解决Vite6对CommonJS模块的严格检查
         'clipboard',
         '@vue/shared',
         '@iconify/iconify',
         'ant-design-vue/es/locale/zh_CN',
         'ant-design-vue/es/locale/en_US',
-        'tinymce',
-        '@tinymce/tinymce-vue',
-        'echarts',
-        'vxe-table',
-        'vxe-pc-ui',
-        'vxe-table-plugin-antd',
+        // Vite 默认不扫描 node_modules 里已打包的 mjs，导致 ant-design-vue/es/vc-picker/generate/dayjs.js
         // 引入的 dayjs 插件子路径（UMD/CJS）未被预打包，运行时报 "does not provide an export named 'default'"。
         // 显式列出 vc-picker 用到的全部 dayjs 插件，强制 esbuild 预打包成 ESM。
         'dayjs/plugin/advancedFormat',
@@ -194,7 +202,13 @@ export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
         'dayjs/plugin/localeData',
         'dayjs/plugin/weekOfYear',
         'dayjs/plugin/weekYear',
-        'dayjs/plugin/quarterOfYear'
+        'dayjs/plugin/quarterOfYear',
+        'tinymce',
+        '@tinymce/tinymce-vue',
+        'echarts',
+        'vxe-table',
+        'vxe-pc-ui',
+        'vxe-table-plugin-antd',
       ],
       exclude: [
         //升级vite4后，需要排除online和aiflow依赖

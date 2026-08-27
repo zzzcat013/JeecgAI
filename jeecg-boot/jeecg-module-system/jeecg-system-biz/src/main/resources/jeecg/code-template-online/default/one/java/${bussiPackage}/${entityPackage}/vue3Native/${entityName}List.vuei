@@ -11,6 +11,7 @@
 <#assign need_multi = false>
 <#assign need_popup = false>
 <#assign need_popup_dict = false>
+<#assign need_link_table = false>
 <#assign need_select_tag = false>
 <#assign need_select_tree = false>
 <#assign need_time = false>
@@ -231,6 +232,11 @@
       beforeFetch: async (params) => {
        <#if is_range>
         let rangerQuery = await setRangeQuery();
+        for (let key in fieldPickers) {
+          if (rangerQuery[key] && fieldPickers[key]) {
+            rangerQuery[key] = getDateByPicker(rangerQuery[key], fieldPickers[key]);
+          }
+        }
         return Object.assign(params, rangerQuery);
        <#else>
         for (let key in fieldPickers) {

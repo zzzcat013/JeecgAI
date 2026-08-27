@@ -37,7 +37,16 @@ export function useJVxeUploadCell(props: JVxeComponent.Props, options?) {
   });
   const hasFile = computed(() => innerFile.value != null);
   const responseName = computed(() => originColumn.value.responseName ?? 'message');
-
+  // update-begin--author:liaozhiyang---date:20250526---for：【issues/9652】vxetable上传、上传文件、上传图片加上自定义路径
+  const uploadData = computed(() => {
+    const bizPath = originColumn.value.bizPath;
+    const result: any = { isup: 1 };
+    if (bizPath) {
+      result.biz = bizPath;
+    }
+    return result;
+  });
+  // update-end--author:liaozhiyang---date:20250526---for：【issues/9652】vxetable上传、上传文件、上传图片加上自定义路径
   watch(
     innerValue,
     (val) => {
@@ -110,6 +119,7 @@ export function useJVxeUploadCell(props: JVxeComponent.Props, options?) {
     innerFile,
     uploadAction,
     uploadHeaders,
+    uploadData,
     hasFile,
     responseName,
     handleChangeUpload,

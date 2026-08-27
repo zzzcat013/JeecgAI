@@ -16,6 +16,16 @@ import {router} from "@/router";
 import {encryptByBase64} from "@/utils/cipher";
 //存放部门路径的数组
 const departNamePath = ref<Record<string, string>>({});
+// 正在请求中的部门路径名称，避免同一参数并发重复调用
+const departPathNameInflight = new Map<string, Promise<any>>();
+
+/**
+ * 组织层级变更后清空部门路径缓存
+ */
+export function clearDepartPathNameCache() {
+  departNamePath.value = {};
+  departPathNameInflight.clear();
+}
 
 const globSetting = useGlobSetting();
 const baseApiUrl = globSetting.domainUrl;
@@ -319,6 +329,11 @@ export function underLine2CamelCase(string: string) {
  * @param childrenKey
  */
 export function findTree(treeList: any[], fn: Fn, childrenKey = 'children') {
+  //update-begin---wangshuai---date:20260721  for：[LHZP-1135]我的部门 右侧展示的信息不对，控制台报错了------------
+  if(!treeList){
+    return null;
+  }
+  //update-end---author:wangshuai ---date:20260721  for：[LHZP-1135]我的部门 右侧展示的信息不对，控制台报错了------------
   for (let i = 0; i < treeList.length; i++) {
     let item = treeList[i];
     if (fn(item, i, treeList)) {
@@ -633,11 +648,71 @@ export async function getDepartPathNameByOrgCode(orgCode, label, depId){
   if (orgCode) {
     depId = "";
   }
-  let result = await defHttp.get({ url: "/sys/sysDepart/getDepartPathNameByOrgCode", params:{ orgCode: orgCode, depId: depId } }, { isTransformResponse: false });
-  if (result.success) {
-    return result.result;
+  const cacheKey = `${orgCode || ''}_${depId || ''}`;
+  // 如果已有相同参数的请求在进行中，直接复用，避免并发重复调用
+  if (departPathNameInflight.has(cacheKey)) {
+    return departPathNameInflight.get(cacheKey);
   }
-  return label;
+  const promise = defHttp.get({ url: "/sys/sysDepart/getDepartPathNameByOrgCode", params:{ orgCode: orgCode, depId: depId } }, { isTransformResponse: false })
+    .then((result) => {
+      departPathNameInflight.delete(cacheKey);
+      if (result.success) {
+        return result.result;
+      }
+      return label;
+    })
+    .catch((error) => {
+      departPathNameInflight.delete(cacheKey);
+      throw error;
+    });
+  departPathNameInflight.set(cacheKey, promise);
+  return promise;
+}
+
+/**
+ * 判断是否为有效的ID（排除中文文本等脏数据）
+ */
+function isValidId(val: string): boolean {
+  // 有效ID为纯字母数字（长数字ID或UUID格式），不包含中文等特殊字符
+  return /^[a-zA-Z0-9]+$/.test(val);
+}
+
+/**
+ * 批量预加载部门路径名称到缓存中
+ * 从表格数据中收集所有部门/岗位ID，一次性调用批量接口查询，避免逐条请求
+ * @param records 表格当前页数据
+ * @param fields 需要提取ID的字段名数组
+ */
+export async function batchPreloadDepartPathNames(records: any[], fields: string[] = ['belongDepIds', 'departIds', 'mainDepPostId', 'otherDepPostId']) {
+  const idSet = new Set<string>();
+  for (const record of records) {
+    for (const field of fields) {
+      const val = record[field];
+      if (!val) continue;
+      const ids = typeof val === 'string' ? val.split(',') : (Array.isArray(val) ? val : [val]);
+      ids.forEach((id) => {
+        const trimmed = String(id).trim();
+        if (trimmed && isValidId(trimmed) && !departNamePath.value[trimmed]) {
+          idSet.add(trimmed);
+        }
+      });
+    }
+  }
+  if (idSet.size === 0) return;
+  try {
+    const depIds = Array.from(idSet).join(',');
+    const result = await defHttp.get({ url: '/sys/sysDepart/batchGetDepartPathName', params: { depIds } }, { isTransformResponse: false });
+    if (result.success && result.result) {
+      const map = result.result;
+      for (const id of Object.keys(map)) {
+        if (map[id]) {
+          departNamePath.value[id] = map[id];
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('批量预加载部门路径名称失败', e);
+  }
 }
 
 /**
@@ -647,6 +722,13 @@ export async function getDepartPathNameByOrgCode(orgCode, label, depId){
  * @param izOrgCode 是否是机构编码
  */
 export function getDepartPathName(title,key,izOrgCode) {
+  if (!key) {
+    return title || '';
+  }
+  // 如果key不是合法ID（如中文脏数据"国炬副总经理"），直接返回key本身作为显示文本
+  if (!isValidId(String(key))) {
+    return key;
+  }
   if (departNamePath.value[key]) {
     return departNamePath.value[key];
   }
@@ -659,7 +741,7 @@ export function getDepartPathName(title,key,izOrgCode) {
       departNamePath.value[key] = result;
     });
   }
-
+  return '';
 }
 
 /**

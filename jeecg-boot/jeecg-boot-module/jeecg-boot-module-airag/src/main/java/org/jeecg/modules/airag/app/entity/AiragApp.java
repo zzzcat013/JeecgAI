@@ -159,6 +159,14 @@ public class AiragApp implements Serializable {
     @Schema(description = "状态")
     private java.lang.String status;
 
+    /**
+     * 分享令牌（匿名聊天凭证，发布时生成，取消发布清空）
+     *
+     * @author scott
+     * @since 2026-07-21 【issues/9787】应用级分享令牌
+     */
+    @Schema(description = "分享令牌")
+    private java.lang.String shareToken;
 
     /**
      * 元数据

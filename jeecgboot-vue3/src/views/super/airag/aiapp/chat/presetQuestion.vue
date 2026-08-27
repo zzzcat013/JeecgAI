@@ -155,7 +155,7 @@ import {ref, onMounted, onBeforeUnmount, watch} from 'vue';
       border: 1px solid #e6e6e6;
       border-radius: 16px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 12px;
       padding: 2px 10px;
       width: max-content;
       margin-right: 6px;

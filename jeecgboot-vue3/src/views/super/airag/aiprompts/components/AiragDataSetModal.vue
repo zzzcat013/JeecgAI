@@ -18,6 +18,7 @@
             :columns="columns"
             :dataSource="dataSource"
             :pagination="pagination"
+            @change="handleTableChange"
             rowKey="id"
             class="data-table"
             :scroll="{ x: 'max-content' }"
@@ -51,6 +52,7 @@ import {queryById, saveOrUpdate} from '../AiragExtData.api';
 import { useDrawer } from '@/components/Drawer';
 import { cloneDeep } from 'lodash-es';
 import {useMessage} from "@/hooks/web/useMessage";
+import { Modal } from 'ant-design-vue';
 // Emits声明
 const emit = defineEmits(['register', 'success']);
 const { createMessage } = useMessage();
@@ -63,6 +65,11 @@ const pagination = ref({
   current: 1,
   pageSize: 10,
 });
+
+function handleTableChange(pageInfo: any) {
+  pagination.value.current = pageInfo.current;
+  pagination.value.pageSize = pageInfo.pageSize;
+}
 //表单赋值
 const [registerModal] = useModalInner(async (data) => {
   dataId.value = data.record?.id;
@@ -160,8 +167,16 @@ function handleEditDataset(record) {
  */
 function handleDelete(record) {
   //删除数据
-  dataSource.value = dataSource.value.filter((item) => item.id !== record.id);
-  refreshDataset()
+  Modal.confirm({
+    title: '确认删除',
+    content: '是否删除？',
+    okText: '确认',
+    cancelText: '取消',
+    onOk: () => {
+      dataSource.value = dataSource.value.filter((item) => item.id !== record.id);
+      refreshDataset()
+    },
+  });
 }
 
 /**

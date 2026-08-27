@@ -1,6 +1,10 @@
 package org.jeecg.modules.airag.llm.document;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.common.exception.JeecgBootException;
+import org.jeecg.common.util.filter.SsrfFileTypeFilter;
+import org.jeecg.common.util.oConvertUtils;
+import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -9,6 +13,7 @@ import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
+import java.net.URL;
 
 /**
  * 网页解析器，使用Jsoup爬取网页并转换为Markdown格式
@@ -35,6 +40,11 @@ public class WebPageParser {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     /**
+     * 最大重定向次数
+     */
+    private static final int MAX_REDIRECTS = 5;
+
+    /**
      * 爬取网页并转换为Markdown
      *
      * @param url 网页URL
@@ -42,12 +52,46 @@ public class WebPageParser {
      * @throws IOException 网络请求失败时抛出
      */
     public String parseToMarkdown(String url) throws IOException {
-        Document doc = Jsoup.connect(url)
-                .userAgent(USER_AGENT)
-                .timeout(TIMEOUT_MS)
-                .maxBodySize(MAX_BODY_SIZE)
-                .followRedirects(true)
-                .get();
+        //update-begin---author:zhangdaihao ---date:2026-08-06  for：【issues/9808】AI知识库Web文档抓取SSRF漏洞修复，禁止自动跳转并逐跳校验-----------
+        String currentUrl = url;
+        Connection.Response response = null;
+        for (int i = 0; i <= MAX_REDIRECTS; i++) {
+            // 每一跳（含初始 URL）都重新做 SSRF 校验，拦截 loopback / link-local / 云元数据地址
+            SsrfFileTypeFilter.checkSsrfHttpUrl(currentUrl);
+
+            response = Jsoup.connect(currentUrl)
+                    .userAgent(USER_AGENT)
+                    .timeout(TIMEOUT_MS)
+                    .maxBodySize(MAX_BODY_SIZE)
+                    // 允许任意 content-type（如 302 无 Content-Type），避免校验重定向前被 Jsoup 拦截
+                    .ignoreContentType(true)
+                    // 关键：禁止 Jsoup 自动跟随重定向，否则 SSRF 校验会被绕过
+                    .followRedirects(false)
+                    .execute();
+
+            int status = response.statusCode();
+            if (status >= 300 && status < 400) {
+                String location = response.header("Location");
+                if (oConvertUtils.isEmpty(location)) {
+                    throw new JeecgBootException("非法重定向：Location 为空");
+                }
+                // 相对 Location 解析为绝对地址后回到循环顶部再次校验
+                currentUrl = new URL(response.url(), location).toString();
+                continue;
+            }
+            break;
+        }
+
+        if (response == null) {
+            throw new JeecgBootException("非法URL：请求失败");
+        }
+        int finalStatus = response.statusCode();
+        if (finalStatus >= 300 && finalStatus < 400) {
+            throw new JeecgBootException("非法URL：重定向次数过多");
+        }
+
+        Document doc = response.parse();
+        //update-end---author:zhangdaihao ---date:2026-08-06  for：【issues/9808】AI知识库Web文档抓取SSRF漏洞修复，禁止自动跳转并逐跳校验-----------
 
         // 移除脚本、样式、导航、页脚等无关元素
         doc.select("script, style, nav, footer, header, iframe, noscript, svg, form, button, input, select, textarea, .sidebar, .nav, .menu, .footer, .header, .ad, .advertisement, .comment, .comments").remove();

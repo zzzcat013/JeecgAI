@@ -1,23 +1,48 @@
 <#if po.fieldDbType=='Blob'>
-    private transient java.lang.String ${po.fieldName}String;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private java.lang.String ${po.fieldName}String;
 
     private byte[] ${po.fieldName};
 
     public byte[] get${po.fieldName?cap_first}(){
         if(${po.fieldName}String==null){
-            return null;
+            return ${po.fieldName};
         }
         try {
             return ${po.fieldName}String.getBytes("UTF-8");
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
-        return null;
+        return ${po.fieldName};
+    }
+
+    public void set${po.fieldName?cap_first}(byte[] ${po.fieldName}) {
+        this.${po.fieldName} = ${po.fieldName};
+        if (this.${po.fieldName}String == null && ${po.fieldName} != null) {
+            try {
+                this.${po.fieldName}String = new String(${po.fieldName}, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void set${po.fieldName?cap_first}String(String ${po.fieldName}String) {
+        this.${po.fieldName}String = ${po.fieldName}String;
+        if (${po.fieldName}String == null) {
+            this.${po.fieldName} = null;
+            return;
+        }
+        try {
+            this.${po.fieldName} = ${po.fieldName}String.getBytes("UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
     }
 
     public String get${po.fieldName?cap_first}String(){
         if(${po.fieldName}==null || ${po.fieldName}.length==0){
-            return "";
+            return ${po.fieldName}String == null ? "" : ${po.fieldName}String;
         }
         try {
             return new String(${po.fieldName},"UTF-8");

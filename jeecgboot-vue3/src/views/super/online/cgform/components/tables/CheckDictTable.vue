@@ -13,8 +13,8 @@
   >
     <template #fieldValidType="props">
       <a-row type="flex" :class="['row-valid-type', { full: !isCustomRegexp(props.value) }]">
-        <a-col :class="['left']">
-          <a-select :value="props.value" :options="validTypeOptions" placeholder="空" style="width: 100%" @change="props.triggerChange" :virtual="false">
+        <a-col :class="['left']" @click="isCustomRegexp(props.value) ? onChangeCustomRegexp(props) : undefined">
+          <a-select :value="props.value" :options="validTypeOptions" placeholder="空" style="width: 100%" @change="props.triggerChange" :virtual="false" :open="isCustomRegexp(props.value) ? false : undefined">
             <template #dropdownRender="{ menuNode }">
               <div class="menu">
                 <VNodes :vnodes="menuNode" />

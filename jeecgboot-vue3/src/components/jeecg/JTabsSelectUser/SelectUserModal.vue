@@ -434,6 +434,7 @@
   async function queryUserList(params) {
     params['column'] = 'sort';
     params['order'] = 'ASC';
+    params['status'] = '1';
     if(departInfo.selectedKeys.length == 0 && positionInfo.selectedKeys.length == 0 && userGroupInfo.selectedKeys.length == 0 && params.realname){
       params['realname'] = `*${params.realname.trim()}*`;
     }

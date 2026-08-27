@@ -304,6 +304,7 @@ async function handleToolEnabledChange(tool: PluginToolItem) {
       tools[index].enabled = tool.enabled;
       const { saveTools } = await import('../AiragMcp.api');
       await saveTools(record.value.id, JSON.stringify(tools));
+      emit('success');
     }
   } catch (e) {
     console.error('更新工具启用状态失败:', e);

@@ -114,6 +114,7 @@
         size: 'small',
         formConfig: {
           //labelWidth: 200,
+          autoSubmitOnEnter: true,
           baseColProps: {
             xs: 24,
             sm: 8,

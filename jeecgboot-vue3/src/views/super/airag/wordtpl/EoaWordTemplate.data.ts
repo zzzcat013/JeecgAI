@@ -66,12 +66,12 @@ export const searchFormSchema: FormSchema[] = [
   {
     label: '模版名称',
     field: 'name',
-    component: 'Input',
+    component: 'JInput',
   },
   {
     label: '模版编码',
     field: 'code',
-    component: 'Input',
+    component: 'JInput',
   },
 ];
 //表单数据

@@ -77,13 +77,14 @@ public class DictTableWhiteListHandlerImpl implements IDictTableWhiteListHandler
         // 遍历当前sql中的所有表名，如果有其中一个表或表的字段不在白名单中，则不通过
         for (Map.Entry<String, SelectSqlInfo> entry : parsedMap.entrySet()) {
             SelectSqlInfo sqlInfo = entry.getValue();
+            String tableName = entry.getKey();
             if (sqlInfo.isSelectAll()) {
-                log.warn("查询语句中包含 * 字段，暂时先通过");
+                // select * 只有整表字段已授权时才允许；dev 模式沿用自动补充白名单逻辑
+                this.checkWhiteList(tableName, Collections.singleton(SymbolConstant.ASTERISK));
                 continue;
             }
             Set<String> queryFields = sqlInfo.getAllRealSelectFields();
             // 校验表名和字段是否允许查询
-            String tableName = entry.getKey();
             if (!this.checkWhiteList(tableName, queryFields)) {
                 return false;
             }
@@ -169,6 +170,10 @@ public class DictTableWhiteListHandlerImpl implements IDictTableWhiteListHandler
         // 统一转成小写
         allowFieldStr = allowFieldStr.toLowerCase();
         Set<String> allowFields = new HashSet<>(Arrays.asList(allowFieldStr.split(",")));
+        // 配置 * 代表允许查询当前表的所有字段
+        if (allowFields.contains(SymbolConstant.ASTERISK)) {
+            return true;
+        }
         // 需要合并的字段
         Set<String> waitMergerFields = new HashSet<>();
         for (String field : queryFields) {

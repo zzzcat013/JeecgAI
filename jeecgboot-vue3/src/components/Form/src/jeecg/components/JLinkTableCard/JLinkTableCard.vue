@@ -35,7 +35,8 @@
         </a-row>
       </div>
     </div>
-    <LinkTableListModal @register="registerListModal" :multi="multi" :id="popTableName" @success="addCard" />
+    <LinkTableListModal v-if="queryMode === 'online'" @register="registerListModal" :multi="multi" :id="popTableName" @success="addCard" />
+    <AllTableListModal v-else @register="registerListModal" :tableName="tableName" :textField="textField" :valueField="valueField" :imageField="imageField" :multi="multi" @success="addCard" />
   </div>
 </template>
 
@@ -69,11 +70,14 @@
       detail: propTypes.bool.def(false),
       // 图片字段
       imageField: propTypes.string.def(''),
+      // 查询模式：'online'（仅限 Online 表单配置的表）| 'table'（数据库中的所有表）
+      queryMode: propTypes.string.def('online'),
     },
     components: {
       PlusOutlined,
       MinusCircleFilled,
       LinkTableListModal: createAsyncComponent(() => import('./components/LinkTableListModal.vue'), { loading: true }),
+      AllTableListModal: createAsyncComponent(() => import('./components/AllTableListModal.vue'), { loading: true }),
     },
     emits: ['change', 'update:value'],
     setup(props, { emit }) {

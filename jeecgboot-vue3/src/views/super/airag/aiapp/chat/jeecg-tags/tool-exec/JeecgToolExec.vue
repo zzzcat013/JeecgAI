@@ -61,6 +61,7 @@ type ToolExecStatus = 'success' | 'running' | 'error';
 interface ToolExecRecord {
   id: string;
   name: string;
+  displayName?: string;
   mcpName?: string;
   input: string;
   output: string;
@@ -159,8 +160,9 @@ const statusLabel = computed<string>(() => {
 const titleText = computed<string>(() => {
   if (toolRecord.value) {
     const parts: string[] = [];
-    if (toolRecord.value.name) {
-      parts.push(toolRecord.value.name as string);
+    const primaryName = toolRecord.value.displayName || toolRecord.value.name;
+    if (primaryName) {
+      parts.push(primaryName as string);
     }
     if (toolRecord.value.mcpName) {
       parts.push(toolRecord.value.mcpName as string);

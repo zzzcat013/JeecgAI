@@ -44,6 +44,18 @@
         </foreach>
     </select>
 
+    <!-- 批量查询用户所属部门IDs（VO版，跨数据库兼容，消除N+1查询），since 2026-07-01 -->
+    <select id="queryDepartIdVosByUserIds" parameterType="String" resultType="org.jeecg.modules.system.vo.SysUserDepartIdVo">
+        SELECT sd.id       depart_id,
+               sud.user_id user_id
+        FROM sys_depart sd
+                 LEFT JOIN sys_user_depart sud ON sd.id = sud.dep_id
+        WHERE
+        <foreach item="idItem" index="index" collection="userIds" open=" sud.user_id IN (" separator="," close=")">
+            #{idItem}
+        </foreach>
+    </select>
+
     <!-- 根据username和分类查询所拥有的部门/岗位/公司 -->
     <select id="queryDeptByUserAndCategory" parameterType="String" resultType="org.jeecg.modules.system.entity.SysDepart">
         SELECT *
@@ -174,7 +186,7 @@
             #{item.id}
         </foreach>
         AND sd.tenant_id = #{tenantId}
-        order by sd.org_code;
+        order by sd.org_code
     </select>
     
     <!--根据部门名称和租户id获取分页部门数据-->
@@ -183,9 +195,15 @@
         where
         depart_name = #{departName}
         and tenant_id = #{tenantId}
-        <if test="parentId != null and parentId != ''">
-            and parent_id = #{parentId}
-        </if>
+        <choose>
+            <when test="parentId != null and parentId != ''">
+                and parent_id = #{parentId}
+            </when>
+            <otherwise>
+                and (parent_id is null or parent_id = '')
+            </otherwise>
+        </choose>
+        and del_flag = 0
         ORDER BY create_time DESC
     </select>
     
@@ -223,7 +241,9 @@
     
     <!--根据多个部门id获取部门数据-->
 	<select id="getDepartByIds" resultType="org.jeecg.modules.system.vo.SysUserDepVo">
-        SELECT id,depart_name,org_code,parent_id FROM sys_depart
+        <!-- update-begin author:wangshuai date:20260803 for：【LHZP-1133】部门管理 导入 提示导入成功，数据库已有数据 页面上点开下级时没数据了 -->
+        SELECT id AS deptId,depart_name,org_code,parent_id,org_category FROM sys_depart
+        <!-- update-end author:wangshuai date:20260803 for：【LHZP-1133】部门管理 导入 提示导入成功，数据库已有数据 页面上点开下级时没数据了 -->
         where
         1=1
         <if test="departIds != null and !departIds.isEmpty()">
@@ -243,7 +263,7 @@
         <foreach collection="userList" index="index" item="item" open="(" separator="," close=")">
             #{item.id}
         </foreach>
-        order by sd.org_code;
+        order by sd.org_code
     </select>
     
     <!--根据父级id/职级/部门id获取部门岗位信息-->
@@ -287,7 +307,11 @@
     <!--  根据父级部门id和职务名称查找部门id  -->
 	<select id="getDepIdByDepIdAndPostName" resultType="java.lang.String">
         SELECT id FROM sys_depart
-        WHERE parent_id = #{parentId} and depart_name = #{postName}
+        WHERE parent_id = #{parentId}
+        and depart_name = #{postName}
+        and tenant_id = #{tenantId}
+        and org_category = '3'
+        and del_flag = 0
     </select>
 
     <!--根据部门id获取职级名称-->

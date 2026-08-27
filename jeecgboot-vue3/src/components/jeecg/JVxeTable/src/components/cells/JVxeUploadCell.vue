@@ -37,7 +37,7 @@
       v-if="!cellProps.disabledTable"
       v-show="!hasFile"
       name="file"
-      :data="{ isup: 1 }"
+      :data="uploadData"
       :multiple="false"
       :action="originColumn.action"
       :headers="uploadHeaders"

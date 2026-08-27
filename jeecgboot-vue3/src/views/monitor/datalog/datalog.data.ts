@@ -82,7 +82,7 @@ export const searchFormSchema: FormSchema[] = [
   {
     field: 'dataTable',
     label: '表名',
-    component: 'Input',
+    component: 'JInput',
     componentProps: {
       placeholder: '请输入表名',
     },
@@ -91,7 +91,7 @@ export const searchFormSchema: FormSchema[] = [
   {
     field: 'dataId',
     label: '数据ID',
-    component: 'Input',
+    component: 'JInput',
     componentProps: {
       placeholder: '请输入数据ID',
     },
@@ -100,7 +100,7 @@ export const searchFormSchema: FormSchema[] = [
   {
     field: 'createBy',
     label: '创建人',
-    component: 'Input',
+    component: 'JInput',
     componentProps: {
       placeholder: '请输入创建人',
     },

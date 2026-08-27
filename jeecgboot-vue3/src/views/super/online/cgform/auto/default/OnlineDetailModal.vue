@@ -1,15 +1,19 @@
 <template>
-  <BasicModal :title="title" :width="modalWidth" :maxHeight="600" :enableComment="enableComment" :defaultFullscreen="false" v-bind="$attrs" @register="registerModal" wrapClassName="jeecg-online-detail-modal">
+  <BasicModal :title="title" :width="modalWidth" :maxHeight="600" :enableComment="enableComment" :defaultFullscreen="false" v-bind="$attrs" @register="registerModal" wrapClassName="jeecg-online-detail-modal" @commentOpen="handleCommentOpen">
     <template #footer>
-      <a-button v-if="cancelBtnCfg.enabled" key="back" @click="handleCancel">
-        <span>{{ cancelBtnCfg.buttonName }}</span>
-      </a-button>
-      <slot name="footerBtn"></slot>
+      <a-row>
+        <a-col :span="24 - commentSpan">
+          <a-button v-if="cancelBtnCfg.enabled" key="back" @click="handleCancel">
+            <span>{{ cancelBtnCfg.buttonName }}</span>
+          </a-button>
+          <slot name="footerBtn"></slot>
+        </a-col>
+      </a-row>
     </template>
-    <online-form-detail ref="onlineFormCompRef" :id="id" :form-template="formTemplate" :show-sub="showSub" :themeTemplate="themeTemplate" @rendered="renderSuccess" />
+    <online-form-detail ref="onlineFormCompRef" :id="id" :form-template="formTemplate" :show-sub="showSub" :themeTemplate="themeTemplate" :isShare="isShare" @rendered="renderSuccess" />
 
     <template #comment>
-      <comment-panel ref="commentPanelRef" :tableName="tableName" :dataId="formDataId"></comment-panel>
+      <comment-panel ref="commentPanelRef" :tableId="tableId" :tableName="tableName" :dataId="formDataId"></comment-panel>
     </template>
   </BasicModal>
 </template>
@@ -45,6 +49,12 @@
           }
         }
       },
+      // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
+      isShare: {
+        type: Boolean,
+        default: false,
+      },
+      // update-end--author:liaozhiyang---date:20260807---for：【LHZP-166】修复erp风格的外部链接没子表
     },
     components: {
       BasicModal,
@@ -56,10 +66,16 @@
       console.log('进入表单弹框》》》》modal');
 
       const commentPanelRef = ref();
+      const commentSpan = ref(0);
       function reloadComment(){
         if(commentPanelRef.value)
           commentPanelRef.value.reload();
       }
+      // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-7】外部链接开启了评论后，编辑数据按钮错乱
+      const handleCommentOpen = (visible, span) => {
+        commentSpan.value = span;
+      };
+      // update-end--author:liaozhiyang---date:20260807---for：【LHZP-7】外部链接开启了评论后，编辑数据按钮错乱
       
       const {
         title,
@@ -80,6 +96,7 @@
         formRendered,
         showSub,
         tableName,
+        tableId,
         formDataId,
         enableComment,
         themeTemplate,
@@ -121,10 +138,13 @@
         submitLoading,
         showSub,
         tableName,
+        tableId,
         formDataId,
         enableComment,
         commentPanelRef,
-        themeTemplate
+        themeTemplate,
+        handleCommentOpen,
+        commentSpan,
       };
 
       return that;

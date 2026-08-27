@@ -11,6 +11,11 @@ import org.springframework.stereotype.Component;
 public class AiChatConfig {
 
     /**
+     * 默认聊天模型名称（用于判断是否支持Tool Calling等）
+     */
+    private String model;
+
+    /**
      * skills配置文件路径
      */
     private String skillsDir;

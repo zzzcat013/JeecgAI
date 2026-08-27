@@ -24,3 +24,9 @@ R__202402_drag_update_template.sql
 delete from flyway_schema_history where installed_rank > 1;
 ```
 - 3.这样就清爽了，可以开启项目新起点
+
+### 三、当前环境同步记录（2026-08-27）
+
+- 正式库已手工执行 `V20260820_1` 至 `V20260820_8`、`V20260826_1`、`V3.9.5_0`。
+- `flyway_schema_history` 已补齐上述迁移记录，并使用 Flyway `7.15.0` 执行 `repair` 回填 checksum。
+- 当前 `spring.flyway.enabled=false`，后续如需开启 Flyway，应先执行 `validate` 确认迁移与脚本一致。

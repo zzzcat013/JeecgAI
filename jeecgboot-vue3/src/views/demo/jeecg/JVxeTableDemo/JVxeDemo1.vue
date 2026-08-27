@@ -170,6 +170,18 @@
       dictCode: 'sex',
       placeholder: '请选择',
     },
+    // update-begin--author:liaozhiyang---date:20260507---for：【issues/7617】vxetable子表支持popup字典
+    {
+      title: 'Popup字典(用户)',
+      key: 'popupUser',
+      type: JVxeTypes.popupDict,
+      width: 220,
+      // fieldConfig 格式：cgreport报表code,显示字段(label),存储字段(value)
+      fieldConfig: 'report_user,realname,username',
+      multi: true,
+      placeholder: '请选择',
+    },
+    // update-end--author:liaozhiyang---date:20260507---for：【issues/7617】vxetable子表支持popup字典
     {
       title: '下拉框_多选',
       key: 'select_multiple',
@@ -298,6 +310,9 @@
           return arr.join(',');
         })(),
         select_search: options[random(0, 3)],
+        // update-begin--author:liaozhiyang---date:20260507---for：【QQYUN-7961】vxetable子表支持popup字典
+        popupUser: ['jeecg', 'admin'][random(0, 1)],
+        // update-end--author:liaozhiyang---date:20260507---for：【QQYUN-7961】vxetable子表支持popup字典
         datetime: randomDatetime(),
         checkbox: ['Y', 'N'][random(0, 1)],
         planTimeRange: [dayjs().subtract(random(1, 30), 'day').format('YYYY-MM-DD'), dayjs().add(random(1, 30), 'day').format('YYYY-MM-DD')],

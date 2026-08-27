@@ -1,6 +1,9 @@
-import { computed, Ref } from 'vue';
+import { computed, ref, Ref } from 'vue';
 import { BasicColumn, FormSchema } from '/@/components/Table';
 import { onlineDefaultButton } from '../../cgform.data';
+// update-begin--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
+import { initDictOptions } from '/@/utils/dict';
+// update-end--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
 
 export function useJavaColumns(btnList: Ref<any[]>) {
   let columns: BasicColumn[] = [
@@ -130,6 +133,15 @@ export function useSqlColumns(btnList: Ref<any[]>) {
       dataIndex: 'buttonCode',
       customRender: ({ text }) => renderButtonText(text, btnList.value),
     },
+    // update-begin--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
+    {
+      title: '数据源',
+      align: 'center',
+      dataIndex: 'dbSource',
+      width: 140,
+      customRender: ({ text }) => (!text ? '跟随表单数据源' : text === 'master' ? '主库' : text),
+    },
+    // update-end--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
     {
       title: '增强SQL',
       align: 'center',
@@ -141,6 +153,18 @@ export function useSqlColumns(btnList: Ref<any[]>) {
 }
 
 export function useSqlFormSchemas(btnList: Ref<any[]>) {
+  // update-begin--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
+  // 数据源下拉：跟随表单数据源（值为空）/ 主库（值为 master）/ 各多数据源（值为 sys_data_source.code）
+  const FOLLOW_FORM_DS = { label: '跟随表单数据源（默认）', value: '' };
+  const MASTER_DS = { label: '主库 / 默认数据源', value: 'master' };
+  const dbSourceOptions = ref<any[]>([FOLLOW_FORM_DS, MASTER_DS]);
+  initDictOptions('sys_data_source,name,code')
+    .then((res) => {
+      const list = (res || []).map((d: any) => ({ label: d.label ?? d.text ?? d.title, value: d.value }));
+      dbSourceOptions.value = [FOLLOW_FORM_DS, MASTER_DS, ...list];
+    })
+    .catch(() => {});
+  // update-end--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
   const formSchemas = computed<FormSchema[]>(() => {
     return [
       {
@@ -172,6 +196,24 @@ export function useSqlFormSchemas(btnList: Ref<any[]>) {
         },
         defaultValue: '',
       },
+      // update-begin--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
+      {
+        label: '数据源',
+        field: 'dbSource',
+        component: 'Select',
+        defaultValue: '',
+        componentProps: {
+          options: dbSourceOptions.value,
+          allowClear: false,
+        },
+        helpMessage: [
+          '增强SQL在哪个库执行：',
+          '· 跟随表单数据源（默认）：跟着该表单配置的数据源走（表单也没配则走主库）',
+          '· 主库 / 默认数据源：增强SQL要操作 sys_* 等主库里的表时选它',
+          '· 指定多数据源：到选中的那个数据源执行',
+        ],
+      },
+      // update-end--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
       {
         label: '描述',
         field: 'content',

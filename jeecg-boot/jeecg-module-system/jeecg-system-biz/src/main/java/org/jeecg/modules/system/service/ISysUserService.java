@@ -547,5 +547,5 @@ public interface ISysUserService extends IService<SysUser> {
 	 * @param realname
 	 * @return
 	 */
-    IPage<SysUser> getUserByUgroupId(Page<SysUser> page, String groupId, String username, String realname);
+    IPage<SysUser> getUserByUgroupId(Page<SysUser> page, String groupId, String username, String realname, Integer status);
 }

@@ -52,6 +52,7 @@ public class SysUserOnlineController {
     @RequiresPermissions("system:online:list")
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     public Result<Page<SysUserOnlineVO>> list(@RequestParam(name="username", required=false) String username,
+                                              @RequestParam(name="realname", required=false) String realname,
                                               @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,@RequestParam(name="pageSize", defaultValue="10") Integer pageSize) {
         Collection<String> keys = redisUtil.scan(CommonConstant.PREFIX_USER_TOKEN + "*");
         List<SysUserOnlineVO> onlineList = new ArrayList<SysUserOnlineVO>();
@@ -59,7 +60,9 @@ public class SysUserOnlineController {
             String token = (String)redisUtil.get(key);
             if (StringUtils.isNotEmpty(token)) {
                 SysUserOnlineVO online = new SysUserOnlineVO();
-                online.setToken(token);
+                // 强退需要使用 Redis key 中的原始 Token，不能使用续期后的 value
+                String originalToken = key.substring(CommonConstant.PREFIX_USER_TOKEN.length());
+                online.setToken(originalToken);
                 //TODO 改成一次性查询
                 LoginUser loginUser = sysBaseApi.getUserByName(JwtUtil.getUsername(token));
                 if (loginUser != null && !"_reserve_user_external".equals(loginUser.getUsername())) {
@@ -67,6 +70,9 @@ public class SysUserOnlineController {
                     boolean isMatchUsername=true;
                     //判断用户名是否为空，并且当前循环的用户不包含传过来的用户名，那么就设成false
                     if(oConvertUtils.isNotEmpty(username) && !loginUser.getUsername().contains(username)){
+                        isMatchUsername = false;
+                    }
+                    if(oConvertUtils.isNotEmpty(realname) && !StringUtils.contains(loginUser.getRealname(), realname)){
                         isMatchUsername = false;
                     }
                     if(isMatchUsername){

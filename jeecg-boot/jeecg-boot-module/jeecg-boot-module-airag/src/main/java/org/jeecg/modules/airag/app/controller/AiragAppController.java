@@ -10,8 +10,8 @@ import org.jeecg.common.system.base.controller.JeecgController;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.util.AssertUtils;
 import org.jeecg.common.util.TokenUtils;
+import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.config.mybatis.MybatisPlusSaasConfig;
-import org.jeecg.config.shiro.IgnoreAuth;
 import org.jeecg.modules.airag.app.consts.AiAppConsts;
 import org.jeecg.modules.airag.app.entity.AiragApp;
 import org.jeecg.modules.airag.app.service.IAiragAppService;
@@ -54,6 +54,7 @@ public class AiragAppController extends JeecgController<AiragApp, IAiragAppServi
      * @return
      */
     @GetMapping(value = "/list")
+    @RequiresPermissions("airag:app:list")
     public Result<IPage<AiragApp>> queryPageList(AiragApp airagApp,
                                                  @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo,
                                                  @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize,
@@ -114,26 +115,52 @@ public class AiragAppController extends JeecgController<AiragApp, IAiragAppServi
         return Result.OK("保存完成!", airagApp.getId());
     }
 
+	/**
+	 * 复制应用
+	 *
+	 * @param id 原应用ID
+	 * @param request HTTP请求
+	 * @return 新应用ID
+	 * @author scott
+	 * @since 2026-08-06 【LHZP-1512】AI应用增加复制功能
+	 */
+	@PostMapping(value = "/copy")
+	@RequiresPermissions("airag:app:edit")
+	public Result<String> copy(@RequestParam(name = "id") String id, HttpServletRequest request) {
+		AssertUtils.assertNotEmpty("id必须填写", id);
+		String copiedAppId = airagAppService.copyApp(id, TokenUtils.getTenantIdByRequest(request));
+		return Result.OK("复制成功", copiedAppId);
+	}
+
     /**
      * 发布应用
      *
      * @return
      */
     @RequestMapping(value = "/release", method = RequestMethod.POST)
-    public Result<String> release(@RequestParam(name = "id") String id, @RequestParam(name = "release") Boolean release) {
+    public Result<String> release(@RequestParam(name = "id") String id,
+                                  @RequestParam(name = "release") Boolean release,
+                                  HttpServletRequest request) {
         AssertUtils.assertNotEmpty("id必须填写", id);
         if (release == null) {
             release = true;
         }
-        AiragApp airagApp = new AiragApp();
-        airagApp.setId(id);
-        if (release) {
-            airagApp.setStatus(AiAppConsts.STATUS_RELEASE);
-        } else {
-            airagApp.setStatus(AiAppConsts.STATUS_ENABLE);
+        AiragApp app = airagAppService.getById(id);
+        if (app == null) {
+            return Result.error("应用不存在");
         }
-        airagAppService.updateById(airagApp);
-        return Result.OK(release ? "发布成功" : "取消发布成功");
+        // SaaS 多租户隔离：禁止跨租户发布/取消发布
+        if (MybatisPlusSaasConfig.OPEN_SYSTEM_TENANT_CONTROL) {
+            String currentTenantId = TokenUtils.getTenantIdByRequest(request);
+            if (oConvertUtils.isEmpty(app.getTenantId()) || !app.getTenantId().equals(currentTenantId)) {
+                return Result.error("操作失败，不能操作其他租户的AI应用！");
+            }
+        }
+        String shareToken = airagAppService.releaseApp(id, release);
+        // result 固定返回 shareToken（取消发布为 null），避免与提示文案混用
+        Result<String> result = Result.OK(shareToken);
+        result.setMessage(release ? "发布成功" : "取消发布成功");
+        return result;
     }
 
     /**
@@ -166,7 +193,6 @@ public class AiragAppController extends JeecgController<AiragApp, IAiragAppServi
      * @param id
      * @return
      */
-    @IgnoreAuth
     @GetMapping(value = "/queryById")
     public Result<AiragApp> queryById(@RequestParam(name = "id", required = true) String id) {
         AiragApp airagApp = airagAppService.getById(id);

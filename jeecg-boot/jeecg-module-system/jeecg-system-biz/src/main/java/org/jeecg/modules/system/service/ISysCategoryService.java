@@ -1,10 +1,12 @@
 package org.jeecg.modules.system.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.extension.service.IService;
 import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.modules.system.entity.SysCategory;
 import org.jeecg.modules.system.model.TreeSelectModel;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +30,7 @@ public interface ISysCategoryService extends IService<SysCategory> {
      * 添加分类字典
      * @param sysCategory
      */
-	void addSysCategory(SysCategory sysCategory);
+	JSONObject addSysCategory(SysCategory sysCategory);
 
     /**
      * 修改分类字典
@@ -71,6 +73,23 @@ public interface ISysCategoryService extends IService<SysCategory> {
 	 * @param ids
 	 */
 	void deleteSysCategory(String ids);
+
+	/**
+	 * 从分类列表中筛选选中节点及其全部子节点
+	 *
+	 * @param categoryList 分类列表
+	 * @param selectedIds 选中节点ID
+	 * @return 选中节点及其全部子节点
+	 */
+	List<SysCategory> filterSelectionWithChildren(List<SysCategory> categoryList, Collection<String> selectedIds);
+
+	/**
+	 * 按父子层级排列分类列表
+	 *
+	 * @param categoryList 分类列表
+	 * @return 父节点在前、子节点紧随其后的分类列表
+	 */
+	List<SysCategory> sortByHierarchy(List<SysCategory> categoryList);
 
 	/**
 	 * 分类字典控件数据回显[表单页面]

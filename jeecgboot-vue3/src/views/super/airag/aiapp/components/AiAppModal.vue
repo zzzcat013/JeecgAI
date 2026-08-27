@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+  <div>
     <BasicModal destroyOnClose @register="registerModal" :canFullscreen="false" width="800px" :title="title" @ok="handleOk" @cancel="handleCancel">
       <template #title>
          <span style="display: flex">

@@ -573,6 +573,11 @@ public interface CommonConstant {
     */
    String WECHAT_ENTERPRISE = "WECHAT_ENTERPRISE";
 
+   /**
+    * 飞书
+    */
+   String FEISHU = "FEISHU";
+
   /**
    * 系统默认租户id 0
    */

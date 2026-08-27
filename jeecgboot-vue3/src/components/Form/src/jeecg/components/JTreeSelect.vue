@@ -13,7 +13,6 @@
     :multiple="multiple"
     v-bind="attrs"
     @change="onChange"
-    @search="onSearch"
     :tree-checkable="treeCheckAble"
     :tagRender="tagRender"
   >
@@ -31,7 +30,6 @@
   import { defHttp } from '/@/utils/http/axios';
   import { propTypes } from '/@/utils/propTypes';
   import { useAttrs } from '/@/hooks/core/useAttrs';
-  import { TreeSelect } from 'ant-design-vue';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { isObject, isArray } from '/@/utils/is';
   import { useI18n } from '/@/hooks/web/useI18n';
@@ -71,7 +69,7 @@
   //树形下拉数据
   const treeData = ref<any[]>([]);
   //选择数据
-  const treeValue = ref<any>(null);
+  const treeValue = ref<any>();
   const tableName = ref<any>('');
   const text = ref<any>('');
   const code = ref<any>('');
@@ -131,7 +129,7 @@
       if(props.multiple){
         treeValue.value = [];
       }else{
-        treeValue.value = { label: null, value: null };
+        treeValue.value = undefined;
       }
     } else {
       // 代码逻辑说明: issues/4173 Online JTreeSelect控件changeOptions方法未生效
@@ -224,7 +222,7 @@
    * @param text
    */
   function translateTitle(text) {
-    if (text.includes("t('") && t) {
+    if (text?.includes("t('") && t) {
       return new Function('t', `return ${text}`)(t);
     }
     return text;
@@ -320,13 +318,6 @@
   }
 
   /**
-   * 文本框值变化
-   */
-  function onSearch(value) {
-    console.log(value);
-  }
-
-  /**
    * 校验条件配置是否有误
    */
   function validateProp() {
@@ -352,7 +343,7 @@
   }
 
   // 代码逻辑说明: issues/4173 Online JTreeSelect控件changeOptions方法未生效
-  watch(()=>props.url, async (val)=>{
+  watch(()=> [props.url, props.params], async (val)=>{
     if(val){
       await loadRootByUrl();
     }
@@ -367,8 +358,8 @@
     let res = await defHttp.get({ url, params }, { isTransformResponse: false });
     if (res.success && res.result) {
       for (let i of res.result) {
-        i.title = translateTitle(i.title);
-        i.key = i.value;
+        i.title = translateTitle(i.title ?? i.name);
+        i.key = i.value ?? i.id;
         i.isLeaf = !!i.leaf;
       }
       // 代码逻辑说明: 【TV360X-87】树表编辑时不可选自己及子孙节点当父节点

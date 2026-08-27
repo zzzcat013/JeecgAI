@@ -25,6 +25,7 @@ export default abstract class IFormSchema {
   disabled: boolean;
   popContainer: string;
   inPopover: boolean;
+  onlyInteger: boolean;
 
   constructor(key, data) {
     // 考虑不需要存data
@@ -48,6 +49,7 @@ export default abstract class IFormSchema {
     this.popContainer = '';
     this.handleWidgetAttr(data);
     this.inPopover = false;
+    this.onlyInteger = false;
     this.labelLength = LABELLENGTH;
     this.initLabelLength();
   }
@@ -259,7 +261,8 @@ export default abstract class IFormSchema {
         }
       } else if (pattern === 'z') {
         if (type == 'number' || type == 'integer') {
-          // this.onlyInteger=true TODO
+          this.onlyInteger = true;
+          rules.push({ pattern: /^-?\d+$/, message: '请输入整数' });
         } else {
           rules.push({ pattern: /^-?\d+$/, message: '请输入整数' });
         }

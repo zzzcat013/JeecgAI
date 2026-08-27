@@ -155,6 +155,16 @@
         order by st.create_time desc
     </select>
 
+    <!--批量查询多个用户的租户IDs（VO版，跨数据库兼容，消除N+1），since 2026-07-01-->
+    <select id="getTenantIdVosByUserIds" resultType="org.jeecg.modules.system.vo.SysUserTenantIdVo">
+        SELECT user_id, tenant_id FROM sys_user_tenant
+        WHERE status = '1'
+        AND user_id IN
+        <foreach collection="userIds" index="index" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </select>
+
     <!-- 删除租户下的用户 -->
     <delete id="deleteUserByTenantId">
         DELETE FROM sys_user_tenant
@@ -174,12 +184,21 @@
 
     <!--根据租户id和名称获取用户数据-->
     <select id="getUsersByTenantIdAndName" resultType="org.jeecg.modules.system.vo.thirdapp.JwUserDepartVo">
-        SELECT su.id userId,su.realname,su.avatar
-        FROM sys_user_tenant sut
-        JOIN sys_tenant st ON sut.tenant_id = st.id and st.status = 1 and st.del_flag = 0
-        JOIN sys_user su ON sut.user_id = su.id and su.status = 1 and su.del_flag = 0
-        WHERE
-        sut.status = 1
-        AND sut.tenant_id = #{tenantId}
+        <choose>
+            <when test="tenantId == null or tenantId == 0">
+                SELECT su.id userId,su.realname,su.avatar
+                FROM sys_user su
+                WHERE su.status = 1 and su.del_flag = 0
+            </when>
+            <otherwise>
+                SELECT su.id userId,su.realname,su.avatar
+                FROM sys_user_tenant sut
+                JOIN sys_tenant st ON sut.tenant_id = st.id and st.status = 1 and st.del_flag = 0
+                JOIN sys_user su ON sut.user_id = su.id and su.status = 1 and su.del_flag = 0
+                WHERE
+                sut.status = 1
+                AND sut.tenant_id = #{tenantId}
+            </otherwise>
+        </choose>
     </select>
 </mapper>

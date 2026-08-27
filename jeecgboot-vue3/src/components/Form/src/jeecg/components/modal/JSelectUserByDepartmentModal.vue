@@ -313,9 +313,17 @@
       breadcrumb.value = [];
     }
   };
+  // 同步当前部门下所有子部门的勾选状态
+  const setDepartChildrenChecked = (depart, checked: boolean) => {
+    depart.children?.forEach((child) => {
+      child.checked = checked;
+      setDepartChildrenChecked(child, checked);
+    });
+  };
   // 点击部门树复选框触发
   const handleDepartTreeCheck = (e, item) => {
     const { target } = e;
+    setDepartChildrenChecked(item, target.checked);
     if (target.checked) {
       // 选中
       getUsersByDeptId(item['id']).then((users) => {
@@ -678,25 +686,39 @@
       ol {
         flex-wrap: nowrap;
         overflow-x: auto;
-        /* 美化滚动条 */
+        /* 预留滚动条空间，避免 hover 变粗时布局跳动 */
+        padding-bottom: 6px;
+        /* 美化滚动条：默认细，悬停变粗方便拖动 */
+        // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-869】部门组件面包屑有滚动条时悬停加粗便于拖动
         &::-webkit-scrollbar {
           width: 4px;
-          height: 3px;
-          background: #f5f5f5;
-          border-radius: 2px;
+          height: 4px;
+          background: transparent;
         }
         &::-webkit-scrollbar-thumb {
           background: #bfbfbf;
-          border-radius: 3px;
+          border-radius: 4px;
           transition: background-color 0.2s ease;
           &:hover {
             background: #999;
           }
         }
         &::-webkit-scrollbar-track {
-          background: #f5f5f5;
-          border-radius: 3px;
+          background: transparent;
+          border-radius: 4px;
         }
+        &:hover {
+          &::-webkit-scrollbar {
+            height: 10px;
+          }
+          &::-webkit-scrollbar-thumb {
+            background: #999;
+          }
+          &::-webkit-scrollbar-track {
+            background: #f0f0f0;
+          }
+        }
+        // update-end--author:liaozhiyang---date:20260804---for：【LHZP-869】部门组件面包屑有滚动条时悬停加粗便于拖动
       }
       li {
         flex: none;

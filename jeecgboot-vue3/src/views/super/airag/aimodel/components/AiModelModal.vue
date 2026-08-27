@@ -25,7 +25,7 @@
             <a-card class="model-card" @click="handleClick(item)">
               <div class="model-header">
                 <div class="flex">
-                  <img :src="getImage(item.value)" :class="['header-img', item.value === 'VLLM' ? 'header-img-lg' : '']" />
+                  <img :src="getImage(item.value)" class="header-img" />
                   <div class="header-text">{{ item.title }}</div>
                 </div>
               </div>
@@ -64,8 +64,9 @@
                   </template>
                 </a-input>
                 <div style="margin-top: 4px; color: #999; font-size: 12px; line-height: 1.5;">
-                  目前只支持图片传递，固定格式为 "image_url":"图片地址"（适用于qwen-vl-ocr等视觉模型）<br/>
-                  在qwen3.5-plus最新视觉模型中需要额外传递 "incremental_output": true
+                  按厂家不同支持以下参数（其它键忽略）：<br/>
+                  • Qwen：<code>"image_url":"图片地址"</code>（qwen-vl-ocr 等视觉模型）、<code>"incremental_output":true</code>（qwen3.5-plus 等需流式增量）、<code>"enable_thinking":true</code>（思考开关）<br/>
+                  • DeepSeek：<code>"thinking":{"type":"enabled"}</code>（deepseek-v4-pro 等混合推理模型开关）、<code>"reasoning_effort":"high"</code>（思考强度，"high"/"max"）
                 </div>
                 <a-modal v-model:open="extraParamsVisible" title="编辑额外参数" width="600px" @ok="saveExtraParams" destroyOnClose>
                   <JCodeEditor v-model:value="extraParamsTemp"  language="javascript" fullScreen height="500px" />
@@ -242,6 +243,8 @@
       const [registerModal, { closeModal, setModalProps }] = useModalInner(async (data) => {
         activeKey.value = 1;
         modelParamsShow.value = false;
+        // 【LHZP-1487】打开新弹窗时重置测试连接 loading，避免上一个慢请求关闭后残留状态
+        testLoading.value = false;
         if(dataIndex.value !== 'list') {
           //重置表单
           await resetFields();
@@ -331,20 +334,27 @@
        */
       function handleChange(value) {
         if ('all' == value) {
-          modelTypeList.value = model.data;
+          modelTypeList.value = sortModelProviders(model.data);
           return;
         }
         let data = model.data.filter((item) => {
           return item.type.includes(value);
         });
-        modelTypeList.value = data;
+        modelTypeList.value = sortModelProviders(data);
+      }
+
+      /**
+       * 按热度和供应商分类顺序展示
+       */
+      function sortModelProviders(data) {
+        return [...data].sort((first, second) => first.sort - second.sort);
       }
 
       /**
        * 初始化模型提供者
        */
       function initModelProvider() {
-        modelTypeList.value = model.data;
+        modelTypeList.value = sortModelProviders(model.data);
       }
 
       /**
@@ -584,10 +594,6 @@
           height: 32px;
           margin-right: 12px;
           object-fit: contain;
-        }
-        .header-img-lg {
-          width: 48px;
-          height: 48px;
         }
         .header-text {
           width: calc(100% - 80px);

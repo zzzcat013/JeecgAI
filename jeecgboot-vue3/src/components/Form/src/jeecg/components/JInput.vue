@@ -85,7 +85,10 @@
         }
         switch (props.type) {
           case JInputTypeEnum.JINPUT_QUERY_LIKE:
-            text = '*' + text + '*';
+            // 如果输入以 ! 开头，表示走 NE（不等于）查询，不再拼 * 走 LIKE
+            if (!text.startsWith('!')) {
+              text = '*' + text + '*';
+            }
             break;
           case JInputTypeEnum.JINPUT_QUERY_NE:
             text = '!' + text;

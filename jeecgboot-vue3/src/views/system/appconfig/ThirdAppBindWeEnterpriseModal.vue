@@ -275,6 +275,7 @@
 
 <style lang="less" scoped>
   .we-bind {
+    max-height: calc(100vh - 260px);
     overflow-y: auto;
     border: 1px @border-color-base solid;
     border-bottom: none;

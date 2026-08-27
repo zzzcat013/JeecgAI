@@ -83,7 +83,9 @@ export const searchFormSchema: FormSchema[] = [
   <#assign bpm_flag=true>
 </#if>
 <#-- update-begin---author:chenrui ---date:20240108  for：[issues/5755]vue代码不加入逻辑删除字段---------- -->
-<#if po.isQuery=='Y' && po.fieldName !='delFlag'>
+<#-- update-begin---author:gj_liusqian ---date:20260806  for：[SQLServer大字段] 排除 Text/LongText/Blob 作为查询条件---------- -->
+<#if po.isQuery=='Y' && po.fieldName !='delFlag' && po.fieldDbType !='Text' && po.fieldDbType !='LongText' && po.fieldDbType !='Blob'>
+<#-- update-end---author:gj_liusqian ---date:20260806  for：[SQLServer大字段] 排除 Text/LongText/Blob 作为查询条件---------- -->
 <#-- update-end---author:chenrui ---date:20240108  for：[issues/5755]vue代码不加入逻辑删除字段---------- -->
 <#assign query_flag=true>
 	<#assign query_field_dictCode="">
@@ -397,6 +399,9 @@ export const formSchema: FormSchema[] = [
     </#if>
     <#elseif po.fieldDbType=='int' || po.fieldDbType=='long' || po.fieldDbType=='double' || po.fieldDbType=='BigDecimal'>
     component: 'InputNumber',
+    <#if (po.fieldDbType=='double' || po.fieldDbType=='BigDecimal') && po.scale?? && po.scale?trim?length gt 0>
+    componentProps: { precision: ${po.scale} },
+    </#if>
     <#elseif po.classType=='file'>
     component: 'JUpload',
     componentProps:{
@@ -435,6 +440,10 @@ export const formSchema: FormSchema[] = [
      valueField: '${po.dictField}',
      textField: '${po.dictText}',
      tableName: '${po.dictTable}',
+    <#if po.extendParams?exists && po.extendParams.imageField?exists>
+     imageField: '${po.extendParams.imageField}',
+     </#if>
+     queryMode: 'table',
      multi: <#if (po.queryMode!"") == "multi">true<#else>false</#if>
     },
    <#else>

@@ -77,6 +77,7 @@
           record = {};
         }
         model.value = record;
+        depPostValue.value = [];
         if (record.depPostParentId) {
           orgNameMap.value[record.depPostParentId] = await getDepartPathNameByOrgCode('', '', record.depPostParentId);
           depPostValue.value = [record.depPostParentId];

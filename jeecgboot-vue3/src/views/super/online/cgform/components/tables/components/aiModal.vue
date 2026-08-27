@@ -130,7 +130,7 @@
     one.loading = true;
     defHttp
       .post(
-        { url: `${configUrl.fields}?prompt=${one.qualifier}&code=${props.isUpdate && props.tableName ? props.tableName : ''}` },
+        { url: `${configUrl.fields}?prompt=${one.qualifier}&code=${props.isUpdate && props.tableName ? props.tableName : ''}`, timeout: 1e3 * 60 * 5 },
         { isTransformResponse: false }
       )
       .then((res) => {

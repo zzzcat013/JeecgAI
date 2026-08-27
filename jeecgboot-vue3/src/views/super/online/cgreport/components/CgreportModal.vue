@@ -83,7 +83,7 @@
   import { formSchema, onlCgreportParamColumns, onlCgreportItemColumns } from '../cgreport.data';
   import { saveOrUpdate, onlCgreportParamList, onlCgreportItemList, analyzeSql } from '../cgreport.api';
   import { useMessage } from '/@/hooks/web/useMessage';
-  const { createMessage } = useMessage();
+  const { createMessage, createInfoModal } = useMessage();
   // Emits声明
   const emit = defineEmits(['register', 'success']);
   const isUpdate = ref(true);
@@ -94,6 +94,10 @@
   const onlCgreportParam = ref();
   const onlCgreportItem = ref();
   const tableRefs = { onlCgreportItem, onlCgreportParam };
+  // 行编辑表格未就绪时，每次重试的等待间隔（毫秒）
+  const TABLE_READY_RETRY_INTERVAL = 50;
+  // 行编辑表格初始化的最大重试次数，避免无限等待
+  const TABLE_READY_MAX_RETRY_COUNT = 50;
   const onlCgreportParamTable = reactive({
     loading: false,
     dataSource: <any[]>[],
@@ -133,11 +137,18 @@
 
     // 当传递了 aigc 时，说明是通过 ai 生成的报表
     if (data?.aigc) {
-      await setFieldsValue({
-        ...data.aigc,
-      });
-      // 等待 0.5s 后，自动执行SQL解析
-      setTimeout(() => handleSQLAnalyze())
+      const hideWaitLoading = createMessage.loading('正在生成报表字段，请稍后...', 0);
+      try {
+        await setFieldsValue({
+          ...data.aigc,
+        });
+        // 等待懒加载的行编辑表格初始化完成后，自动执行SQL解析
+        if (await waitForTableReady()) {
+          handleSQLAnalyze();
+        }
+      } finally {
+        hideWaitLoading();
+      }
     }
   });
   //方法配置
@@ -157,6 +168,25 @@
     activeKey.value = 'onlCgreportItem';
     onlCgreportParamTable.dataSource = [];
     onlCgreportItemTable.dataSource = [];
+  }
+
+  /** 等待懒加载的行编辑表格实例初始化完成 */
+  async function waitForTableReady() {
+    for (let retryCount = 0; retryCount < TABLE_READY_MAX_RETRY_COUNT; retryCount++) {
+      await nextTick();
+      if (onlCgreportItem.value?.getTableData && onlCgreportParam.value?.getTableData) {
+        return true;
+      }
+      console.log('【AI生成报表】等待行编辑表格实例初始化完成，重试中...', retryCount + 1);
+      await new Promise((resolve) => setTimeout(resolve, TABLE_READY_RETRY_INTERVAL));
+    }
+    console.warn('【AI生成报表】等待行编辑表格实例初始化完成超时，请手动执行SQL解析');
+    createInfoModal({
+      title: '报表字段暂未显示',
+      content: '系统未能自动加载报表字段，请点击上方“SQL解析”按钮重试。',
+      okText: '知道了',
+    });
+    return false;
   }
   function classifyIntoFormData(allValues) {
     let main = Object.assign({}, allValues.formValue);

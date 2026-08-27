@@ -8,6 +8,7 @@ enum Api {
   edit = '/online/cgreport/head/editAll',
   deleteOne = '/online/cgreport/head/delete',
   deleteBatch = '/online/cgreport/head/deleteBatch',
+  copy = '/online/cgreport/head/copy',
   onlCgreportParamList = '/online/cgreport/param/listByHeadId',
   onlCgreportItemList = '/online/cgreport/item/listByHeadId',
   getDataSourceList = '/sys/dataSource/options',
@@ -83,6 +84,16 @@ export const getReportParam = (id) => {
  */
 export const getDataSourceList = () => {
   return defHttp.get({ url: Api.getDataSourceList });
+};
+
+/**
+ * 复制报表
+ * @param id 报表id
+ */
+export const doCopy = (id) => {
+  // 注意：defHttp 的非 GET 请求会把 params 当作请求体 data，后端 @RequestParam 从 query 取参，
+  // 因此这里把 id 直接拼到 URL 上（与 cgform 的 doCopyOnlineView 保持一致）
+  return defHttp.post({ url: `${Api.copy}?id=${id}` });
 };
 
 /**

@@ -83,4 +83,15 @@ public interface SysUserPositionMapper extends BaseMapper<SysUserPosition> {
      * @param userId
      */
     void deleteUserPosByNameAndTenantId(@Param("positionNames") List<String> positionNames, @Param("tenantId") Integer tenantId, @Param("userId") String userId);
+
+    /**
+     * 批量查询多个用户的职位IDs（含用户ID映射，用于消除N+1查询）
+     * @author scott
+     * @since 2026-07-01 listAll接口N+1查询改造
+     * @param userIds  用户ID列表
+     * @param tenantId 租户ID，为null时不按租户过滤
+     * @return 每条含 id（职位ID）和 userId
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    List<SysUserPositionVo> getPositionIdsByUserIds(@Param("userIds") List<String> userIds, @Param("tenantId") Integer tenantId);
 }

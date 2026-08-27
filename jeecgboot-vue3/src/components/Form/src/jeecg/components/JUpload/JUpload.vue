@@ -11,6 +11,22 @@
       @change="onFileChange"
       @preview="onFilePreview"
     >
+      <template #removeIcon="{ file }">
+        <a-popconfirm
+          v-if="removeConfirm"
+          :title="`删除这${isImageMode ? '张图片' : '个文件'}？`"
+          placement="topRight"
+          overlayClassName="j-upload-remove-popconfirm"
+          okText="删除"
+          cancelText="取消"
+          @confirm="confirmRemove(file)"
+        >
+          <span class="j-upload-remove-trigger" :data-file-uid="file.uid" @click.stop>
+            <Icon icon="ant-design:delete-outlined" />
+          </span>
+        </a-popconfirm>
+        <Icon v-else icon="ant-design:delete-outlined" />
+      </template>
       <template v-if="isImageMode">
         <div v-if="!isMaxCount">
           <Icon icon="ant-design:plus-outlined" />
@@ -26,9 +42,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, computed, watch, nextTick, createApp,unref } from 'vue';
+  import { ref, computed, watch, nextTick, createApp,unref } from 'vue';
   import { Icon } from '/@/components/Icon';
-  import { getToken } from '/@/utils/auth';
   import { uploadUrl } from '/@/api/common/api';
   import { propTypes } from '/@/utils/propTypes';
   import { useMessage } from '/@/hooks/web/useMessage';
@@ -40,7 +55,7 @@
   import UploadItemActions from './components/UploadItemActions.vue';
   import { split } from '/@/utils/index';
 
-  const { createMessage, createConfirm } = useMessage();
+  const { createMessage } = useMessage();
   const { prefixCls } = useDesign('j-upload');
   const attrs = useAttrs();
   const emit = defineEmits(['change', 'update:value']);
@@ -76,7 +91,8 @@
   const fileList = ref<any[]>([]);
   const uploadGoOn = ref<boolean>(true);
   // refs
-  const containerRef = ref();
+  const containerRef = ref<HTMLElement>();
+  const confirmedRemoveUid = ref<string | number>();
   // 是否达到了最大上传数量
   const isMaxCount = computed(() => props.maxCount > 0 && fileList.value.length >= props.maxCount);
   // 当前是否是上传图片模式
@@ -252,19 +268,26 @@
   }
 
   // 删除处理事件
-  function onRemove() {
-    if (props.removeConfirm) {
-      return new Promise((resolve) => {
-        createConfirm({
-          title: '删除',
-          content: `确定要删除这${isImageMode.value ? '张图片' : '个文件'}吗？`,
-          iconType: 'warning',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
-      });
+  function onRemove(file) {
+    if (!props.removeConfirm) {
+      return true;
     }
-    return true;
+    if (confirmedRemoveUid.value === file.uid) {
+      confirmedRemoveUid.value = undefined;
+      return true;
+    }
+    nextTick(() => getRemoveTrigger(file)?.click());
+    return false;
+  }
+
+  function confirmRemove(file) {
+    confirmedRemoveUid.value = file.uid;
+    getRemoveTrigger(file)?.closest('button')?.click();
+  }
+
+  function getRemoveTrigger(file): HTMLElement | undefined {
+    const triggers = containerRef.value?.querySelectorAll<HTMLElement>('.j-upload-remove-trigger') || [];
+    return Array.from(triggers).find((trigger) => trigger.dataset.fileUid === String(file.uid));
   }
 
   // upload组件change事件
@@ -402,6 +425,29 @@
           }
         }
 
+        .ant-upload-list-item-actions {
+          display: block !important;
+
+          a,
+          a.anticon,
+          .anticon,
+          .anticon-eye,
+          .anticon-download,
+          .upload-action-icon,
+          .app-iconify {
+            pointer-events: auto !important;
+            cursor: pointer !important;
+            color: #fff !important;
+            opacity: 1 !important;
+          }
+
+          svg,
+          svg path {
+            color: #fff !important;
+            fill: #fff !important;
+          }
+        }
+
         /* update-begin-author:taoyan date:2022-5-24 for:VUEN-1093详情界面 图片下载按钮显示不全*/
         .upload-download-handler {
           right: 6px !important;
@@ -455,6 +501,30 @@
             right: -4px;
           }
         }
+      }
+    }
+  }
+
+  .j-upload-remove-popconfirm {
+    .ant-popover-inner {
+      min-width: 148px;
+      padding: 8px 10px;
+    }
+
+    .ant-popconfirm-message-icon {
+      display: none;
+    }
+
+    .ant-popconfirm-message-title {
+      margin-inline-start: 0;
+    }
+
+    .ant-popconfirm-buttons {
+      margin-top: 6px;
+
+      .ant-btn {
+        padding-inline: 6px;
+        box-shadow: none;
       }
     }
   }

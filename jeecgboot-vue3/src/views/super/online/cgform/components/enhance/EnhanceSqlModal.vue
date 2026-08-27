@@ -117,6 +117,9 @@
       async function openFormModal(data) {
         isUpdate.value = data.isUpdate;
         formRecord = { ...(data.record ?? {}) };
+        // update-begin--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源：dbSource 为空/null 时归一为 ''，下拉回显「跟随表单数据源」
+        formRecord.dbSource = formRecord.dbSource || '';
+        // update-end--author:jeecg---date:20260513---for：【QQYUN-15337】online表单SQL增强支持指定数据源
         formModal.openModal();
         await nextTick();
         await resetFields();

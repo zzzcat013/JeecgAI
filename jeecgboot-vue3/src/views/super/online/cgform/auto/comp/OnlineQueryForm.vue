@@ -90,7 +90,10 @@
       <!-- 查询/重置按钮-->
       <template #formFooter>
         <a-col :md="6" :sm="8">
-          <span style="float: left; overflow: hidden; margin-left: 10px" class="table-page-search-submitButtons">
+          <span
+            class="table-page-search-submitButtons"
+            :class="{ 'only-toggle': !queryBtnCfg.enabled && !resetBtnCfg.enabled }"
+          >
             <a-button
                 v-if="queryBtnCfg.enabled"
                 type="primary"
@@ -203,6 +206,18 @@
       });
 
       const debouncedCustomSetFieldsValue = useDebounceFn(customSetFieldsValue, 500);
+
+      // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+      let resolveFirstQueryDecision = () => {};
+      let firstQueryDecision = new Promise((r) => (resolveFirstQueryDecision = r));
+      function resetFirstQueryDecision() {
+        firstQueryDecision = new Promise((r) => (resolveFirstQueryDecision = r));
+      }
+      // 供父组件调用：等待"是否有默认查询值"的决策
+      function whenFirstQueryDecided() {
+        return firstQueryDecision;
+      }
+      // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
       
       /**
        * 监听cacheFormValues
@@ -244,6 +259,9 @@
             resetForm();
           } else {
             formSchemas.value = [];
+            // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+            resolveFirstQueryDecision(false);
+            // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
           }
         },
         { immediate: true }
@@ -252,10 +270,14 @@
       /**
        * 获取表单配置
        */
-      async function initSchemas(formProperties) {
+      async function initSchemas(formProperties, searchFieldOrderMap) {
         let arr = [];
         let configValue = {};
-        let keys = Object.keys(formProperties);
+        // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
+        let keys = Object.keys(formProperties).sort(
+          (a, b) => (searchFieldOrderMap.get(a) ?? 9999) - (searchFieldOrderMap.get(b) ?? 9999)
+        );
+        // update-end--author:liaozhiyang---date:20260807---for：【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
         let setLabelLength = -1;
         for (let key of keys) {
           const item = formProperties[key];
@@ -328,9 +350,11 @@
           // update-end--author:liaozhiyang---date:20240517---for：【TV360X-98】label展示的文字必须和labelLength配置一致
         }
         // update-end--author:liaozhiyang---date:20231205---for：【QQYUN-7140】online label默认显示6个
-        arr.sort(function (a, b) {
-          return a.order - b.order;
-        });
+        // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
+        arr.sort(
+          (a, b) => (searchFieldOrderMap.get(a.field) ?? 9999) - (searchFieldOrderMap.get(b.field) ?? 9999)
+        );
+        // update-end--author:liaozhiyang---date:20260807---for：【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
         let schemaArray = [];
         if (arr.length > 2) {
           toggleButtonShow.value = true;
@@ -417,24 +441,43 @@
         }
       };
       async function resetForm() {
-        let json = await loadQueryInfo();
-        // update-begin--author:liaozhiyang---date:20240531---for：【TV360X-415】个性化查询支持年、月、周、季度
-        analysisComponent(json);
-        // update-end--author:liaozhiyang---date:20240318---for：【TV360X-415】个性化查询支持年、月、周、季度
-        // update-begin--author:liaozhiyang---date:20240524---for：【TV360X-516】高级查询过滤掉不支持查询的组件
-        // filterComponent(json);
-        // update-end--author:liaozhiyang---date:20240524---for：【TV360X-516】高级查询过滤掉不支持查询的组件
-        // 获取所有字段配置 通过事件回传给高级查询组件
-        let allFields = getAllFields(json);
-        emit('loaded', json);
-        // 获取查询条件表单页面配置
-        let { formProperties, hasField } = getQueryFormProperties(allFields, json);
-        if (hasField == false) {
-          formSchemas.value = [];
-          return;
+        // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+        resetFirstQueryDecision();
+        // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+        try {
+          let json = await loadQueryInfo();
+          // update-begin--author:liaozhiyang---date:20240531---for：【TV360X-415】个性化查询支持年、月、周、季度
+          analysisComponent(json);
+          // update-end--author:liaozhiyang---date:20240318---for：【TV360X-415】个性化查询支持年、月、周、季度
+          // update-begin--author:liaozhiyang---date:20240524---for：【TV360X-516】高级查询过滤掉不支持查询的组件
+          // filterComponent(json);
+          // update-end--author:liaozhiyang---date:20240524---for：【TV360X-516】高级查询过滤掉不支持查询的组件
+          // 获取所有字段配置 通过事件回传给高级查询组件
+          let allFields = getAllFields(json);
+          emit('loaded', json);
+          // 获取查询条件表单页面配置
+          let { formProperties, hasField, searchFieldOrderMap } = getQueryFormProperties(allFields, json);
+          if (hasField == false) {
+            formSchemas.value = [];
+            // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+            resolveFirstQueryDecision(false);
+            // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+            return;
+          }
+          // 获取表单配置formSchemas
+          await initSchemas(formProperties, searchFieldOrderMap);
+          // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+          const { config, cache, param } = toRaw(defaultValues);
+          const rawValues = Object.assign({}, config, cache, param);
+          const values = transformGroupDefValus(rawValues);
+          resolveFirstQueryDecision(Object.keys(values).length > 0);
+          // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+        } catch (e) {
+          console.error(e);
+          // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+          resolveFirstQueryDecision(false);
+          // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
         }
-        // 获取表单配置formSchemas
-        await initSchemas(formProperties);
       }
       /**
        * 2024-05-24
@@ -468,40 +511,63 @@
       }
 
       /**
+       * liaozhiyang
+       * 20260807
+       * 【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
+       * 根据 searchFieldList 构建字段排序映射（仅查询表单使用，与字段配置 order 无关）
+       */
+      function buildSearchFieldOrderMap(searchFieldList, joinQuery, table) {
+        const orderMap = new Map();
+        searchFieldList.forEach((field, index) => {
+          orderMap.set(field, index);
+          if (joinQuery && field.indexOf('@') < 0) {
+            orderMap.set(table + '@' + field, index);
+          }
+        });
+        return orderMap;
+      }
+      /**
        * 转化
        */
       function getQueryFormProperties(allFields, json) {
         const { searchFieldList, joinQuery, table } = json;
         let hasField = false;
         let formProperties = {};
-        if (allFields) {
-          Object.keys(allFields).map((field) => {
-            if (searchFieldList.indexOf(field) >= 0) {
-              //只找需要查询的字段
-              if (joinQuery == true) {
-                //判断是不是联合查询
-                if (field.indexOf('@') < 0) {
-                  //没有@说明是主表字段, 手动拼接上@
-                  formProperties[table + '@' + field] = allFields[field];
-                  hasField = true;
-                } else {
-                  //有@说明是子表字段，直接获取
-                  formProperties[field] = allFields[field];
-                  hasField = true;
-                }
+        // update-begin--author:liaozhiyang---date:20260807---for：【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
+        const searchFieldOrderMap = buildSearchFieldOrderMap(searchFieldList, joinQuery, table);
+        if (allFields && searchFieldList.length) {
+          // 按 searchFieldList 顺序构建查询字段
+          searchFieldList.forEach((field) => {
+            const fieldConfig = allFields[field];
+            if (!fieldConfig) {
+              return;
+            }
+            const item = { ...fieldConfig };
+            if (joinQuery == true) {
+              //判断是不是联合查询
+              if (field.indexOf('@') < 0) {
+                //没有@说明是主表字段, 手动拼接上@
+                formProperties[table + '@' + field] = item;
+                hasField = true;
               } else {
-                // 不是联合查询 只查主表字段
-                if (field.indexOf('@') < 0) {
-                  formProperties[field] = allFields[field];
-                  hasField = true;
-                }
+                //有@说明是子表字段，直接获取
+                formProperties[field] = item;
+                hasField = true;
+              }
+            } else {
+              // 不是联合查询 只查主表字段
+              if (field.indexOf('@') < 0) {
+                formProperties[field] = item;
+                hasField = true;
               }
             }
           });
         }
+        // update-end--author:liaozhiyang---date:20260807---for：【LHZP-487】查询字段的顺序按照接口中的searchFieldList数组中的顺序即设计时字段的排列顺序
         return {
           formProperties,
           hasField,
+          searchFieldOrderMap,
         };
       }
 
@@ -590,9 +656,7 @@
         labelWidth: formLabelWidth,
         wrapperCol: null,
         submitFunc() {
-          //update-begin---author:wangshuai---date:2025-10-11---for:【issues/8790】online 表单重大 bug，影响配置了查询 的所有表单---
-          //doSearch();
-          //update-end---author:wangshuai---date:2025-10-11---for:【issues/8790】online 表单重大 bug，影响配置了查询 的所有表单---
+          doSearch();
         },
         /* labelCol: ONL_QUERY_LABEL_COL,
         wrapperCol: ONL_QUERY_WRAPPER_COL*/
@@ -663,12 +727,19 @@
               });
               if (findItem) {
                 const value = values[key];
-                if (typeof value === 'string') {
+                // update-begin--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
+                // 范围组件值为数组时也需拆成 begin/end
+                if (Array.isArray(value)) {
+                  values[`${key}_begin`] = value[0];
+                  values[`${key}_end`] = value[1];
+                  delete values[key];
+                } else if (typeof value === 'string') {
                   const arr = value.split(',');
                   values[`${key}_begin`] = arr[0];
                   values[`${key}_end`] = arr[1];
                   delete values[key];
                 }
+                // update-end--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
               }
             });
           }
@@ -724,7 +795,10 @@
                   }
                 };
                 if (findItem?.slot === 'groupDate') {
-                  const arr = value.split(',');
+                  // update-begin--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
+                  // 兼容范围日期值为数组的场景
+                  const arr = Array.isArray(value) ? value : String(value).split(',');
+                  // update-end--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
                   auto(arr[0], `${key}_begin`, false);
                   auto(arr[1], `${key}_end`, true);
                   delete values[key];
@@ -749,14 +823,25 @@
         const { config, param } = toRaw(defaultValues);
         let rawValues = Object.assign({}, config, param);
         if (Object.keys(rawValues).length > 0) {
-          await setFieldsValue(rawValues);
+          // update-begin--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
+          // 重置查询时日期/日期时间等范围组件默认值需转为数组才能正确回显
+          // 与 customSetFieldsValue 保持一致：范围查询默认值（如 "2024-01-01,2024-12-31"）需转换成数组
+          const values = transformGroupDefValus(rawValues);
+          await setFieldsValue(values);
+          // update-end--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
         }
         return rawValues;
       }
 
       async function resetSearch() {
         const rawValues = await clearSearch();
-        emit('search', rawValues, false);
+        // update-begin--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
+        // 重置后查询参数与点击查询保持一致（日期范围拆分 begin/end）
+        const values = { ...rawValues };
+        transformDateValus(values);
+        transformGroupValus(values);
+        emit('search', changeDataIfArray2String(values), false);
+        // update-end--author:liaozhiyang---date:20260803---for：【LHZP-381】点击重置时，日期和日期时间默认值没设置上
       }
 
       /**
@@ -830,6 +915,9 @@
         formSchemas,
         clearSearch,
         getGroupDatePlaceholder,
+        // update-begin--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
+        whenFirstQueryDecided,
+        // update-end--author:liaozhiyang---date:20260715---for：【LHZP-219】修复有默认值查询的场景下会调用两次接口，让只调用最后一次查询接口
       };
     },
   };
@@ -855,9 +943,24 @@
   }
   // update-end--author:liaozhiyang---date:20240514---for：【QQYUN-9241】form表单上下间距大点
   .online-query-form {
+    overflow-x: hidden;
     :deep(.ant-form) {
       max-height: 40vh;
       overflow-y: auto;
+      overflow-x: hidden;
     }
   }
+  // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-326】无搜索重置按钮时展开文字垂直居中
+  .table-page-search-submitButtons {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    margin-left: 10px;
+    overflow: hidden;
+    // 仅有展开/收起时，与同行查询控件垂直对齐
+    &.only-toggle {
+      line-height: 32px;
+    }
+  }
+  // update-end--author:liaozhiyang---date:20260804---for：【LHZP-326】无搜索重置按钮时展开文字垂直居中
 </style>

@@ -4,8 +4,15 @@
 -->
 <template>
   <div class="cascader" ref="rootRef">
-    <AInput :value="displayText" :placeholder="inputPlaceholder" readonly :disabled="inputDisabled" v-bind="attrs"
-      :class="{ 'cascader-input-open': visible }" @click="toggle">
+    <AInput
+      :value="displayText"
+      :placeholder="inputPlaceholder"
+      readonly
+      :disabled="inputDisabled"
+      v-bind="inputAttrs"
+      :class="{ 'cascader-input-open': visible }"
+      @click="toggle"
+    >
       <template #suffix>
         <span v-if="displayText && !inputDisabled" class="ant-input-clear-icon ant-input-clear-icon-has-suffix"
           role="button" tabindex="-1" @click.stop="handleClear" @mousedown.prevent>
@@ -36,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, watch, onBeforeUnmount, nextTick, unref } from 'vue';
 import { Input as AInput } from 'ant-design-vue';
 import { DownOutlined, RightOutlined, CloseCircleFilled } from '@ant-design/icons-vue';
 import { useAttrs } from '/@/hooks/core/useAttrs';
@@ -81,8 +88,15 @@ const emit = defineEmits<{
 }>();
 
 const attrs = useAttrs();
-const inputPlaceholder = computed(() => String((attrs as Record<string, unknown>).placeholder ?? '请选择'));
-const inputDisabled = computed(() => Boolean((attrs as Record<string, unknown>).disabled));
+const inputPlaceholder = computed(() => String(unref(attrs as Record<string, unknown>).placeholder ?? '请选择'));
+const inputDisabled = computed(() => Boolean(unref(attrs as Record<string, unknown>).disabled));
+// update-begin--author:liaozhiyang---date:20260804---for：【LHZP-707】修复省市区禁用状态下还可以点击x删除
+/** 排除 allowClear/disabled，清空按钮由 suffix 自定义实现 */
+const inputAttrs = computed(() => {
+  const { allowClear: _allowClear, disabled: _disabled, ...rest } = unref(attrs as Record<string, unknown>);
+  return rest;
+});
+// update-end--author:liaozhiyang---date:20260804---for：【LHZP-707】修复省市区禁用状态下还可以点击x删除
 const rootRef = ref<HTMLElement>();
 const dropdownRef = ref<HTMLElement>();
 /** 下拉是否展开 */
@@ -179,6 +193,7 @@ function toggle() {
 
 /** 清除选中：与 UI 库 readonly 下不显示清除按钮的补偿，在 suffix 中手动实现 */
 function handleClear() {
+  if (inputDisabled.value) return;
   emit('change', []);
   emit('update:value', []);
   visible.value = false;
@@ -197,11 +212,39 @@ function handleClickOutside(e: MouseEvent) {
 function updatePopupPosition() {
   if (!rootRef.value) return;
   const rect = rootRef.value.getBoundingClientRect();
-  dropdownPlaceStyle.value = {
-    left: `${rect.left}px`,
-    top: `${rect.bottom + DROPDOWN_GAP}px`,
-  };
+  // update-begin--author:liaozhiyang---date:20260714---for【LHZP-100】省市区在页面边缘时，最后一级没法选
+  const margin = 8;
+  const viewportWidth = document.documentElement.clientWidth;
+  const viewportHeight = document.documentElement.clientHeight;
+  // 浮层宽高（未渲染出来时退化为仅按触发器定位）
+  const dropdownWidth = dropdownRef.value?.offsetWidth ?? 0;
+  const dropdownHeight = dropdownRef.value?.offsetHeight ?? 0;
+
+  // 水平：默认与触发器左对齐；右侧放不下则向左偏移使其完整显示
+  let left = rect.left;
+  if (dropdownWidth && left + dropdownWidth > viewportWidth - margin) {
+    left = viewportWidth - dropdownWidth - margin;
+  }
+  if (left < margin) left = margin;
+
+  // 垂直：默认在下方；下方放不下且上方空间足够则翻到上方
+  let top = rect.bottom + DROPDOWN_GAP;
+  if (dropdownHeight && top + dropdownHeight > viewportHeight - margin) {
+    const aboveTop = rect.top - DROPDOWN_GAP - dropdownHeight;
+    top = aboveTop >= margin ? aboveTop : Math.max(margin, viewportHeight - dropdownHeight - margin);
+  }
+
+  dropdownPlaceStyle.value = { left: `${left}px`, top: `${top}px` };
+  // update-end--author:liaozhiyang---date:20260714---for：【LHZP-100】省市区在页面边缘时，最后一级没法选
 }
+
+// update-begin--author:liaozhiyang---date:20260714---for：【LHZP-100】省市区在页面边缘时，最后一级没法选
+watch(columns, () => {
+  if (visible.value) {
+    nextTick(updatePopupPosition);
+  }
+});
+// update-end--author:liaozhiyang---date:20260714---for：【LHZP-100】省市区在页面边缘时，最后一级没法选
 
 /** 展开时：用当前 value 初始化 editingPath、计算定位、注册点击外部关闭；收起时移除监听 */
 watch(visible, (v) => {
@@ -246,6 +289,19 @@ onBeforeUnmount(() => {
 
     .cascader-arrow {
       opacity: 0;
+    }
+  }
+
+  &.ant-input-affix-wrapper-disabled,
+  &.ant-input-affix-wrapper-disabled:hover {
+    cursor: not-allowed;
+
+    .ant-input-clear-icon {
+      display: none !important;
+    }
+
+    .cascader-arrow {
+      opacity: 1;
     }
   }
 }

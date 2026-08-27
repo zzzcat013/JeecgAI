@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+  <div>
     <BasicModal destroyOnClose @register="registerModal" :canFullscreen="false" width="600px" :title="title" @ok="handleOk" @cancel="handleCancel">
       <div class="flex header">
         <a-input
@@ -134,7 +134,7 @@
       }
 
       function loadMcpData(){
-        const params = { pageNo: pageNo.value, pageSize: pageSize.value, status: 'enable', synced: 1, name: searchText.value };
+        const params = { pageNo: pageNo.value, pageSize: pageSize.value, status: 'enable', synced: 1, name: searchText.value?`*${searchText.value}*`:searchText.value, column: 'createTime', order: 'desc' };
         mcpList(params).then((res:any)=>{
           if (res.records) {
             const records = res.records || [];

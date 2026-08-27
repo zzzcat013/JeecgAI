@@ -23,16 +23,24 @@
           :maxTagCount="maxTagCount"
           @change="handleChange"
           style="width: 100%"
-          @click="!disabled && openModal(false)"
+          @click="handleSelectClick"
           v-bind="attrs"
+          :class="{ 'j-select-biz-wrap': isMultipleMode, 'j-select-biz-has-omitted-tags': hasOmittedTags }"
         >
           <template v-if="isCustomRenderTag" #tagRender="{ label, value, option}">
-            <a-tag class="ant-select-selection-item" style="margin-right: 4px">
-              <span class="ant-select-selection-item-content" style="font-size: 14px;max-width: 300px" :title="tagRender(label, value, false)">{{ tagRender(label, value, true) }}</span>
-              <span class="ant-select-selection-item-remove">
+            <!-- update-begin--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开  -->
+            <a-tag class="ant-select-selection-item j-select-biz-tag" style="margin-right: 4px">
+              <JLeftEllipsis
+                content-class="ant-select-selection-item-content j-select-biz-tag-content"
+                :text="getTagFullText(label, value)"
+                container-selector=".ant-select-selector"
+                :reserve-width="tagReserveWidth"
+              />
+              <span v-if="!disabled" class="ant-select-selection-item-remove">
                 <Icon icon="ant-design:close-outlined" size="12" @click="handleRemoveClick(value)"></Icon>
               </span>
             </a-tag>
+            <!-- update-end--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开  -->
           </template>
         </a-select>
       </a-col>
@@ -48,15 +56,16 @@
   </div>
 </template>
 <script lang="ts">
-  import { defineComponent, ref, inject, reactive, watch } from 'vue';
+  import { computed, defineComponent, ref, inject, watch } from 'vue';
   import { propTypes } from '/@/utils/propTypes';
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { LoadingOutlined } from '@ant-design/icons-vue';
-  import { getDepartPathNameByOrgCode } from "@/utils/common/compUtils";
+  import { getDepartPathNameByOrgCode } from '@/utils/common/compUtils';
+  import JLeftEllipsis from '../JLeftEllipsis.vue';
 
   export default defineComponent({
     name: 'JSelectBiz',
-    components: { LoadingOutlined },
+    components: { LoadingOutlined, JLeftEllipsis },
     inheritAttrs: false,
     props: {
       showButton: propTypes.bool.def(true),
@@ -94,7 +103,18 @@
 
       //存放部门名称
       const departNamePath = ref<Record<string, string>>({});
-      
+
+      const isMultipleMode = computed(() => props.multiple === 'multiple' || props.multiple === 'tags');
+      // update-begin--author:liaozhiyang---date:20260811---for：【LHZP-513】online一对多部门的渲染样式有重叠
+      const hasOmittedTags = computed(
+        () => typeof props.maxTagCount === 'number' && Array.isArray(selectValues.value) && selectValues.value.length > props.maxTagCount
+      );
+      const tagReserveWidth = computed(() => {
+        const baseWidth = props.disabled ? 24 : 44;
+        return hasOmittedTags.value ? baseWidth + 40 : baseWidth;
+      });
+      // update-end--author:liaozhiyang---date:20260811---for：【LHZP-513】online一对多部门的渲染样式有重叠
+
       /**
        * 打开弹出框
        */
@@ -117,49 +137,84 @@
       }
       
       /**
-       * 多选tag自定义渲染
+       * 多选tag自定义渲染（完整路径，省略交给 JLeftEllipsis）
        *
        * @param label
        * @param value
-       * @param isEllipsis 是否省略
+       * @param _isEllipsis 兼容旧调用
        */
-      function tagRender(label, value, isEllipsis) {
-        if (departNamePath.value[value]) {
-           //是否需要省略显示
-           if(!isEllipsis){
-             return departNamePath.value[value];
-           } else {
-             let departName = departNamePath.value[value];
-             //超过20则截取后20位的字符，前面加省略号
-             if(departName && departName.length >= 20){
-               const name:any = departName.substring(departName.length - 20);
-               return '...' + name;
-             } else {
-               return departName;
-             }
-           }
+      function tagRender(label, value, _isEllipsis) {
+        return getTagFullText(label, value);
+      }
+
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开
+      // 岗位层级过深时右侧文字完整、左侧省略
+      function toDisplayText(val) {
+        if (val == null || val === '') {
+          return '';
         }
-        //判断rowKey是否为orgCode
-        if(props?.rowKey && props?.rowKey === 'orgCode'){
-          getDepartPathNameByOrgCode(value, label, '').then((data) => {
-            departNamePath.value[value] = data;
+        if (typeof val === 'string') {
+          return val;
+        }
+        if (typeof val === 'number' || typeof val === 'boolean') {
+          return String(val);
+        }
+        if (Array.isArray(val)) {
+          return val.map((item) => toDisplayText(item)).filter(Boolean).join('');
+        }
+        if (typeof val === 'object' && typeof val.children === 'string') {
+          return val.children;
+        }
+        return '';
+      }
+
+      /** 获取完整部门/岗位路径（异步回填后响应式更新） */
+      function getTagFullText(label, value) {
+        if (departNamePath.value[value]) {
+          return toDisplayText(departNamePath.value[value]);
+        }
+        const fallback = toDisplayText(label);
+        if (props?.rowKey && props?.rowKey === 'orgCode') {
+          getDepartPathNameByOrgCode(value, fallback, '').then((data) => {
+            departNamePath.value[value] = toDisplayText(data) || fallback;
           });
         } else {
-          //否则按照id处理
-          getDepartPathNameByOrgCode('', label, value).then((data) => {
-            departNamePath.value[value] = data;
+          getDepartPathNameByOrgCode('', fallback, value).then((data) => {
+            departNamePath.value[value] = toDisplayText(data) || fallback;
           });
         }
+        return fallback;
+      }
+      // update-end--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开
+
+      /**
+       * 点击选择框时打开弹窗
+       * 排除点击清除按钮的情况，避免清除时误触发弹窗
+       */
+      function handleSelectClick(event) {
+        if (props.disabled) {
+          return;
+        }
+        // 点击清除按钮（内置clear或tag移除按钮）时不打开弹窗
+        if (event.target.closest('.ant-select-selection-item-remove') || event.target.closest('.ant-select-clear')) {
+          return;
+        }
+        openModal(false);
       }
 
       /**
        * tag删除
-       * 
+       *
        * @param value
        */
       function handleRemoveClick(value) {
-        if(selectValues?.value){
-          let values = selectValues?.value.filter(item => item !== value);
+        // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-583】部门组件设置为只读之后还可以删除
+        if (props.disabled) {
+          return;
+        }
+        // update-end--author:liaozhiyang---date:20260714---for：【LHZP-583】部门组件设置为只读之后还可以删除
+        if (selectValues?.value) {
+          let values = selectValues?.value.filter((item) => item !== value);
           handleChange(values);
         }
       }
@@ -186,7 +241,12 @@
         openModal,
         detailStr,
         tagRender,
+        getTagFullText,
         handleRemoveClick,
+        handleSelectClick,
+        isMultipleMode,
+        hasOmittedTags,
+        tagReserveWidth,
       };
     },
   });
@@ -194,22 +254,95 @@
 <style lang="less" scoped>
   .j-select-row {
     @width: 82px;
+    flex-wrap: nowrap;
+    align-items: flex-start;
 
     .left {
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开
+      flex: 1 1 auto;
       width: calc(100% - @width - 8px);
+      max-width: calc(100% - @width - 8px);
+      min-width: 0;
+      // update-end--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开
     }
 
     .right {
+      flex: 0 0 @width;
       width: @width;
     }
 
     .full {
       width: 100%;
+      max-width: 100%;
     }
 
     :deep(.ant-select-search__field) {
       display: none !important;
     }
+
+    // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开
+    :deep(.ant-select) {
+      max-width: 100%;
+    }
+
+    :deep(.ant-select-selector) {
+      max-width: 100%;
+      height: auto !important;
+      min-height: 32px;
+      overflow: hidden;
+    }
+
+    /* 多选：tag 换行展开，不挤在一行 */
+    :deep(.j-select-biz-wrap .ant-select-selection-overflow) {
+      flex-wrap: wrap;
+      overflow: visible;
+      max-width: 100%;
+    }
+
+    :deep(.ant-select-selection-overflow-item) {
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    // update-begin--author:liaozhiyang---date:20260811---for：【LHZP-513】online一对多部门的渲染样式有重叠
+    :deep(.j-select-biz-has-omitted-tags .ant-select-selection-overflow) {
+      flex-wrap: nowrap;
+    }
+
+    :deep(.j-select-biz-has-omitted-tags .ant-select-selection-overflow-item) {
+      max-width: calc(100% - 48px);
+    }
+
+    :deep(.j-select-biz-has-omitted-tags .ant-select-selection-overflow-item-rest),
+    :deep(.j-select-biz-has-omitted-tags .ant-select-selection-overflow-item-suffix) {
+      max-width: none;
+    }
+    // update-end--author:liaozhiyang---date:20260811---for：【LHZP-513】online一对多部门的渲染样式有重叠
+
+    :deep(.j-select-biz-tag) {
+      display: inline-flex !important;
+      align-items: center;
+      max-width: 100%;
+      margin-inline-end: 4px;
+      margin-bottom: 2px;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    :deep(.j-select-biz-tag-content) {
+      flex: 1 1 0 !important;
+      min-width: 0 !important;
+      display: block !important;
+      font-size: 14px;
+      overflow: hidden;
+      white-space: nowrap !important;
+      text-overflow: clip !important;
+    }
+
+    :deep(.j-select-biz-tag .ant-select-selection-item-remove) {
+      flex-shrink: 0;
+    }
+    // update-end--author:liaozhiyang---date:20260804---for：【LHZP-602】岗位层级过深时右侧文字完整、左侧省略；多选换行展开
   }
   .detailStr {
     margin: 0;

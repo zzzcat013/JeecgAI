@@ -79,8 +79,8 @@
       await saveOrUpdate(values, isUpdate.value);
       //关闭弹窗
       closeModal();
-      //刷新列表
-      emit('success');
+      //刷新列表（把表单数据带出去，列表页需要根据消息类型自动切换查询条件）
+      emit('success', values);
     } finally {
       setModalProps({ confirmLoading: false });
     }

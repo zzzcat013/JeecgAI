@@ -57,7 +57,7 @@
   import { removeAuthCache, setAuthCache } from '/src/utils/auth';
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
   import { getRefPromise } from '/@/utils/index';
-  import { refreshDragCache } from "@/api/common/api";
+  import { refreshDragCache, refreshHomeCache } from "@/api/common/api";
 
   type MenuEvent = 'logout' | 'doc' | 'lock' | 'cache' | 'depart' | 'defaultHomePage' | 'password' | 'account';
   const { createMessage } = useMessage();
@@ -124,6 +124,8 @@
         const result = await refreshCache();
         const dragRes = await refreshDragCache();
         console.log('dragRes', dragRes);
+        await refreshHomeCache();
+        await userStore.getUserInfoAction();
         if (result.success) {
           const res = await queryAllDictItems();
           removeAuthCache(DB_DICT_DATA_KEY);

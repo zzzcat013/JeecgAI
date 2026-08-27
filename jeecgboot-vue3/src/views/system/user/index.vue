@@ -67,6 +67,7 @@
   import { useMessage } from '/@/hooks/web/useMessage';
   import { columns, searchFormSchema } from './user.data';
   import { listNoCareTenant, deleteUser, batchDeleteUser, getImportUrl, getExportUrl, frozenBatch, resetPassword } from './user.api';
+  import { batchPreloadDepartPathNames } from '/@/utils/common/compUtils';
   import { usePermission } from '/@/hooks/web/usePermission';
   import ImportExcelProgress from './components/ImportExcelProgress.vue';
 
@@ -101,6 +102,11 @@
       },
       actionColumn: {
         width: 120,
+      },
+      afterFetch: async (result) => {
+        // 批量预加载部门/岗位路径名称，避免每个单元格逐条请求接口
+        await batchPreloadDepartPathNames(result);
+        return result;
       },
       beforeFetch: (params) => {
         return Object.assign({ column: 'createTime', order: 'desc' }, params);

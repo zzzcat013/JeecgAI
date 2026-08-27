@@ -92,7 +92,16 @@
   //获取图片
   const getImage = computed(() => {
     if (props.cardData && props.cardConfig) {
-      let src = props.cardData[props.cardConfig?.image];
+      // update-begin--author:liaozhiyang---date:20260813---for:【LHZP-1603】卡片图片必填去掉
+      const imageField = props.cardConfig?.image;
+      if (!imageField) {
+        return '';
+      }
+      let src = props.cardData[imageField];
+      if (typeof src !== 'string' || !src.trim()) {
+        return '';
+      }
+      // update-end--author:liaozhiyang---date:20260813---for:【LHZP-1603】卡片图片必填去掉
       let reg = /#\s*{\s*domainURL\s*}/g;
       src = src.replace(reg,domainUrl);
       return src;

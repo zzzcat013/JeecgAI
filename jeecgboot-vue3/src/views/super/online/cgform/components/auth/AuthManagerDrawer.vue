@@ -1,5 +1,5 @@
 <template>
-  <BasicDrawer @register="registerDrawer" title="权限管理" :width="800" @close="onClose">
+  <BasicDrawer class="online-auth-manager-drawer" @register="registerDrawer" title="权限管理" :width="800" @close="onClose">
     <a-tabs v-model:activeKey="activeKey">
       <a-tab-pane tab="字段权限" key="field" forceRender>
         <AuthFieldConfig :headId="headId" v-model:authFields="authFields" />
@@ -10,7 +10,7 @@
         </a-tab-pane>
         <a-tab-pane tab="数据权限" key="data" forceRender>
           <!-- 数据权限不需要实时刷新 故而此处传原表单ID -->
-          <AuthDataConfig :cgformId="cgformId" :authFields="authFields" />
+          <AuthDataConfig :cgformId="cgformId" :authFields="authFields" :tableType="curTableType" />
         </a-tab-pane>
       </template>
     </a-tabs>
@@ -75,4 +75,12 @@
   });
 </script>
 
-<style scoped></style>
+<style lang="less">
+// update-begin--author:liaozhiyang---date:20260811---for：【LHZP-311】权限管理调整到50条/页时会出现两个滚动条
+.online-auth-manager-drawer {
+  .is-vertical {
+    display: none;
+  }
+}
+// update-end--author:liaozhiyang---date:20260811---for：【LHZP-311】权限管理调整到50条/页时会出现两个滚动条
+</style>

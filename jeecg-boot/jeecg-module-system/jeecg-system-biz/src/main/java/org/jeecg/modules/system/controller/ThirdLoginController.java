@@ -12,6 +12,8 @@ import me.zhyd.oauth.model.AuthResponse;
 import me.zhyd.oauth.request.AuthRequest;
 import me.zhyd.oauth.utils.AuthStateUtils;
 import me.zhyd.oauth.utils.StringUtils;
+import me.zhyd.oauth.config.AuthConfig;
+import com.xkcoding.justauth.autoconfigure.JustAuthProperties;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.constant.enums.MessageTypeEnum;
@@ -30,6 +32,7 @@ import org.jeecg.modules.system.service.ISysThirdAppConfigService;
 import org.jeecg.modules.system.service.ISysUserService;
 import org.jeecg.modules.system.service.ISysDepartService;
 import org.jeecg.modules.system.service.impl.ThirdAppDingtalkServiceImpl;
+import org.jeecg.modules.system.service.impl.ThirdAppFeishuServiceImpl;
 import org.jeecg.modules.system.service.impl.ThirdAppWechatEnterpriseServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -76,11 +79,50 @@ public class ThirdLoginController {
 	private ISysThirdAppConfigService appConfigService;
 
 	@Autowired
+	private ThirdAppFeishuServiceImpl thirdAppFeishuService;
+
+	@Autowired
+	private JustAuthProperties justAuthProperties;
+
+	@Autowired
 	public ISysBaseAPI sysBaseAPI;
 
 	@RequestMapping("/render/{source}")
-    public void render(@PathVariable("source") String source, HttpServletResponse response) throws IOException {
+    public void render(@PathVariable("source") String source, HttpServletRequest request, HttpServletResponse response) throws IOException {
         log.info("第三方登录进入render：" + source);
+        //update-begin---author:liusq ---date:2026-05-13  for：【QQYUN-12767】飞书集成，手动调用飞书新版 OAuth2 API（绕过 JustAuth 废弃接口）-----------
+        if (CommonConstant.FEISHU.equalsIgnoreCase(source) || ThirdAppFeishuServiceImpl.THIRD_TYPE.equalsIgnoreCase(source)) {
+            SysThirdAppConfig feishuConfig = buildFeishuConfigFromYaml();
+            if (feishuConfig == null) {
+                feishuConfig = appConfigService.getThirdConfigByThirdType(CommonConstant.TENANT_ID_DEFAULT_VALUE, ThirdAppFeishuServiceImpl.THIRD_TYPE);
+            }
+            if (feishuConfig == null) {
+                response.setContentType("text/html;charset=UTF-8");
+                response.setCharacterEncoding("UTF-8");
+                response.getWriter().write("飞书应用尚未配置，请联系管理员");
+                return;
+            }
+            // 将租户ID编码进state，格式：{tenantId}_{uuid}，callback时解析租户ID实现多租户精确查询
+            //update-begin---author:liusq ---date:2026-05-15  for：【QQYUN-12767】飞书扫码登录改用yml配置，兼容tenantId为null的情况-----------
+            Integer renderTenantId = feishuConfig.getTenantId() != null ? feishuConfig.getTenantId() : CommonConstant.TENANT_ID_DEFAULT_VALUE;
+            String state = renderTenantId + "_" + AuthStateUtils.createState();
+            //update-end---author:liusq ---date:2026-05-15  for：【QQYUN-12767】飞书扫码登录改用yml配置，兼容tenantId为null的情况-----------
+            String redirectUri = CommonUtils.getBaseUrl(request) + "/sys/thirdLogin/feishu/callback";
+            String authorizeUrl = thirdAppFeishuService.buildAuthorizeUrl(feishuConfig, redirectUri, state);
+            log.info("飞书登录认证地址：{}", authorizeUrl);
+            response.sendRedirect(authorizeUrl);
+            return;
+        }
+        //update-end---author:liusq ---date:2026-05-13  for：【QQYUN-12767】飞书集成，手动调用飞书新版 OAuth2 API（绕过 JustAuth 废弃接口）-----------
+        //update-begin---author:scott ---date:2026-06-04  for：【第三方登录NPE加固】source未在justauth.type中配置时直接拦截，避免JustAuth-starter1.4.0的get()未判空getExtend()抛出空指针-----------
+        if (justAuthProperties.getType() == null || !justAuthProperties.getType().containsKey(source.toUpperCase())) {
+            log.warn("第三方登录方式[{}]未配置（justauth.type 中不存在），已拦截 render 请求", source);
+            response.setContentType("text/html;charset=UTF-8");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write("第三方登录方式[" + source + "]尚未配置，请联系管理员");
+            return;
+        }
+        //update-end---author:scott ---date:2026-06-04  for：【第三方登录NPE加固】source未在justauth.type中配置时直接拦截，避免JustAuth-starter1.4.0的get()未判空getExtend()抛出空指针-----------
         AuthRequest authRequest = factory.get(source);
         String authorizeUrl = authRequest.authorize(AuthStateUtils.createState());
         log.info("第三方登录认证地址：" + authorizeUrl);
@@ -88,8 +130,42 @@ public class ThirdLoginController {
     }
 
 	@RequestMapping("/{source}/callback")
-    public String loginThird(@PathVariable("source") String source, AuthCallback callback,ModelMap modelMap) {
+    public String loginThird(@PathVariable("source") String source, AuthCallback callback,ModelMap modelMap, HttpServletRequest request) {
 		log.info("第三方登录进入callback：" + source + " params：" + JSONObject.toJSONString(callback));
+        //update-begin---author:jeecg ---date:2026-05-13  for：【QQYUN-12767】飞书集成，手动调用飞书新版 OAuth2 API（绕过 JustAuth 废弃接口）-----------
+        if (CommonConstant.FEISHU.equalsIgnoreCase(source) || ThirdAppFeishuServiceImpl.THIRD_TYPE.equalsIgnoreCase(source)) {
+            String code = request.getParameter("code");
+            log.info("【飞书】扫码登录回调 code={}", code);
+            try {
+                // 从state中解析租户ID（render时编码为 {tenantId}_{uuid} 格式）
+                Integer feishuTenantId = CommonConstant.TENANT_ID_DEFAULT_VALUE;
+                String stateParam = request.getParameter("state");
+                if (stateParam != null && stateParam.contains("_")) {
+                    try {
+                        feishuTenantId = Integer.parseInt(stateParam.split("_", 2)[0]);
+                    } catch (NumberFormatException ex) {
+                        log.warn("【飞书】state中租户ID解析失败，使用默认租户，state={}", stateParam);
+                    }
+                }
+                log.info("【飞书】扫码登录回调 tenantId={}", feishuTenantId);
+                // 直接调用飞书新版 API 完成 code → token → 用户信息 全流程
+                String redirectUri = CommonUtils.getBaseUrl(request) + "/sys/thirdLogin/feishu/callback";
+                SysThirdAppConfig feishuYamlConfig = buildFeishuConfigFromYaml();
+                SysUser loginUser = thirdAppFeishuService.oauth2Login(code, feishuTenantId, redirectUri, feishuYamlConfig);
+                String token = saveToken(loginUser);
+                modelMap.addAttribute("token", token);
+            } catch (Exception e) {
+                log.error("飞书登录回调异常", e);
+                if (e.getMessage() != null && e.getMessage().contains("openId=")) {
+                    String openId = e.getMessage().substring(e.getMessage().indexOf("openId=") + 7);
+                    modelMap.addAttribute("token", "绑定手机号," + openId);
+                } else {
+                    modelMap.addAttribute("token", "登录失败");
+                }
+            }
+            return "thirdLogin";
+        }
+        //update-end---author:liusq ---date:2026-05-13  for：【QQYUN-12767】飞书集成，手动调用飞书新版 OAuth2 API（绕过 JustAuth 废弃接口）-----------
         AuthRequest authRequest = factory.get(source);
         AuthResponse response = authRequest.login(callback);
         log.info(JSONObject.toJSONString(response));
@@ -205,6 +281,25 @@ public class ThirdLoginController {
 		return result;
 	}
 
+	/**
+	 * 从 justauth yml 配置中读取飞书 app_id/app_secret，构建临时 SysThirdAppConfig。
+	 * client-id 为空或为占位符 "??" 时返回 null，由调用方回退到数据库配置。
+	 */
+	private SysThirdAppConfig buildFeishuConfigFromYaml() {
+		if (justAuthProperties == null || justAuthProperties.getType() == null) {
+			return null;
+		}
+		AuthConfig authConfig = justAuthProperties.getType().get(CommonConstant.FEISHU);
+		if (authConfig == null || authConfig.getClientId() == null || "??".equals(authConfig.getClientId().trim())) {
+			return null;
+		}
+		SysThirdAppConfig config = new SysThirdAppConfig();
+		config.setClientId(authConfig.getClientId());
+		config.setClientSecret(authConfig.getClientSecret());
+		config.setTenantId(CommonConstant.TENANT_ID_DEFAULT_VALUE);
+		return config;
+	}
+
 	private String saveToken(SysUser user) {
 		// 生成token
 		String token = JwtUtil.sign(user.getUsername(), user.getPassword(), CommonConstant.CLIENT_TYPE_PC);
@@ -226,6 +321,11 @@ public class ThirdLoginController {
 	@ResponseBody
 	public Result<JSONObject> getThirdLoginUser(@PathVariable("token") String token,@PathVariable("thirdType") String thirdType,@PathVariable("tenantId") String tenantId) throws Exception {
 		Result<JSONObject> result = new Result<JSONObject>();
+		// 代码逻辑说明: 快速拦截非 JWT 格式的 token（如飞书 SDK 发出的 [tea-sdk]ready），避免 JWTDecodeException 触发 ERROR 日志
+		if (token == null || token.split("\\.").length != 3) {
+			log.debug("【第三方登录】收到非 JWT 格式 token，忽略: {}", token);
+			return Result.noauth("token格式无效");
+		}
 		String username = JwtUtil.getUsername(token);
 		// 代码逻辑说明: [QQYUN-11021]三方登录接口通过token获取用户信息漏洞修复------------
 		if (!TokenUtils.verifyToken(token, sysBaseAPI, redisUtil)) {
@@ -374,7 +474,16 @@ public class ThirdLoginController {
             // 代码逻辑说明: [issues/I5BOUF]oauth2 钉钉无法登录------------
             builder.append("&prompt=").append("consent");
             url = builder.toString();
-		} else {
+		}
+		else if (CommonConstant.FEISHU.equalsIgnoreCase(source) || "feishu".equalsIgnoreCase(source)) {
+			SysThirdAppConfig feishuConfig = appConfigService.getThirdConfigByThirdType(Integer.valueOf(tenantId), MessageTypeEnum.FS.getType());
+			if (null == feishuConfig) {
+				return "还未配置飞书应用，请配置飞书应用";
+			}
+			String redirectUri = CommonUtils.getBaseUrl(request) + "/sys/thirdLogin/oauth2/feishu/callback?tenantId=" + tenantId;
+			url = thirdAppFeishuService.buildAuthorizeUrl(feishuConfig, redirectUri, state);
+		}
+		else {
 			return "不支持的source";
 		}
 		log.info("oauth2 login url:" + url);
@@ -400,6 +509,7 @@ public class ThirdLoginController {
 			@RequestParam(value = "authCode", required = false) String authCode,
 			@RequestParam("state") String state,
 			@RequestParam(name = "tenantId",defaultValue = "0") String tenantId,
+			HttpServletRequest request,
 			HttpServletResponse response) {
         SysUser loginUser;
         if (CommonConstant.WECHAT_ENTERPRISE.equalsIgnoreCase(source)) {
@@ -414,7 +524,16 @@ public class ThirdLoginController {
 			if (loginUser == null) {
 				return "登录失败";
 			}
-        } else {
+        }
+        else if (CommonConstant.FEISHU.equalsIgnoreCase(source) || "feishu".equalsIgnoreCase(source)) {
+			log.info("【飞书】OAuth2登录进入callback：code={}, state={}", code, state);
+			String redirectUri = CommonUtils.getBaseUrl(request) + "/sys/thirdLogin/oauth2/feishu/callback?tenantId=" + tenantId;
+			loginUser = thirdAppFeishuService.oauth2Login(code, Integer.valueOf(tenantId), redirectUri);
+			if (loginUser == null) {
+				return "登录失败";
+			}
+		}
+        else {
             return "不支持的source";
         }
         try {

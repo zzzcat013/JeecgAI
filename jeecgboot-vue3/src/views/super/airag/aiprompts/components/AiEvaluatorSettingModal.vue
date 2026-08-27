@@ -412,13 +412,15 @@
       return;
     }
     try {
+      //update-begin---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——非编辑场景改用 /detail，避免依赖 airag:model:queryById 权限并减少 credential 暴露面-----------
       const res = await defHttp.get(
         {
-          url: '/airag/airagModel/queryById',
+          url: '/airag/airagModel/detail',
           params: { id: modelId },
         },
         { isTransformResponse: false }
       );
+      //update-end---author:scott ---date:20260506  for：【issues/9600】低权限用户可获取 LLM API Key——非编辑场景改用 /detail，避免依赖 airag:model:queryById 权限并减少 credential 暴露面-----------
       if (res.success && res.result) {
         const model = res.result;
         // 将模型信息添加到metadata中

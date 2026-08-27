@@ -53,3 +53,12 @@ export const saveOrUpdate = (params, isUpdate) => {
  * @param params
  */
 export const queryIndexByCode = (params) => defHttp.get({ url: Api.queryIndexByCode, params }, { isTransformResponse: false });
+/**
+ * 启用/禁用首页配置
+ * @param params
+ */
+export const changeStatus = (params, handleSuccess) => {
+  return defHttp.put({ url: Api.edit, data: params }, { successMessageMode: 'none' }).then(() => {
+    handleSuccess();
+  });
+};

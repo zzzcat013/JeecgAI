@@ -128,9 +128,11 @@ export function useSuperQuery(props){
       if (value.view === 'table') {
         filterComponent(value);
       }
-      if (['link_down'].includes(value.originView || value.view)) {
+      // update-begin--author:liaozhiyang---date:20260713---for：过滤掉他表字段(link_table_field)，不作为高级查询条件
+      if (['link_down', 'link_table_field'].includes(value.originView || value.view)) {
         delete properties[field];
       }
+      // update-end--author:liaozhiyang---date:20260713---for：过滤掉他表字段(link_table_field)，不作为高级查询条件
     });
   };
   // update-end--author:liaozhiyang---date:20240607---for：【TV360X-503】过滤图片，文件、密码组件
@@ -263,6 +265,11 @@ export function useSuperQuery(props){
     if (schema.component === 'LinkTableSelect') {
       let componentProps = schema.componentProps ?? {};
       schema.componentProps = { ...componentProps, editBtnShow: false };
+      // update-begin--author:scott---date:20260713---for：高级查询多选-关联记录在"在...中"/"等于"下语义是包含多个值，强制多选，不受字段单选配置限制
+      if (['in', 'eq'].includes(item.rule)) {
+        schema.componentProps.multi = true;
+      }
+      // update-end--author:scott---date:20260713---for：高级查询多选-关联记录在"在...中"/"等于"下语义是包含多个值，强制多选，不受字段单选配置限制
     }
     // update-end--author:liaozhiyang---date:20240607---for：【TV360X-389】普通查询关联记录去掉编辑按钮
     // update-begin--author:liaozhiyang---date:20231219---for：【QQYUN-7640】高级查询数字组件会偏移

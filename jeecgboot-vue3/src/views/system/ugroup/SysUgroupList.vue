@@ -9,6 +9,15 @@
         <j-upload-button type="primary" v-auth="'system:sys_ugroup:importExcel'" preIcon="ant-design:import-outlined" @click="onImportXls"
           >导入</j-upload-button
         >
+        <a-tooltip placement="right" :overlayInnerStyle="{ width: '520px' }">
+          <template #title>
+            <div>用户组应用于以下功能中：</div>
+            <div>1. 流程办理时指定下一步操作人，根据用户组选择人员。</div>
+            <div>2. 表单设计器人员组件选择人员时，根据用户组选择人员。</div>
+            <div>3. OA模块中协同工作新增发起事项选择人员时，根据用户组选择人员。</div>
+          </template>
+          <Icon icon="ant-design:question-circle-outlined" style="color: #8c8c8c; cursor: help" />
+        </a-tooltip>
 
         <a-dropdown v-if="selectedRowKeys.length > 0">
           <template #overlay>

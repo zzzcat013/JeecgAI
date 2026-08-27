@@ -164,24 +164,31 @@
         return { isShow, isIfShow };
       }
       // 代码逻辑说明: 【TV360X-434】validator校验执行两次
+      //update-begin---author:liaozhiyang ---date:20260518  for：[issues/9638]新增prevValueArr，值发生变化时强制重新执行validator，避免上传/输入后必填红色提示不消失-----------
       let vSwitchArr: any = [],
-        prevValidatorArr: any = [];
+        prevValidatorArr: any = [],
+        prevValueArr: any = [];
       const hijackValidator = (rules) => {
         vSwitchArr = [];
         prevValidatorArr = [];
+        prevValueArr = [];
         rules.forEach((item, index) => {
           const fn = item.validator;
           vSwitchArr.push(true);
           prevValidatorArr.push(null);
+          prevValueArr.push(undefined);
           if (isFunction(fn)) {
             item.validator = (rule, value, callback) => {
-              if (vSwitchArr[index]) {
+              // 100ms内不允许多次调用，除非值变了
+              const valueChanged = !Object.is(prevValueArr[index], value);
+              if (vSwitchArr[index] || valueChanged) {
                 vSwitchArr[index] = false;
                 setTimeout(() => {
                   vSwitchArr[index] = true;
                 }, 100);
                 const result = fn(rule, value, callback);
                 prevValidatorArr[index] = result;
+                prevValueArr[index] = value;
                 return result;
               } else {
                 return prevValidatorArr[index];
@@ -190,6 +197,7 @@
           }
         });
       };
+      //update-end---author:liaozhiyang ---date:20260518  for：[issues/9638]新增prevValueArr，值发生变化时强制重新执行validator，避免上传/输入后必填红色提示不消失-----------
       function handleRules(): ValidationRule[] {
         const { rules: defRules = [], component, rulesMessageJoinLabel, label, dynamicRules, required, auth, field } = props.schema;
         // 代码逻辑说明: 【TV360X-857】解决禁用状态下触发校验

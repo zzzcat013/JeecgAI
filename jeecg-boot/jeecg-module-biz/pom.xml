@@ -6,13 +6,13 @@
     <parent>
         <groupId>org.jeecgframework.boot3</groupId>
         <artifactId>jeecg-boot-parent</artifactId>
-        <version>3.9.3</version>
+        <version>3.9.5</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>org.jeecgframework.boot3</groupId>
     <artifactId>jeecg-module-biz</artifactId>
-    <version>3.9.3</version>
+    <version>3.9.5</version>
 
 
     <dependencies>

@@ -62,17 +62,21 @@ public class SpringContextUtils implements ApplicationContextAware {
 		//1.微服务情况下，获取gateway的basePath
 		String basePath = request.getHeader(ServiceNameConstants.X_GATEWAY_BASE_PATH);
 		if(oConvertUtils.isNotEmpty(basePath)){
-			return basePath;
-		}else{
-			String domain = url.delete(url.length() - request.getRequestURI().length(), url.length()).toString();
-			//2.【兼容】SSL认证之后，request.getScheme()获取不到https的问题
-			// https://blog.csdn.net/weixin_34376986/article/details/89767950
-			String scheme = request.getHeader(CommonConstant.X_FORWARDED_SCHEME);
-			if(scheme!=null && !request.getScheme().equals(scheme)){
-				domain = domain.replace(request.getScheme(),scheme);
+        //update-begin---author:wangshuai ---date:20260616  for：【issues/9695】校验X_GATEWAY_BASE_PATH防止SSRF header注入-----------
+			String validated = CommonUtils.validateGatewayBasePathForDomain(basePath);
+			if(validated != null){
+				return validated;
 			}
-			return domain;
+        //update-end---author:wangshuai ---date:20260616  for：【issues/9695】校验X_GATEWAY_BASE_PATH防止SSRF header注入-----------
 		}
+		String domain = url.delete(url.length() - request.getRequestURI().length(), url.length()).toString();
+		//2.【兼容】SSL认证之后，request.getScheme()获取不到https的问题
+		// https://blog.csdn.net/weixin_34376986/article/details/89767950
+		String scheme = request.getHeader(CommonConstant.X_FORWARDED_SCHEME);
+		if(scheme!=null && !request.getScheme().equals(scheme)){
+			domain = domain.replace(request.getScheme(),scheme);
+		}
+		return domain;
 	}
 
 	public static String getOrigin(){

@@ -54,6 +54,20 @@
         AND sp.tenant_id = #{tenantId}
     </select>
     
+    <!--批量查询多个用户的职位IDs（含用户ID映射，消除N+1），since 2026-07-01-->
+    <select id="getPositionIdsByUserIds" resultType="org.jeecg.modules.system.vo.SysUserPositionVo">
+        SELECT sp.id, sup.user_id FROM sys_user_position sup
+        LEFT JOIN sys_position sp ON sup.position_id = sp.id
+        WHERE sup.user_id IN
+        <foreach collection="userIds" index="index" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+        <if test="tenantId != null and tenantId != 0">
+            AND sp.tenant_id = #{tenantId}
+        </if>
+        ORDER BY sup.create_time DESC
+    </select>
+
     <!--根据职位名称和租户id，删除用户职位关系表-->
     <delete id="deleteUserPosByNameAndTenantId">
         DELETE FROM sys_user_position

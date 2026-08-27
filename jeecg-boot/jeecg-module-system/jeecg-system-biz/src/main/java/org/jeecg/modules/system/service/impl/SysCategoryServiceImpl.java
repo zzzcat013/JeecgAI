@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.jeecg.common.constant.FillRuleConstant;
 import org.jeecg.common.constant.SymbolConstant;
+import org.jeecg.common.exception.JeecgBootBizTipException;
 import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.util.FillRuleUtil;
 import org.jeecg.common.util.oConvertUtils;
@@ -30,7 +31,7 @@ import java.util.stream.Collectors;
 public class SysCategoryServiceImpl extends ServiceImpl<SysCategoryMapper, SysCategory> implements ISysCategoryService {
 
 	@Override
-	public void addSysCategory(SysCategory sysCategory) {
+	public JSONObject addSysCategory(SysCategory sysCategory) {
 		String categoryCode = "";
 		String categoryPid = ISysCategoryService.ROOT_PID_VALUE;
 		String parentCode = null;
@@ -40,7 +41,9 @@ public class SysCategoryServiceImpl extends ServiceImpl<SysCategoryMapper, SysCa
 			//PID 不是根节点 说明需要设置父节点 hasChild 为1
 			if(!ISysCategoryService.ROOT_PID_VALUE.equals(categoryPid)){
 				SysCategory parent = baseMapper.selectById(categoryPid);
-				parentCode = parent.getCode();
+				if(parent!=null){
+					parentCode = parent.getCode();
+				}
 				if(parent!=null && !ISysCategoryService.HAS_CHILD.equals(parent.getHasChild())){
 					parent.setHasChild(ISysCategoryService.HAS_CHILD);
 					baseMapper.updateById(parent);
@@ -53,7 +56,16 @@ public class SysCategoryServiceImpl extends ServiceImpl<SysCategoryMapper, SysCa
 		categoryCode = (String) FillRuleUtil.executeRule(FillRuleConstant.CATEGORY,formData);
 		sysCategory.setCode(categoryCode);
 		sysCategory.setPid(categoryPid);
-		baseMapper.insert(sysCategory);
+		int res = baseMapper.insert(sysCategory);
+		if (res > 0) {
+			JSONObject json = new JSONObject();
+			json.put("id", sysCategory.getId());
+			json.put("code", categoryCode);
+			json.put("parentCode", parentCode);
+			return json;
+		} else {
+			throw new JeecgBootBizTipException("添加失败");
+		}
 	}
 	
 	@Override
@@ -122,6 +134,64 @@ public class SysCategoryServiceImpl extends ServiceImpl<SysCategoryMapper, SysCa
 					.in(SysCategory::getId,Arrays.asList(pids.split(",")))
 					.set(SysCategory::getHasChild,"0");
 			this.update(updateWrapper);
+		}
+	}
+
+	@Override
+	public List<SysCategory> filterSelectionWithChildren(List<SysCategory> categoryList, Collection<String> selectedIds) {
+		if (categoryList == null || categoryList.isEmpty() || selectedIds == null || selectedIds.isEmpty()) {
+			return Collections.emptyList();
+		}
+		Map<String, List<String>> childIdsByPid = new HashMap<>();
+		for (SysCategory category : categoryList) {
+			childIdsByPid.computeIfAbsent(category.getPid(), key -> new ArrayList<>()).add(category.getId());
+		}
+		Set<String> exportIds = new HashSet<>(selectedIds);
+		Deque<String> pendingIds = new ArrayDeque<>(selectedIds);
+		while (!pendingIds.isEmpty()) {
+			for (String childId : childIdsByPid.getOrDefault(pendingIds.removeFirst(), Collections.emptyList())) {
+				if (exportIds.add(childId)) {
+					pendingIds.addLast(childId);
+				}
+			}
+		}
+		List<SysCategory> exportList = categoryList.stream().filter(category -> exportIds.contains(category.getId())).collect(Collectors.toList());
+		return this.sortByHierarchy(exportList);
+	}
+
+	@Override
+	public List<SysCategory> sortByHierarchy(List<SysCategory> categoryList) {
+		if (categoryList == null || categoryList.isEmpty()) {
+			return Collections.emptyList();
+		}
+		Set<String> categoryIds = categoryList.stream().map(SysCategory::getId).collect(Collectors.toSet());
+		Map<String, List<SysCategory>> childrenByPid = new HashMap<>();
+		for (SysCategory category : categoryList) {
+			childrenByPid.computeIfAbsent(category.getPid(), key -> new ArrayList<>()).add(category);
+		}
+		List<SysCategory> result = new ArrayList<>(categoryList.size());
+		Set<String> visitedIds = new HashSet<>();
+		for (SysCategory category : categoryList) {
+			if (!categoryIds.contains(category.getPid())) {
+				this.appendWithChildren(category, childrenByPid, visitedIds, result);
+			}
+		}
+		for (SysCategory category : categoryList) {
+			this.appendWithChildren(category, childrenByPid, visitedIds, result);
+		}
+		return result;
+	}
+
+	/**
+	 * 递归追加当前分类及其子节点
+	 */
+	private void appendWithChildren(SysCategory category, Map<String, List<SysCategory>> childrenByPid, Set<String> visitedIds, List<SysCategory> result) {
+		if (!visitedIds.add(category.getId())) {
+			return;
+		}
+		result.add(category);
+		for (SysCategory child : childrenByPid.getOrDefault(category.getId(), Collections.emptyList())) {
+			this.appendWithChildren(child, childrenByPid, visitedIds, result);
 		}
 	}
 

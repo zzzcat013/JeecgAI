@@ -27,6 +27,10 @@ public class AiAppConsts {
      */
     public static final String DEFAULT_APP_ID = "default";
 
+	/**
+	 * 未保存应用的调试应用id
+	 */
+	public static final String DEBUG_APP_ID = "__DEBUG_APP";
 
     /**
      * 应用类型:简单聊天

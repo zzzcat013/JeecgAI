@@ -76,14 +76,14 @@
         },
       });
       // 注册table数据
-      const [registerTable, { reload }, { rowSelection, selectedRowKeys }] = tableContext;
+      const [registerTable, { reload, getDataSource }, { rowSelection, selectedRowKeys }] = tableContext;
       // 注册弹窗
       const [registerModal, { closeModal }] = useModalInner(async (data) => {
         code.value = data.row.id;
         reload();
       });
       // useOnlineAiTest
-      const { aiTestMode, genEnhanceJavaData } = useOnlineTest({}, { reload }, null);
+      const { aiTestMode, genEnhanceJavaData } = useOnlineTest({}, { reload, getDataSource }, null);
       // 注册 form 弹窗
       const [registerFormModal, formModal] = useModal();
       const isUpdate = ref(false);
@@ -131,7 +131,15 @@
       }
 
       function onGenEnhanceJavaData() {
-        genEnhanceJavaData(code.value);
+        // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-250】生成测试数据需要过滤掉页面中已添加按钮的java增强
+        const existingButtonCodes = (getDataSource?.() || []).map((item) => item.buttonCode).filter(Boolean);
+        // 把 btnList 转为 {buttonCode: buttonName} map，提示时用中文名更友好
+        const buttonNameMap = (btnList.value || []).reduce((acc, item) => {
+          if (item.buttonCode) acc[item.buttonCode] = item.buttonName || item.buttonCode;
+          return acc;
+        }, {});
+        genEnhanceJavaData(code.value, existingButtonCodes, buttonNameMap);
+        // update-end--author:liaozhiyang---date:20260714---for：【LHZP-250】生成测试数据需要过滤掉页面中已添加按钮的java增强
       }
 
       // 批量删除事件

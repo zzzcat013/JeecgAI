@@ -17,7 +17,7 @@
   import { OAUTH2_THIRD_LOGIN_TENANT_ID } from "/@/enums/cacheEnum";
 
   const isOAuth = ref<boolean>(isOAuth2AppEnv());
-  const env = ref<any>({ thirdApp: false, wxWork: false, dingtalk: false });
+  const env = ref<any>({ thirdApp: false, wxWork: false, dingtalk: false, feishu: false });
   const { currentRoute } = useRouter();
   const route = currentRoute.value;
   if (!isOAuth2AppEnv()) {
@@ -42,6 +42,11 @@
       env.value.thirdApp = true;
       env.value.dingtalk = true;
     }
+    // 判断当前是否是飞书环境
+    if (/lark|feishu/i.test(navigator.userAgent)) {
+      env.value.thirdApp = true;
+      env.value.feishu = true;
+    }
     doOAuth2Login();
   }
 
@@ -60,6 +65,8 @@
       } else if (env.value.dingtalk) {
         //新版钉钉登录
         dingdingLogin();
+      } else if (env.value.feishu) {
+        sysOAuth2Login('feishu');
       }
     }
   }

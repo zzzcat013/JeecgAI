@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 【Online】online表单对外接口
+ * 表单设计器【Online】翻译API接口
  *
  * @author sunjianlei
  */

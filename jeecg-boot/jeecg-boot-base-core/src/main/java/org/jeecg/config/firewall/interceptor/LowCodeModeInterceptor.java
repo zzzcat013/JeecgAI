@@ -55,7 +55,7 @@ public class LowCodeModeInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         CommonAPI commonAPI = null;
-        log.info("低代码模式，拦截请求路径：" + request.getRequestURI());
+        log.debug("低代码模式，拦截请求路径：" + request.getRequestURI());
         
         //1、验证是否开启低代码开发模式控制
         if (jeecgBaseConfig == null) {

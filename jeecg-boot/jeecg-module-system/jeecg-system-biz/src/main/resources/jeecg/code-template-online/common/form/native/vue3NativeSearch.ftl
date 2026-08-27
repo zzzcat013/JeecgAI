@@ -1,6 +1,8 @@
 <#include "/common/utils.ftl">
 <#-- update-begin---author:chenrui ---date:20240108  for：[issues/5755]vue代码不加入逻辑删除字段---------- -->
-<#if po.isQuery=='Y' && po.fieldName !='delFlag'>
+<#-- update-begin---author:gj_liusqian ---date:20260806  for：[SQLServer大字段] 排除 Text/LongText/Blob 作为查询条件---------- -->
+<#if po.isQuery=='Y' && po.fieldName !='delFlag' && po.fieldDbType !='Text' && po.fieldDbType !='LongText' && po.fieldDbType !='Blob'>
+<#-- update-end---author:gj_liusqian ---date:20260806  for：[SQLServer大字段] 排除 Text/LongText/Blob 作为查询条件---------- -->
 <#-- update-end---author:chenrui ---date:20240108  for：[issues/5755]vue代码不加入逻辑删除字段---------- -->
 <#assign query_flag=true>
 	<#if query_field_no==2>
@@ -64,7 +66,7 @@
                 <#if query_field_no gt 1>  </#if>v-model:value="queryParam.${po.fieldName}"
                 <#if query_field_no gt 1>  </#if>dictCode="${po.dictTable},${po.dictText},${po.dictField}"
                 <#if query_field_no gt 1>  </#if>:multi="${po.extendParams.popupMulti?c}"
-                <#if query_field_no gt 1>  </#if><#if po.readonly=='Y'>disabled</#if> />
+                <#if query_field_no gt 1>  </#if>allow-clear />
             <#elseif po.classType=='list' || po.classType=='radio' || po.classType=='checkbox'>
              <#--  ---------------------------下拉或是单选 判断数据字典是表字典还是普通字典------------------------------- -->
              <#if po.dictTable?default("")?trim?length gt 1>

@@ -933,7 +933,7 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
         String content = message.getContent();
         String agentId = config.getAgentId();
         Message<MarkdownMessage> mdMessage = new Message<>(agentId, new MarkdownMessage(title, content));
-        if (message.getToAll()) {
+        if (Boolean.TRUE.equals(message.getToAll())) {
             mdMessage.setTo_all_user(true);
         } else {
             String[] toUsers = message.getToUser().split(",");
@@ -959,7 +959,7 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
         String content = message.getContent();
         String agentId = config.getAgentId();
         Message<TextMessage> textMessage = new Message<>(agentId, new TextMessage(content));
-        if (message.getToAll()) {
+        if (Boolean.TRUE.equals(message.getToAll())) {
             textMessage.setTo_all_user(true);
         } else {
             String[] toUsers = message.getToUser().split(",");
@@ -1041,7 +1041,8 @@ public class ThirdAppDingtalkServiceImpl implements IThirdAppService {
         try {
             baseUrl = RestUtil.getBaseUrl();
         } catch (Exception e) {
-            log.warn(e.getMessage());
+            //非Web请求上下文（如定时任务线程）无法从request获取baseUrl，降级使用 jeecg.domainUrl.pc 配置
+            log.debug("当前线程无请求上下文，获取baseUrl失败，降级使用 jeecg.domainUrl.pc 配置: {}", e.getMessage());
             baseUrl =  jeecgBaseConfig.getDomainUrl().getPc();
             //e.printStackTrace();
         }

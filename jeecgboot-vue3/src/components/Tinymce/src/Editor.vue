@@ -18,7 +18,9 @@
 
 <script lang="ts">
   import type { RawEditorOptions } from 'tinymce';
-  import tinymce from 'tinymce/tinymce';
+  // update-begin--author:copilot---date:20260711---for:【依赖升级排查】修复 Rolldown 严格 CJS 互操作导致 tinymce 全局未挂载
+  import tinymce from '/@/utils/tinymceGlobalShim';
+  // update-end--author:copilot---date:20260711---for:【依赖升级排查】修复 Rolldown 严格 CJS 互操作导致 tinymce 全局未挂载
   import Editor from '@tinymce/tinymce-vue'
   import 'tinymce/themes/silver';
   import 'tinymce/icons/default/icons';
@@ -31,6 +33,7 @@
   import 'tinymce/plugins/lists';
   import 'tinymce/plugins/preview';
   import 'tinymce/plugins/image';
+  import 'tinymce/plugins/media';
   import { defineComponent, computed, nextTick, ref, unref, watch, onDeactivated, onBeforeUnmount, onMounted } from 'vue';
   import ImgUpload from './ImgUpload.vue';
   import ProcessMask from './ProcessMask.vue';
@@ -205,6 +208,38 @@
             };
             uploadFile(params, uploadSuccess);
         }),
+          // update-begin--author:liaozhiyang---date:20260617---for:【JHHB-1433】新闻内容需要支持插入视频，现在的插件没有插入视频操作
+          media_live_embeds: true,
+          media_alt_source: false,
+          media_poster: false,
+          media_dimensions: true,
+          file_picker_types: 'media',
+          file_picker_callback: (callback, value, meta) => {
+            if (meta.filetype !== 'media') return;
+            const input = document.createElement('input');
+            input.setAttribute('type', 'file');
+            input.setAttribute('accept', 'video/*');
+            input.onchange = () => {
+              const file = (input.files && input.files[0]) as File | undefined;
+              if (!file) return;
+              const params = {
+                file,
+                filename: file.name,
+                data: { biz: 'jeditor', jeditor: '1' },
+              };
+              const uploadSuccess = (res: any) => {
+                if (res && res.success) {
+                  const videoUrl = res.message === 'local'
+                    ? URL.createObjectURL(file)
+                    : getFileAccessHttpUrl(res.message);
+                  callback(videoUrl, { title: file.name });
+                }
+              };
+              uploadFile(params, uploadSuccess);
+            };
+            input.click();
+          },
+          // update-end--author:liaozhiyang---date:20260617---for:【JHHB-1433】新闻内容需要支持插入视频，现在的插件没有插入视频操作
           content_css: publicPath + 'resource/tinymce/skins/ui/' + skinName.value + '/content.min.css',
           ...options,
           setup: (editor: any) => {

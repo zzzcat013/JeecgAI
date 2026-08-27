@@ -38,7 +38,7 @@
         <a-card class="model-card" @click="handleEditClick(item)">
           <div class="model-header">
             <div class="flex">
-              <img :src="getImage(item.provider)" :class="['header-img', item.provider === 'VLLM' ? 'header-img-lg' : '']" />
+              <img :src="getImage(item.provider)" class="header-img" />
               <div class="header-text">{{ item.name }}</div>
             </div>
           </div>
@@ -75,6 +75,9 @@
                     <Icon icon="ant-design:setting-outlined" size="16"></Icon>
                     <span class="ml-4">模型参数配置</span>
                   </a-menu-item>-->
+                  <a-menu-item key="copy" @click.prevent.stop="handleCopyClick(item)">
+                    <Icon icon="ant-design:copy-outlined" size="16"></Icon> 复制
+                  </a-menu-item>
                   <a-menu-item v-if="item.activateFlag" key="deactivate" @click.prevent.stop="handleDeactivateClick(item)">
                     <Icon icon="ant-design:stop-outlined" size="16"></Icon> 取消激活
                   </a-menu-item>
@@ -111,7 +114,7 @@
   import { reactive, ref } from 'vue';
   import AiModelModal from './components/AiModelModal.vue';
   import { useModal } from '@/components/Modal';
-  import { deleteModel, list, editModel } from './model.api';
+  import { copyModel, deleteModel, list, editModel } from './model.api';
   import { imageList } from './model.data';
   import { Pagination } from 'ant-design-vue';
   import JInput from '@/components/Form/src/jeecg/components/JInput.vue';
@@ -136,7 +139,7 @@
       //当前页数
       const pageNo = ref<number>(1);
       //每页条数
-      const pageSize = ref<number>(10);
+      const pageSize = ref<number>(30);
       //总条数
       const total = ref<number>(0);
       //可选择的页数
@@ -232,6 +235,18 @@
       }
 
       /**
+       * 复制模型
+       * @param item
+       * @author scott
+       * @since 2026-08-06 LHZP-1552 AI模型配置增加复制功能
+       */
+      async function handleCopyClick(item) {
+        await copyModel(item.id);
+        pageNo.value = 1;
+        reload();
+      }
+
+      /**
        * 取消激活模型
        * @param item
        */
@@ -278,6 +293,7 @@
         handlePageChange,
         getImage,
         handleDeleteClick,
+        handleCopyClick,
         handleDeactivateClick,
         searchQuery,
         searchReset,
@@ -296,11 +312,21 @@
     height: calc(100vh - 115px);
     background: #f7f8fc;
     padding: 24px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .jeecg-basic-table-form-container {
+      flex-shrink: 0;
+    }
+
     .model-row {
-      max-height: calc(100% - 100px);
+      flex: 1;
+      min-height: 0;
       margin-top: 20px;
       overflow-y: auto;
+      align-content: flex-start;
+      align-items: flex-start;
       .model-header {
         position: relative;
         font-size: 14px;
@@ -309,10 +335,6 @@
           height: 32px;
           margin-right: 12px;
           object-fit: contain;
-        }
-        .header-img-lg {
-          width: 48px;
-          height: 48px;
         }
         .header-text {
           font-size: 16px;
@@ -325,6 +347,12 @@
           white-space: nowrap;
         }
       }
+    }
+
+    .list-footer {
+      flex-shrink: 0;
+      margin-top: 12px;
+      padding-top: 4px;
     }
   }
 
@@ -405,7 +433,6 @@
   }
   .list-footer {
     text-align: right;
-    margin-top: 5px;
   }
   .jeecg-basic-table-form-container {
     padding: 0;

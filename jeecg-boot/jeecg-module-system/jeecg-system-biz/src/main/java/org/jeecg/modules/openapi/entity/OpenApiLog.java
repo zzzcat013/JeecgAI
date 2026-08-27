@@ -36,6 +36,41 @@ public class OpenApiLog implements Serializable {
     private String callAuthId;
 
     /**
+     * 调用者AK
+     */
+    private String callerAk;
+
+    /**
+     * 请求路径
+     */
+    private String requestPath;
+
+    /**
+     * 来源IP
+     */
+    private String ip;
+
+    /**
+     * HTTP 请求方式（GET/POST/PUT/DELETE 等）
+     */
+    private String requestMethod;
+
+    /**
+     * 请求参数摘要（Query String，最多500字符）
+     */
+    private String requestParams;
+
+    /**
+     * 响应状态码
+     */
+    private Integer responseCode;
+
+    /**
+     * 失败原因（认证/授权异常时的错误描述）
+     */
+    private String errorMsg;
+
+    /**
      * 调用时间
      */
     private Date callTime;
@@ -49,4 +84,11 @@ public class OpenApiLog implements Serializable {
      * 响应时间
      */
     private Date responseTime;
+
+    //update-begin---author:jeecg ---date:2026-05-27  for：【增加header日志记录】保存请求Header信息-----------
+    /**
+     * 请求头信息（JSON格式，最多2000字符）
+     */
+    private String requestHeaders;
+    //update-end---author:jeecg ---date:2026-05-27  for：【增加header日志记录】保存请求Header信息-----------
 }

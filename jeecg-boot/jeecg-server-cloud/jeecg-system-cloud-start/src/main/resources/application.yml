@@ -1,3 +1,6 @@
+logging:
+  level:
+    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
 server:
   port: 7001
   

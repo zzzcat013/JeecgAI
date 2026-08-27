@@ -39,6 +39,29 @@ public interface IAiragBaseApi {
     );
 
     /**
+     * 知识库写入文件文档（支持自定义分段策略）
+     *
+     * @param knowledgeId   知识库ID
+     * @param title         文档标题
+     * @param filePath      文件URL
+     * @param segmentConfig 【可选】分段策略配置JSON
+     * @return 新增的文档ID
+     */
+    @PostMapping("/airag/api/knowledgeWriteFileDocument")
+    String knowledgeWriteFileDocument(
+            @RequestParam("knowledgeId") String knowledgeId,
+            @RequestParam("title") String title,
+            @RequestParam("filePath") String filePath,
+            @RequestParam(value = "segmentConfig", required = false) String segmentConfig
+    );
+
+    /**
+     * 批量查询知识库文档向量化状态
+     */
+    @PostMapping("/airag/api/checkKnowledgeDocsVectorizeStatus")
+    String checkKnowledgeDocsVectorizeStatus(@RequestParam("documentIds") String documentIds);
+
+    /**
      * 读取会话变量
      */
     @PostMapping("/airag/api/getChatVariable")

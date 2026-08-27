@@ -115,11 +115,11 @@ public enum RangeDateEnum {
             return null;
         }
         // 开始时间00:00:00 结束时间23:59:59
-        calendar1.set(Calendar.HOUR, 0);
+        calendar1.set(Calendar.HOUR_OF_DAY, 0);
         calendar1.set(Calendar.MINUTE, 0);
         calendar1.set(Calendar.SECOND, 0);
         calendar1.set(Calendar.MILLISECOND, 0);
-        calendar2.set(Calendar.HOUR, 23);
+        calendar2.set(Calendar.HOUR_OF_DAY, 23);
         calendar2.set(Calendar.MINUTE, 59);
         calendar2.set(Calendar.SECOND, 59);
         calendar2.set(Calendar.MILLISECOND, 999);

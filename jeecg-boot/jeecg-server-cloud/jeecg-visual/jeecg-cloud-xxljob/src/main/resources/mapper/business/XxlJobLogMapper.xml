@@ -130,7 +130,7 @@
 			#{triggerTime},
 			#{triggerCode},
 			#{handleCode}
-		);
+		)
 		<!--<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">
 			SELECT LAST_INSERT_ID() 
 		</selectKey>-->
@@ -256,7 +256,7 @@
 			t.trigger_code = 200
 				AND t.handle_code = 0
 				AND t.trigger_time <![CDATA[ <= ]]> #{losedTime}
-				AND t2.id IS NULL;
+				AND t2.id IS NULL
 	</select>
 	<!--
 	SELECT t.id

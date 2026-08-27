@@ -1,8 +1,23 @@
 <template>
   <div class="auth-field-config">
-    <BasicTable @register="registerTable">
-      <template #switch="{ text, record }">
-        <a-switch size="small" :checked="record.status === 1" @change="(flag) => onUpdateStatus(flag, record)" />
+    <BasicTable @register="registerTable" :loading="tableLoading">
+      <template #headerCell="{ column }">
+        <template v-if="column.dataIndex === 'switch'">
+          <a-switch
+            size="small"
+            :checked="allSwitch"
+            :loading="allSwitchLoading"
+            :disabled="!buttonDataSource.length"
+            @change="handleChangeAllSwitch"
+          />
+          启用
+        </template>
+        <template v-else>
+          {{ column.customTitle }}
+        </template>
+      </template>
+      <template #switch="{ record }">
+        <a-switch size="small" :checked="record.status === 1" :disabled="allSwitchLoading" @change="(flag) => onUpdateStatus(flag, record)" />
       </template>
 
       <template #control> 可见 </template>
@@ -14,7 +29,7 @@
   import { defineComponent, ref, watch } from 'vue';
   import { cloneDeep } from 'lodash-es';
   import { BasicTable, useTable } from '/@/components/Table';
-  import { authButtonLoadData, authButtonEnable, authButtonDisable } from '../auth.api';
+  import { authButtonLoadData, authButtonEnable, authButtonDisable, batchAuthButtonUpdateStatus } from '../auth.api';
   import { authButtonColumns, authButtonFixedList } from '../auth.data';
 
   export default defineComponent({
@@ -37,6 +52,10 @@
       const pageType = ref(2);
       const pageControlList = ref(3);
       const pageControlForm = ref(5);
+      const allSwitch = ref(false);
+      const allSwitchLoading = ref(false);
+      const tableLoading = ref(false);
+      const buttonDataSource = ref<Recordable[]>([]);
       const [registerTable, { reload, getTableRef, setPagination }] = useTable({
         api: loadData,
         rowKey: 'code',
@@ -76,18 +95,20 @@
                 // 一对一
                 result = [];
               } else {
-                // 一对多
-                result = buttons.filter((item) => ['add', 'update', 'batch_delete'].includes(item.code));
+                // 一对多：add(新增)、popup_add(弹窗新增)、update(子表编辑)、batch_delete(批量删除)
+                result = buttons.filter((item) => ['add', 'popup_add', 'update', 'batch_delete'].includes(item.code));
               }
               break;
             case 'erp':
-              result = buttons.filter((item) => !['super_query'].includes(item.code));
+              // ERP 附表不展示高级查询、提交流程
+              result = buttons.filter((item) => !['super_query', 'bpm'].includes(item.code));
               break;
           }
           return result;
         } else {
-          // 主表\单表（全显示）
-          return buttons;
+          // 主表\单表：过滤掉子表专用的弹窗按钮权限code（popup_add弹窗新增、popup_update弹窗编辑、update弹窗编辑）
+          // update也是列表页编辑按钮的老code（useListButton.ts:187双重门控判断），单表/主表上启用会导致编辑按钮被隐藏
+          return buttons.filter((item) => !['popup_add', 'popup_update', 'update'].includes(item.code));
         }
       };
 
@@ -136,10 +157,11 @@
         }
         // update-end--author:liaozhiyang---date:20250403---for：【QQYUN-11801】生成测试数据
         // concat 查询的自定义按钮
-        return concatCustomButton(authList, buttonList, dataSource);
+        const resultData = concatCustomButton(authList, buttonList, dataSource);
+        buttonDataSource.value = resultData;
+        syncAllSwitchStatus();
+        return resultData;
       }
-
-      
 
       function concatCustomButton(authList: any[], buttonList: any[], dataSource: any[]) {
         for (let btn of buttonList) {
@@ -158,7 +180,35 @@
       }
 
       async function onUpdateStatus(flag, record) {
-        flag ? doEnableAuthButton(record) : doDisableAuthButton(record);
+        await (flag ? doEnableAuthButton(record) : doDisableAuthButton(record));
+        syncAllSwitchStatus();
+      }
+
+      function syncAllSwitchStatus() {
+        allSwitch.value = buttonDataSource.value.length > 0 && buttonDataSource.value.every((item) => item.status === 1);
+      }
+
+      async function handleChangeAllSwitch(checked) {
+        const changedButtons = buttonDataSource.value.filter((item) => (checked ? item.status !== 1 : item.status === 1));
+        if (!changedButtons.length) return;
+        allSwitchLoading.value = true;
+        tableLoading.value = true;
+        try {
+          await batchAuthButtonUpdateStatus(
+            changedButtons.map((item) => ({
+              id: item.id,
+              cgformId: cgformId.value,
+              code: item.code,
+              control: 5,
+              page: item.page,
+              status: checked ? 1 : 0,
+            }))
+          );
+        } finally {
+          await reload().catch(() => null);
+          allSwitchLoading.value = false;
+          tableLoading.value = false;
+        }
       }
 
       // 启用按钮权限
@@ -182,7 +232,7 @@
         record.status = 0;
       }
 
-      return { registerTable, onUpdateStatus };
+      return { registerTable, onUpdateStatus, allSwitch, allSwitchLoading, tableLoading, buttonDataSource, handleChangeAllSwitch };
     },
   });
 </script>

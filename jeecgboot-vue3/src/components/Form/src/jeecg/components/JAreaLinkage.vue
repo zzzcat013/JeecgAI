@@ -1,5 +1,12 @@
 <template>
-  <JCascader v-bind="attrs" :value="cascaderValue" :showLastLevelOnly="showLastLevelOnly" :options="getOptions" @change="handleChange" />
+  <JCascader
+    v-bind="attrs"
+    :disabled="disabled"
+    :value="cascaderValue"
+    :showLastLevelOnly="showLastLevelOnly"
+    :options="getOptions"
+    @change="handleChange"
+  />
 </template>
 <script lang="ts">
   import { defineComponent, ref, watchEffect, computed } from 'vue';
@@ -23,6 +30,9 @@
       displayLevel: propTypes.oneOf(['province', 'city', 'region', 'all']),
       //是否显示区县
       showArea: propTypes.bool.def(true),
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-707】修复省市区禁用状态下还可以点击x删除
+      disabled: propTypes.bool.def(false),
+      // update-end--author:liaozhiyang---date:20260804---for：【LHZP-707】修复省市区禁用状态下还可以点击x删除
       // 存储数据 （all时：传递到外面的是数组；province, city, region传递外面的是字符串）
       saveCode: propTypes.oneOf(['province', 'city', 'region', 'all']).def('all'),
     },

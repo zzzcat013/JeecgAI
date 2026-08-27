@@ -43,6 +43,29 @@ public class LLMConsts {
      */
     public static final String MODEL_TYPE_IMAGE = "IMAGE";
 
+	/**
+	 * OpenAI兼容协议供应商
+	 */
+	public static final String MODEL_PROVIDER_OPENAI = "OPENAI";
+	public static final String MODEL_PROVIDER_KIMI = "KIMI";
+	public static final String MODEL_PROVIDER_MINIMAX = "MINIMAX";
+	public static final String MODEL_PROVIDER_VOLCENGINE = "VOLCENGINE";
+
+	/**
+	 * 将OpenAI兼容供应商转换为模型工厂支持的协议类型
+	 *
+	 * @param provider 供应商
+	 * @return 模型工厂协议类型
+	 */
+	public static String normalizeLlmProvider(String provider) {
+		if (MODEL_PROVIDER_KIMI.equalsIgnoreCase(provider)
+				|| MODEL_PROVIDER_MINIMAX.equalsIgnoreCase(provider)
+				|| MODEL_PROVIDER_VOLCENGINE.equalsIgnoreCase(provider)) {
+			return MODEL_PROVIDER_OPENAI;
+		}
+		return provider;
+	}
+
     /**
      * 向量模型：默认维度
      */
@@ -133,6 +156,76 @@ public class LLMConsts {
                 || name.contains("v4-pro");
     }
     //update-end---author:scott ---date:20260429  for：[issues/9585]DeepSeek大模型切换为新发布deepseek-v4-flash，流程中调用出现异常------------
+
+    //update-begin---author:wangshuai ---date:2026-06-29  for：【issues/9727】不支持Tool Calling的模型（如deepseek-r1系列）发送工具调用时报错-----------
+    /**
+     * 判断指定模型是否不支持 Tool Calling（工具调用/函数调用）。
+     * 包括：
+     * - deepseek-r1 系列（Ollama 命名：deepseek-r1、deepseek-r1:14b、deepseek-r1:7b 等）
+     * - deepseek-reasoner（DeepSeek API 命名）
+     * - 其他已知不支持 tools 的推理模型，后续在此追加
+     *
+     * @param modelName 模型名（大小写不敏感、首尾空白容错，支持 Ollama 的 name:tag 格式）
+     * @return true=不支持工具调用；false=支持或未知
+     */
+    public static boolean isToolCallingUnsupported(String modelName) {
+        if (modelName == null || modelName.trim().isEmpty()) {
+            return false;
+        }
+        String name = modelName.trim().toLowerCase();
+        //去掉 :tag 部分（如 deepseek-r1:14b → deepseek-r1）
+        String baseName = name.contains(":") ? name.substring(0, name.indexOf(":")) : name;
+        return "deepseek-reasoner".equals(baseName)
+                || "deepseek-r1".equalsIgnoreCase(baseName)
+                || baseName.startsWith("deepseek-r1-");
+    }
+    //update-end---author:wangshuai ---date:2026-06-29  for：【issues/9727】不支持Tool Calling的模型（如Ollama的deepseek-r1系列）发送工具调用时报错-----------
+
+    //update-begin---author:claude ---date:2026-08-07  for：Kimi k3 等模型采样参数需固定(temperature=1/topP=0.95/presencePenalty=0/frequencyPenalty=0)，传其他值报 "invalid temperature: only 1 is allowed for this model"-----------
+    /**
+     * 采样参数需固定的模型集合。
+     * 这类模型（如 Kimi k3）请求中 temperature 不为 1 就直接 400 拒绝：
+     * {"error":{"message":"invalid temperature: only 1 is allowed for this model"}}
+     * 且官方推荐固定 temperature=1、topP=0.95、presencePenalty=0、frequencyPenalty=0。
+     * 后续新增同类模型时在此追加。
+     */
+    public static final Set<String> FIXED_SAMPLING_PARAM_MODELS = new HashSet<>(Arrays.asList(
+            "k3"
+    ));
+
+    /**
+     * 判断指定模型的采样参数是否需要固定（temperature=1/topP=0.95/presencePenalty=0/frequencyPenalty=0）。
+     * 匹配规则：大小写不敏感，先精确匹配，再兼容 "-" 后缀变体（如 k3-256、k3-256k），
+     * 同时兼容厂商前缀（如 moonshot/k3）和 Ollama 的 name:tag 格式
+     *
+     * @param modelName 模型名（大小写不敏感、首尾空白容错）
+     * @return true=采样参数需固定；false=无此限制或未知
+     */
+    public static boolean isFixedSamplingParamModel(String modelName) {
+        if (modelName == null || modelName.trim().isEmpty()) {
+            return false;
+        }
+        String name = modelName.trim().toLowerCase();
+        // 去掉厂商前缀（如 moonshot/k3 → k3）
+        if (name.contains("/")) {
+            name = name.substring(name.lastIndexOf("/") + 1);
+        }
+        // 去掉 :tag 部分（如 k3:latest → k3）
+        if (name.contains(":")) {
+            name = name.substring(0, name.indexOf(":"));
+        }
+        if (FIXED_SAMPLING_PARAM_MODELS.contains(name)) {
+            return true;
+        }
+        // 兼容带 "-" 后缀的变体（如 k3-256、k3-256k）
+        for (String fixedModel : FIXED_SAMPLING_PARAM_MODELS) {
+            if (name.startsWith(fixedModel + "-")) {
+                return true;
+            }
+        }
+        return false;
+    }
+    //update-end---author:claude ---date:2026-08-07  for：Kimi k3 等模型采样参数需固定(temperature=1/topP=0.95/presencePenalty=0/frequencyPenalty=0)，传其他值报 "invalid temperature: only 1 is allowed for this model"-----------
 
     /**
      * 知识库类型：知识库

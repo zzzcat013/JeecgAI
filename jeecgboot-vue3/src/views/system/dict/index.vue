@@ -136,17 +136,19 @@
   /**
    * 成功回调
    */
-  function handleSuccess({ isUpdate, values }) {
+  async function handleSuccess({ isUpdate, values }) {
     if (isUpdate) {
       updateTableDataRecord(values.id, values);
     } else {
       reload();
+      // 代码逻辑说明: 新增字典后同步刷新字典缓存，避免新增字典后页面引用不到
+      await handlerRefreshCache(false);
     }
   }
   /**
    * 刷新缓存
    */
-  async function handlerRefreshCache() {
+  async function handlerRefreshCache(showTip = true) {
     const result = await refreshCache();
     if (result.success) {
       const res = await queryAllDictItems();
@@ -154,9 +156,9 @@
       // 代码逻辑说明: 【QQYUN-6417】生产环境字典慢的问题
       const userStore = useUserStore();
       userStore.setAllDictItems(res.result);
-      createMessage.success('刷新缓存完成！');
+      showTip && createMessage.success('刷新缓存完成！');
     } else {
-      createMessage.error('刷新缓存失败！');
+      showTip && createMessage.error('刷新缓存失败！');
     }
   }
   /**

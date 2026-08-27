@@ -4,10 +4,29 @@
       <LoadingOutlined />
       <span>&nbsp;加载中…</span>
     </template>
-    <template v-for="option of selectOptions" :key="option.value">
-      <a-select-option :value="option.value" :title="option.text || option.label || option.title" :disabled="option.disabled">
-        <span>{{ option.text || option.label || option.title || option.value }}</span>
-      </a-select-option>
+    <!-- 分组模式：options 中含有 group 字段时，按分组渲染 -->
+    <template v-if="hasGroup">
+      <template v-for="(groupOptions, groupName) of groupedSelectOptions" :key="groupName">
+        <a-select-opt-group :label="groupName">
+          <a-select-option
+            v-for="option of groupOptions"
+            :key="option.value"
+            :value="option.value"
+            :title="option.text || option.label || option.title"
+            :disabled="option.disabled"
+          >
+            <span>{{ option.text || option.label || option.title || option.value }}</span>
+          </a-select-option>
+        </a-select-opt-group>
+      </template>
+    </template>
+    <!-- 非分组模式：原有扁平渲染 -->
+    <template v-else>
+      <template v-for="option of selectOptions" :key="option.value">
+        <a-select-option :value="option.value" :title="option.text || option.label || option.title" :disabled="option.disabled">
+          <span>{{ option.text || option.label || option.title || option.value }}</span>
+        </a-select-option>
+      </template>
     </template>
   </a-select>
 </template>
@@ -77,6 +96,24 @@
           }
         }
         return originColumn.value.options;
+      });
+
+      // 是否包含分组字段
+      const hasGroup = computed(() => {
+        const opts = selectOptions.value;
+        return opts && opts.length > 0 && opts.some((o) => o.group);
+      });
+
+      // 按 group 字段分组后的选项
+      const groupedSelectOptions = computed(() => {
+        const opts = selectOptions.value || [];
+        const groups: Record<string, any[]> = {};
+        for (const opt of opts) {
+          const g = opt.group || '';
+          if (!groups[g]) groups[g] = [];
+          groups[g].push(opt);
+        }
+        return groups;
       });
 
       // --------- created ---------
@@ -169,6 +206,8 @@
         innerValue,
         selectProps,
         selectOptions,
+        hasGroup,
+        groupedSelectOptions,
         handleChange,
         handleBlur,
       };

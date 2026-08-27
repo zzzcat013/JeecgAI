@@ -134,14 +134,23 @@
         size: 'small',
       };
       const getBindValue = Object.assign({}, unref(props), unref(attrs), config);
-      const [{ rowSelection, visibleChange, selectValues, indexColumnProps, getSelectResult, handleDeleteSelected, selectRows }] = useSelectBiz(
+      const [{ rowSelection, visibleChange, selectValues, indexColumnProps, getSelectResult, handleDeleteSelected, selectRows, checkedKeys }] = useSelectBiz(
         getUserList,
         getBindValue,
         emit
       );
-      const searchInfo = ref(props.params);
+      // 【修复】params 是 props 一次性快照场景改为 watch 跟随 props.params 同步，
+      // 避免父组件切换部门后 searchInfo 仍指向首次捕获的旧引用
+      const searchInfo = ref<Recordable>(props.params ?? {});
+      watch(
+        () => props.params,
+        (newParams) => {
+          searchInfo.value = newParams ?? {};
+        },
+        { deep: true, immediate: true }
+      );
       // 代码逻辑说明: 【issues/657】右侧选中列表删除无效
-      watch(rowSelection.selectedRowKeys, (newVal) => {
+      watch(checkedKeys, (newVal) => {
         // 代码逻辑说明: null指针异常导致控制台报错页面不显示------------
         if(tableRef.value){
           tableRef.value.setSelectedRowKeys(newVal);

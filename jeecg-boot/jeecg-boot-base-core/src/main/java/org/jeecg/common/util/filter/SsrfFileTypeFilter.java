@@ -11,10 +11,15 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * @Description: 校验文件敏感后缀
@@ -187,6 +192,10 @@ public class SsrfFileTypeFilter {
         if (!isAllowExtension) {
             throw new JeecgBootException("上传失败，存在非法文件类型：" + suffix);
         }
+        //3. SVG文件内容安全校验（issues/9693）
+        if ("svg".equalsIgnoreCase(suffix)) {
+            checkSvgSafety(file);
+        }
     }
 
     /**
@@ -210,9 +219,12 @@ public class SsrfFileTypeFilter {
             Iterator<String> keyIter = FILE_TYPE_MAP.keySet().iterator();
             while (keyIter.hasNext()) {
                 String key = keyIter.next();
-                // 验证前5个字符比较
-                if (key.toLowerCase().startsWith(fileTypeHex.toLowerCase().substring(0, 5))
-                        || fileTypeHex.toLowerCase().substring(0, 5).startsWith(key.toLowerCase())) {
+                //update-begin---author:lsq ---date:2026-05-26  for：修复SVG文件被误判为php的问题（<?xml与<?php前2.5字节相同，扩大比较长度到10位避免误判）-----------
+                // 验证前10个字符比较（5字节），避免<?xml与<?php因前5位hex相同而误判
+                int compareLen = Math.min(10, Math.min(key.length(), fileTypeHex.length()));
+                if (key.toLowerCase().startsWith(fileTypeHex.toLowerCase().substring(0, compareLen))
+                        || fileTypeHex.toLowerCase().substring(0, compareLen).startsWith(key.toLowerCase())) {
+                //update-end---author:lsq ---date:2026-05-26  for：修复SVG文件被误判为php的问题（<?xml与<?php前2.5字节相同，扩大比较长度到10位避免误判）-----------
                     fileExtendName = FILE_TYPE_MAP.get(key);
                     break;
                 }
@@ -367,5 +379,69 @@ public class SsrfFileTypeFilter {
             }
         }
     }
-    
+
+    /**
+     * SVG 危险标签黑名单（标签名统一小写比较）
+     */
+    private static final Set<String> SVG_DANGEROUS_TAGS = new HashSet<>(Arrays.asList(
+            "script", "foreignobject", "iframe", "object", "embed", "applet",
+            "form", "input", "textarea", "button", "select",
+            "link", "meta", "base", "import",
+            "handler", "set", "animate", "animatemotion", "animatetransform"
+    ));
+
+    /**
+     * SVG 危险属性正则：匹配事件属性（on*="..."）和 javascript: 协议
+     */
+    private static final Pattern SVG_EVENT_ATTR_PATTERN = Pattern.compile(
+            "\\bon\\w+\\s*=", Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern SVG_JS_PROTOCOL_PATTERN = Pattern.compile(
+            "javascript\\s*:", Pattern.CASE_INSENSITIVE
+    );
+    /**
+     * HTML entity 编码的 javascript 协议（&#106;avascript: 等变体）
+     */
+    private static final Pattern SVG_ENTITY_JS_PATTERN = Pattern.compile(
+            "&#\\d+;|&#x[0-9a-f]+;", Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 校验 SVG 文件内容是否安全，防止存储型 XSS（issues/9693）。
+     * 采用文本扫描方式检测危险标签、事件属性和 javascript: 协议。
+     *
+     * @param file 上传的 SVG 文件
+     */
+    private static void checkSvgSafety(MultipartFile file) throws Exception {
+        String originalContent;
+        try (InputStream is = file.getInputStream()) {
+            originalContent = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        String content = originalContent.toLowerCase();
+        // 检测危险标签
+        for (String tag : SVG_DANGEROUS_TAGS) {
+            if (content.contains("<" + tag + ">") || content.contains("<" + tag + " ")
+                    || content.contains("<" + tag + "/") || content.contains("<" + tag + "\t")
+                    || content.contains("<" + tag + "\n") || content.contains("<" + tag + "\r")) {
+                throw new JeecgBootException("上传失败，SVG文件包含不安全的标签：<" + tag + ">");
+            }
+        }
+        // 检测事件属性（onclick、onload、onerror、onbegin 等）
+        if (SVG_EVENT_ATTR_PATTERN.matcher(originalContent).find()) {
+            throw new JeecgBootException("上传失败，SVG文件包含不安全的事件属性");
+        }
+        // 检测 javascript: 协议
+        if (SVG_JS_PROTOCOL_PATTERN.matcher(originalContent).find()) {
+            throw new JeecgBootException("上传失败，SVG文件包含不安全的javascript协议");
+        }
+        // 检测 HTML entity 编码（防止 &#106;avascript: 等绕过）
+        if (SVG_ENTITY_JS_PATTERN.matcher(originalContent).find()) {
+            throw new JeecgBootException("上传失败，SVG文件包含不安全的编码内容");
+        }
+        // 检测 DOCTYPE/ENTITY 声明（防止 XML Bomb / Billion Laughs DoS 攻击）
+        if (content.contains("<!doctype") || content.contains("<!entity")) {
+            throw new JeecgBootException("上传失败，SVG文件包含不安全的DOCTYPE/ENTITY声明");
+        }
+    }
+
 }

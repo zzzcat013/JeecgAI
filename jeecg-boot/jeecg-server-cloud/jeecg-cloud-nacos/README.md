@@ -1,4 +1,4 @@
-访问地址: http://localhost:8848/nacos
+访问地址: http://localhost:18080
 账号密码：nacos/nacos
 
 

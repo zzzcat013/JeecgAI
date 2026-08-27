@@ -40,7 +40,7 @@ export const searchFormSchema: FormSchema[] = [
     field: 'jobClassName',
     label: '任务类名',
     component: 'Input',
-    colProps: { span: 8 },
+    colProps: { span: 6 },
   },
   {
     field: 'status',
@@ -50,7 +50,13 @@ export const searchFormSchema: FormSchema[] = [
       dictCode: 'quartz_status',
       stringToNumber: true,
     },
-    colProps: { span: 8 },
+    colProps: { span: 6 },
+  },
+   {
+    field: 'description',
+    label: '描述',
+    component: 'JInput',
+    colProps: { span: 6 },
   },
 ];
 

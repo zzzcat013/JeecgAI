@@ -11,6 +11,7 @@
   import 'vditor/dist/index.css';
   import { useRootSetting } from '/@/hooks/setting/useRootSetting';
   import { ThemeEnum } from '/@/enums/appEnum';
+  import { sanitizeRichText } from '/@/utils/htmlSanitizer';
   
   const converter = new showdown.Converter();
   converter.setOption('tables', true);
@@ -24,7 +25,7 @@
     return (markdown || '').replace(/#\s*{\s*domainURL\s*}/g, domainUrl);
   }
 
-  const getHtmlData = computed(() => converter.makeHtml(resolveDomainUrl(props.value || '')));
+  const getHtmlData = computed(() => sanitizeRichText(converter.makeHtml(resolveDomainUrl(props.value || ''))));
 
   // 代码逻辑说明: 【issues/918】MarkdownViewer加上暗黑主题
   const isDarkTheme = ref(false);

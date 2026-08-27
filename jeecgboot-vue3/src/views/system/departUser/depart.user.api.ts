@@ -7,6 +7,7 @@ const { createConfirm } = useMessage();
 enum Api {
   treeList = '/sys/sysDepart/queryMyDeptTreeList',
   queryIdTree = '/sys/sysDepart/queryIdTree',
+  queryByIds = '/sys/sysDepart/queryByIds',
   searchBy = '/sys/sysDepart/searchBy',
 }
 
@@ -41,6 +42,11 @@ export const queryMyDepartTreeList = (params?) => defHttp.get({ url: Api.treeLis
  * 查询数据，以树结构形式加载所有部门的名称
  */
 export const queryIdTree = (params?) => defHttp.get({ url: Api.queryIdTree, params });
+
+/**
+ * 根据部门ID查询完整部门信息
+ */
+export const queryDepartByIds = (params) => defHttp.get({ url: Api.queryByIds, params });
 
 /**
  * 根据关键字搜索部门

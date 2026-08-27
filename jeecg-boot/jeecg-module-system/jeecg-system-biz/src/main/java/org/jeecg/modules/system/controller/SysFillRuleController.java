@@ -16,13 +16,17 @@ import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.util.FillRuleUtil;
 import org.jeecg.modules.system.entity.SysFillRule;
 import org.jeecg.modules.system.service.ISysFillRuleService;
+import org.jeecgframework.poi.excel.entity.ImportParams;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.servlet.ModelAndView;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * @Description: 填值规则
@@ -167,7 +171,23 @@ public class SysFillRuleController extends JeecgController<SysFillRule, ISysFill
      */
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response) {
-        return super.importExcel(request, response, SysFillRule.class);
+        //update-begin---author:wangshuai ---date:20260803  for：【LHZP-1265】系统编码规则导入重复编码时提示具体Excel行号-----------
+        MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
+        Map<String, MultipartFile> fileMap = multipartRequest.getFileMap();
+        for (Map.Entry<String, MultipartFile> entry : fileMap.entrySet()) {
+            ImportParams params = new ImportParams();
+            params.setTitleRows(2);
+            params.setHeadRows(1);
+            params.setNeedSave(true);
+            try {
+                return sysFillRuleService.importExcelCheckRuleCode(entry.getValue(), params);
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+                return Result.error("文件导入失败：" + e.getMessage());
+            }
+        }
+        return Result.error("文件导入失败：未找到上传文件");
+        //update-end---author:wangshuai ---date:20260803  for：【LHZP-1265】系统编码规则导入重复编码时提示具体Excel行号-----------
     }
 
     /**

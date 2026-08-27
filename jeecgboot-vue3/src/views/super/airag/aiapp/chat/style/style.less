@@ -72,21 +72,26 @@
   &.markdown-body-generate > pre:last-child code:after,
   &.markdown-body-generate > td:last-child:after,
   &.markdown-body-generate > ul:last-child li:last-child:after {
-    animation: blink 1s steps(5, start) infinite;
+    animation: ai-chat-cursor-blink 1s step-end infinite;
     color: #000;
     content: '_';
     font-weight: 700;
     margin-left: 3px;
     vertical-align: baseline;
   }
-
-  @keyframes blink {
-    to {
-      visibility: hidden;
-    }
-  }
 }
 
+// update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1436】思考加载的动画独立命名避免和codeMirror冲突
+@keyframes ai-chat-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+// update-end--author:liaozhiyang---date:20260804---for：【LHZP-1436】思考加载的动画独立命名避免和codeMirror冲突
 html.dark {
   .markdown-body {
     &.markdown-body-generate > dd:last-child:after,

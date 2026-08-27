@@ -2,6 +2,7 @@ package org.jeecg.config.jimureport;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jeecg.common.system.util.JwtUtil;
+import org.jeecg.common.system.vo.ComboModel;
 import org.jeecg.common.system.vo.DictModel;
 import org.jeecg.common.system.vo.SysUserCacheInfo;
 import org.jeecg.common.util.RedisUtil;
@@ -9,6 +10,9 @@ import org.jeecg.common.util.TokenUtils;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.jmreport.api.JmReportTokenServiceI;
 import org.jeecg.modules.jmreport.common.vo.JmDictModel;
+import org.jeecg.modules.jmreport.common.vo.JmRoleModel;
+import org.jeecg.modules.jmreport.common.vo.JmUserModel;
+import org.jeecg.modules.jmreport.desreport.model.JmPage;
 import org.jeecg.modules.system.service.impl.SysBaseApiImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -79,8 +83,12 @@ public class JimuReportTokenService implements JmReportTokenServiceI {
         }
         //设置账号名
         map.put(SYS_USER_CODE, userInfo.getSysUserCode());
+        //设置用户名称（中文名）
+        map.put(sysUserName, userInfo.getSysUserName());
         //设置部门编码
         map.put(SYS_ORG_CODE, userInfo.getSysOrgCode());
+        //设置用户拥有的所有部门编码
+        map.put("sysMultiOrgCode", userInfo.getSysMultiOrgCode());
         // 将所有信息存放至map 解析sql/api会根据map的键值解析
         return map;
     }
@@ -126,5 +134,38 @@ public class JimuReportTokenService implements JmReportTokenServiceI {
             });
         }
         return dictItems;
+    }
+
+    @Override
+    public JmPage<JmRoleModel> getRoleList(String token, String keyword, Integer pageNo, Integer pageSize) {
+        List<ComboModel> allRoles = sysBaseApi.queryAllRole();
+        List<JmRoleModel> list = allRoles.stream()
+                .filter(r -> oConvertUtils.isEmpty(keyword) || (r.getTitle() != null && r.getTitle().contains(keyword)) || (r.getRoleCode() != null && r.getRoleCode().contains(keyword)))
+                .map(r -> new JmRoleModel(r.getRoleCode(), r.getTitle()))
+                .collect(java.util.stream.Collectors.toList());
+        return buildPage(list, pageNo, pageSize);
+    }
+
+    @Override
+    public JmPage<JmUserModel> getUserList(String token, String keyword, Integer pageNo, Integer pageSize) {
+        List<ComboModel> allUsers = sysBaseApi.queryAllUserBackCombo();
+        List<JmUserModel> list = allUsers.stream()
+                .filter(u -> oConvertUtils.isEmpty(keyword) || (u.getUsername() != null && u.getUsername().contains(keyword)) || (u.getTitle() != null && u.getTitle().contains(keyword)))
+                .map(u -> new JmUserModel(u.getUsername(), u.getTitle()))
+                .collect(java.util.stream.Collectors.toList());
+        return buildPage(list, pageNo, pageSize);
+    }
+
+    private <T> JmPage<T> buildPage(List<T> list, Integer pageNo, Integer pageSize) {
+        pageNo = (pageNo == null || pageNo < 1) ? 1 : pageNo;
+        pageSize = (pageSize == null || pageSize < 1) ? 10 : pageSize;
+        JmPage<T> page = new JmPage<>();
+        page.setPageNo(pageNo);
+        page.setPageSize(pageSize);
+        page.setTotal(list.size());
+        int fromIndex = (pageNo - 1) * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, list.size());
+        page.setRecords(fromIndex >= list.size() ? Collections.emptyList() : list.subList(fromIndex, toIndex));
+        return page;
     }
 }

@@ -1,5 +1,5 @@
 import { defHttp } from '/@/utils/http/axios';
-import { ref, watchEffect, computed, reactive } from 'vue'
+import { ref, watchEffect, computed, reactive, inject, type Ref } from 'vue'
 import { pick } from 'lodash-es';
 import { filterMultiDictText } from '/@/utils/dict/JDictSelectUtil';
 import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
@@ -14,7 +14,49 @@ function queryTableColumns(tableName, params){
   return defHttp.get({ url, params });
 }
 
+// update-begin--author:liusq---date:20260811---for：【online一对多】缓存关联表列配置供展示态复用关联记录转换逻辑
+const linkTableColumnCache = new Map<string, Promise<any>>();
+
+export function getLinkTableColumns(tableName: string, selectFields: string) {
+  const cacheKey = `${tableName}:${selectFields}`;
+  if (!linkTableColumnCache.has(cacheKey)) {
+    linkTableColumnCache.set(cacheKey, queryTableColumns(tableName, { linkTableSelectFields: selectFields }));
+  }
+  return linkTableColumnCache.get(cacheKey)!;
+}
+// update-end--author:liusq---date:20260811---for：【online一对多】缓存关联表列配置供展示态复用关联记录转换逻辑
+
+function queryAllTableData(params: {
+  tableName: string;
+  showFields: string;
+  valueField: string;
+  keyValues?: string;
+  pageNo?: number;
+  pageSize?: number;
+}) {
+  return defHttp.get({ url: '/sys/dict/queryTableDataForLinkRecord', params });
+}
+
+// update-begin--author:liusq---date:20260811---for：【online一对多】关联记录编辑态和展示态复用同一翻译逻辑
+export function transLinkTableRecord(data, columns, dictInfo) {
+  for (const column of columns || []) {
+    const { dataIndex, customRender } = column;
+    if ((data[dataIndex] || data[dataIndex] === 0) && customRender === dataIndex && dictInfo?.[customRender]) {
+      data[dataIndex] = filterMultiDictText(dictInfo[customRender], data[dataIndex]);
+      continue;
+    }
+    const dictText = data[dataIndex + '_dictText'];
+    if (dictText) {
+      data[dataIndex] = dictText;
+    }
+  }
+  return data;
+}
+// update-end--author:liusq---date:20260811---for：【online一对多】关联记录编辑态和展示态复用同一翻译逻辑
+
 export function useLinkTable(props) {
+  // 当前页面已授权的 Online 表单编码，后端据此校验它是否真的配置了目标关联表。
+  const sourceFormCode = inject<Ref<string | null>>('tableId');
   
   //TODO 目前只支持查询第一页的数据，可以输入关键字搜索
   const pageNo = ref('1');
@@ -51,6 +93,18 @@ export function useLinkTable(props) {
   watchEffect(async ()=>{
     let table = props.tableName;
     if(table){
+      // tableId 由 Online 页面挂载时写入；存在上下文时等待其就绪，避免先发出缺少源表单标识的请求。
+      if (sourceFormCode && !sourceFormCode.value) {
+        return;
+      }
+      if (props.queryMode === 'table') {
+        const textFields = (props.textField || '').split(',').filter(Boolean);
+        mainContentField.value = textFields[0] || '';
+        otherColumns.value = textFields.slice(1).map((f) => ({ title: f, dataIndex: f }));
+        tableColumns.value = textFields.map((f) => ({ title: f, dataIndex: f }));
+        dictOptions.value = {};
+        return;
+      }
       let valueField = props.valueField || '';
       let textField = props.textField || '';
       let arr:any[] = [];
@@ -69,7 +123,9 @@ export function useLinkTable(props) {
         arr.push(imageField)
       }
       baseParam.value = {
-        linkTableSelectFields: arr.join(',')
+        linkTableSelectFields: arr.join(','),
+        // 非 Online 页面没有 tableId，保持原请求不变，继续按目标表自身权限处理。
+        ...(sourceFormCode?.value ? { linkTableSourceCode: sourceFormCode.value } : {}),
       };
       await resetTableColumns()
       await reloadTableLinkOptions()
@@ -159,25 +215,7 @@ export function useLinkTable(props) {
    * @param data
    */
   function transData(data) {
-    let columns = tableColumns.value;
-    let dictInfo = dictOptions.value;
-    for (let c of columns) {
-      const { dataIndex, customRender } = c;
-      if (data[dataIndex] || data[dataIndex] === 0) {
-        if (customRender && customRender == dataIndex) {
-          //这样的就是 字典数据了 可以直接翻译
-          if (dictInfo[customRender]) {
-            data[dataIndex] = filterMultiDictText(dictInfo[customRender], data[dataIndex]);
-            continue;
-          }
-        }
-      }
-      // 兼容后台翻译字段
-      let dictText = data[dataIndex + '_dictText'];
-      if (dictText) {
-        data[dataIndex] = dictText
-      }
-    }
+    transLinkTableRecord(data, tableColumns.value, dictOptions.value);
   }
 
 
@@ -214,6 +252,33 @@ export function useLinkTable(props) {
     if(!value){
       return []
     }
+
+    if (props.queryMode === 'table') {
+      const textFields = (props.textField || '').split(',').filter(Boolean);
+      const imageField = props.imageField || '';
+      const fieldSet = new Set<string>(textFields);
+      if (imageField) fieldSet.add(imageField);
+      const showFields = Array.from(fieldSet).join(',');
+      if (!showFields) return [];
+      try {
+        const data = await queryAllTableData({
+          tableName: props.tableName,
+          showFields,
+          valueField: props.valueField,
+          keyValues: value,
+          pageNo: 1,
+          pageSize: 200,
+        });
+        const records: any[] = data?.records || [];
+        if (records.length > 0) return records;
+        const firstTextField = textFields[0] || props.valueField;
+        return (value + '').split(',').filter(Boolean).map((v) => ({ [props.valueField]: v, [firstTextField]: v }));
+      } catch (e) {
+        console.error('[useLinkTable] table loadOne 失败', e);
+        return [];
+      }
+    }
+
     let valueFieldName = props.valueField;
     let params = {
       ...baseParam.value,

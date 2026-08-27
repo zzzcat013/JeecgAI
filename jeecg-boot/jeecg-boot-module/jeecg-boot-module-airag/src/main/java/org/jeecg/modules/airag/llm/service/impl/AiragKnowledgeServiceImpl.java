@@ -136,6 +136,10 @@ public class AiragKnowledgeServiceImpl extends ServiceImpl<AiragKnowledgeMapper,
         knowIdParam.put(FlowPluginContent.LOCATION, FlowPluginContent.LOCATION_BODY);
         knowIdParam.put(FlowPluginContent.REQUIRED, true);
         knowIdParam.put(FlowPluginContent.DEFAULT_VALUE, knowId);
+        //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型无法将AI应用信息写入记忆库-----------
+        // 记忆库ID由服务端注入，避免模型因无法获知必填ID而放弃工具调用
+        knowIdParam.put("hidden", true);
+        //update-end---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型无法将AI应用信息写入记忆库-----------
         parameters.add(knowIdParam);
 
         // 内容参数
@@ -199,6 +203,10 @@ public class AiragKnowledgeServiceImpl extends ServiceImpl<AiragKnowledgeMapper,
         knowIdParam.put(FlowPluginContent.LOCATION, FlowPluginContent.LOCATION_BODY);
         knowIdParam.put(FlowPluginContent.REQUIRED, true);
         knowIdParam.put(FlowPluginContent.DEFAULT_VALUE, knowId);
+        //update-begin---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型无法将AI应用信息写入记忆库-----------
+        // 记忆库ID由服务端注入，避免模型因无法获知必填ID而放弃工具调用
+        knowIdParam.put("hidden", true);
+        //update-end---author:wangshuai ---date:20260804  for：【LHZP-1591】智普模型无法将AI应用信息写入记忆库-----------
         parameters.add(knowIdParam);
 
         // 查询内容参数

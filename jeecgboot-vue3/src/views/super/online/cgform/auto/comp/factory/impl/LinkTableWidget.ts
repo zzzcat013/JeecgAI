@@ -55,6 +55,9 @@ export default class LinkTableWidget extends IFormSchema {
       this.componentString = 'LinkTableSelect'
       let popContainer = this.getPopContainer();
       props['popContainer'] = popContainer
+      // update-begin--author:liaozhiyang---date:20260807---for:【LHZP-604】关联记录下拉方式挂载在body上避免空间不足
+      props['getPopupContainer'] = () => document.body;
+      // update-end--author:liaozhiyang---date:20260807---for:【LHZP-604】关联记录下拉方式挂载在body上避免空间不足
     }else{
       this.componentString = 'LinkTableCard'
     }

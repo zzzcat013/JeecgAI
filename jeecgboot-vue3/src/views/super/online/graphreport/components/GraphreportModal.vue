@@ -176,8 +176,8 @@
       async function onSQLAnalyze() {
         confirmLoading.value = true;
         try {
-          let { cgrSql } = await validate(['cgrSql']);
-          let result = await defHttp.get({ url: Api.sql, params: { sql: cgrSql } });
+          let { cgrSql, dbSource } = await validate(['cgrSql', 'dbSource']);
+          let result = await defHttp.get({ url: Api.sql, params: { sql: cgrSql, dbKey: dbSource || '' } });
           $message.success('解析成功');
           let newData = (result.fields || []).map((item) => {
             item.isShow = item.isShow === 1 ? 'Y' : 'N';

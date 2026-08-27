@@ -37,7 +37,7 @@
   import RoleDesc from './components/RoleDesc.vue';
   import RoleDrawer from './components/RoleDrawer.vue';
   import RoleUserTable from './components/RoleUserTable.vue';
-  import { columns, searchFormSchema } from './role.data';
+  import { columns, searchTenantRoleFormSchema } from './role.data';
   import { listByTenant, deleteRole, batchDeleteRole, getExportUrl, getImportUrl } from './role.api';
   import { useListPage } from '/@/hooks/system/useListPage';
   import { getLoginTenantName } from "/@/views/system/tenant/tenant.api";
@@ -57,7 +57,7 @@
       api: listByTenant,
       columns: columns,
       formConfig: {
-        schemas: searchFormSchema,
+        schemas: searchTenantRoleFormSchema,
       },
       actionColumn: {
         width: 120,

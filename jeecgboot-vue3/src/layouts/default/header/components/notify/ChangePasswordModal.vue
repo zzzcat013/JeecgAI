@@ -26,7 +26,7 @@
   import { BasicForm, useForm } from '/@/components/Form';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { useI18n } from '/@/hooks/web/useI18n';
-  import { rules } from '@/utils/helper/validator';
+  import { rules, createPasswordValidator } from '@/utils/helper/validator';
   import { defHttp } from '@/utils/http/axios';
   import { useUserStore } from '@/store/modules/user';
 
@@ -36,27 +36,8 @@
   const { createMessage } = useMessage();
   const confirmLoading = ref(false);
   const oldPassword = ref('');
+  const userStore = useUserStore();
 
-  // 判断密码是否为连续的数字或字母
-  function lxStr (password) {
-    let arr = password.split('');
-    let flag = true;
-    for (let i = 1; i < arr.length - 1; i++) {
-      let firstIndex = arr[i - 1].charCodeAt();
-      let secondIndex = arr[i].charCodeAt();
-      let thirdIndex = arr[i + 1].charCodeAt();
-      thirdIndex - secondIndex == 1;
-      secondIndex - firstIndex == 1;
-      if ((thirdIndex - secondIndex === 1) && (secondIndex - firstIndex === 1)) {
-        flag = false;
-      }
-    }
-    if (!flag) {
-      return flag
-    }
-    return flag
-  }
-  
   // 表单配置
   const [registerForm, { resetFields, setFieldsValue, validate }] = useForm({
     labelWidth: 100,
@@ -73,60 +54,11 @@
             required: true,
             message: t('layout.changePassword.pleaseEnterNewPassword'),
           },
+          //update-begin---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
           {
-            validator:(_, value)=>{
-              if(!value){
-                return Promise.resolve();
-              }
-              //不能使用系统密码作为新密码
-              if(value === oldPassword.value){
-                return Promise.reject('不能使用系统密码作为新密码!');
-              }
-              //密码由8位数字、大小写字母和特殊符号组成
-              let reg = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/;
-              if(!reg.test(value)){
-                return Promise.reject('密码由 8 位及以上数字、大小写字母和特殊符号组成！');
-              }
-              return Promise.resolve();
-            }
+            validator: createPasswordValidator(oldPassword.value),
           },
-          /* {
-             // 使用一个函数来自定义验证逻辑，客户使用这个
-             validator: (_, value) => {
-               // 如果密码为空，直接返回 resolve() 让 required 规则去处理
-               if (!value) {
-                 return Promise.resolve();
-               }
-               //不能使用系统密码作为新密码
-               if(value === oldPassword.value){
-                 return Promise.reject('不能使用系统密码作为新密码!');
-               }
-               // 1. 长度不低于8位
-               if (value.length < 8) {
-                 return Promise.reject('密码长度不能少于8位');
-               }
-               // 2. 必须包含数字、字母大小写、特殊字符
-               // 使用正则表达式进行匹配
-               const hasNumber = /[0-9]/.test(value);
-               const hasLowercase = /[a-z]/.test(value);
-               const hasUppercase = /[A-Z]/.test(value);
-               const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(value);
-               if (!(hasNumber && hasLowercase && hasUppercase && hasSpecialChar)) {
-                 return Promise.reject('密码必须包含数字、大小写字母和特殊字符');
-               }
-               if(!lxStr(value)){
-                 return Promise.reject('密码不能出现3位及3为以上的数字或字母');
-               }
-               //不能相同字符（如111、aaa）连续3位或3位以上
-               const reg2 = /(\w)*(\w)\2{2}(\w)*!/g
-               if (reg2.test(value)) {
-                 console.log('密码不能出现相同字符连续3位或3位以上')
-                 return false
-               }
-               // 如果所有规则都通过，返回 resolve()
-               return Promise.resolve();
-             }
-           }*/
+          //update-end---author:wangshuai ---date:2026-06-29  for：【QQYUN-16619】根据三级等保开关动态切换校验规则-----------
         ],
       },
       {
@@ -149,7 +81,6 @@
   });
 
   const getTitle = computed(() => '修改密码');
-  const userStore = useUserStore();
   const { createMessage: $message } = useMessage();
 
   

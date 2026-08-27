@@ -95,6 +95,8 @@ public class DbTypeUtils {
             return DataBaseConstant.DB_TYPE_DB2;
         }else if(DbType.HSQL.equals(dbType)){
             return DataBaseConstant.DB_TYPE_HSQL;
+        }else if(DbType.DM.equals(dbType)){
+            return DataBaseConstant.DB_TYPE_DM;
         }else if(dbTypeIsOracle(dbType)){
             return DataBaseConstant.DB_TYPE_ORACLE;
         }else if(dbTypeIsSqlServer(dbType)){

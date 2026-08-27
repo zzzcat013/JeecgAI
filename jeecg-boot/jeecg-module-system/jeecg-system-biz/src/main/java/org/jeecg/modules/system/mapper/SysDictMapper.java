@@ -43,6 +43,14 @@ public interface SysDictMapper extends BaseMapper<SysDict> {
 	@Deprecated
 	public Long duplicateCheckCountSqlNoDataId(DuplicateCheckVo duplicateCheckVo);
 
+	/**
+	 * 【QQYUN-15337 多数据源】按表名查 online 表单(onl_cgform_head)上配置的 db_source，
+	 * 仅返回 db_source 非空的记录；找不到 / 该表不是online表 / 未配数据源 时返回空列表。
+	 * 失败由调用方 try/catch（如果运行环境没装 online 模块、onl_cgform_head 不存在）。
+	 */
+	@Select("SELECT db_source FROM onl_cgform_head WHERE table_name = #{tableName} AND db_source IS NOT NULL AND db_source != ''")
+	public List<String> findOnlineFormDbSourceByTableName(@Param("tableName") String tableName);
+
     /**
      * 通过字典code获取字典数据
      * @param code 字典code
@@ -184,6 +192,28 @@ public interface SysDictMapper extends BaseMapper<SysDict> {
 	@Deprecated
 	List<DictModel> queryTableDictByKeysAndFilterSql(@Param("table") String table, @Param("text") String text, @Param("code") String code, @Param("filterSql") String filterSql,  
 													 @Param("codeValues") List<String> codeValues);
+
+	/**
+	 * 关联记录专用：多字段分页查询任意表数据
+	 * 由 SysDictService.queryTableData() 调用，调用前已做 SQL 注入校验
+	 *
+	 * @param page      分页参数
+	 * @param table     表名（已转义）
+	 * @param fields    SELECT 字段列表（已转义，逗号分隔）
+	 * @param filterSql WHERE 子句内容（不含 WHERE 关键字，已注入校验）
+	 */
+	IPage<Map<String, Object>> queryPageTableWithFields(Page<Map<String, Object>> page,
+		@Param("table") String table,
+		@Param("fields") String fields,
+		@Param("filterSql") String filterSql);
+
+	/**
+	 * 关联记录专用：统计满足条件的记录总数
+	 *
+	 * @param table     表名（已转义）
+	 * @param filterSql WHERE 子句内容（不含 WHERE 关键字，已注入校验）
+	 */
+	Long countTableWithFields(@Param("table") String table, @Param("filterSql") String filterSql);
 
 	/**
 	 * 根据应用id获取字典列表和详情

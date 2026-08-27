@@ -206,11 +206,11 @@
       createMessage.warn('请填写写作内容!');
       return;
     }
-    if (activeMode.value === 'reply' && !formData.prompt) {
+    if (activeMode.value === 'reply' && !formData.originalContent) {
       createMessage.warn('请填写原文!');
       return;
     }
-    if (activeMode.value === 'reply' && !formData.originalContent) {
+    if (activeMode.value === 'reply' && !formData.prompt) {
       createMessage.warn('请填写回复!');
       return;
     }

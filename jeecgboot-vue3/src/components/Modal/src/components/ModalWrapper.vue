@@ -38,6 +38,7 @@
       const spinRef = ref<ElRef>(null);
       const realHeightRef = ref(0);
       const minRealHeightRef = ref(0);
+      const availableHeightRef = ref(0);
 
       let realHeight = 0;
 
@@ -116,7 +117,7 @@
             return {
               minHeight: `${props.minHeight === null ? defaultMiniHeight : props.minHeight}px`,
               // 代码逻辑说明: 【QQYUN-7641】basicModal组件添加MaxHeight属性
-              maxHeight: `${props.maxHeight ? props.maxHeight : unref(realHeightRef)}px`,
+              maxHeight: `${props.maxHeight ? Math.min(props.maxHeight, unref(availableHeightRef) || props.maxHeight) : unref(realHeightRef)}px`,
             };
           }
         }
@@ -172,21 +173,24 @@
         await nextTick();
 
         try {
-          const modalDom = bodyDom.parentElement && bodyDom.parentElement.parentElement;
+          const modalDom = bodyDom.closest('.ant-modal');
           if (!modalDom) return;
+          //update-begin---author:scott ---date:20260814  for:修复弹窗内容高度自适应及底部操作按钮遮挡问题-----------
+          const spinEl = unref(spinRef);
+          if (!spinEl) return;
 
-          const modalRect = getComputedStyle(modalDom as Element).top;
-          const modalTop = Number.parseInt(modalRect);
-          let maxHeight = window.innerHeight - modalTop * 2 + (props.footerOffset! || 0) - props.modalFooterHeight - props.modalHeaderHeight;
+          // 使用 CSS 布局位置计算可用高度，避免打开动画导致位置读取不稳定
+          const modalTop = Number.parseFloat(getComputedStyle(modalDom).top) || 0;
+          const modalExtHeight = (modalDom as HTMLElement).offsetHeight - spinEl.clientHeight;
+          let maxHeight = window.innerHeight - modalTop + (props.footerOffset! || 0) - modalExtHeight;
+          //update-end---author:scott ---date:20260814  for:修复弹窗内容高度自适应及底部操作按钮遮挡问题-----------
 
           // 距离顶部过进会出现滚动条
           if (modalTop < 40) {
             maxHeight -= 26;
           }
+          availableHeightRef.value = maxHeight;
           await nextTick();
-          const spinEl = unref(spinRef);
-
-          if (!spinEl) return;
           await nextTick();
           // if (!realHeight) {
           realHeight = spinEl.scrollHeight;

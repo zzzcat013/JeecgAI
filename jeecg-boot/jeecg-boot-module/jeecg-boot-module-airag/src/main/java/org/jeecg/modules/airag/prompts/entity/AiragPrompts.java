@@ -41,10 +41,6 @@ public class AiragPrompts implements Serializable {
 	@Excel(name = "提示词名称", width = 15)
     @Schema(description = "提示词名称")
     private java.lang.String name;
-	/**提示词名称*/
-	@Excel(name = "提示key", width = 15)
-    @Schema(description = "提示key")
-    private java.lang.String promptKey;
 	/**提示词功能描述*/
 	@Excel(name = "提示词功能描述", width = 15)
     @Schema(description = "提示词功能描述")

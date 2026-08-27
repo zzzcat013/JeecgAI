@@ -61,6 +61,7 @@ public class AiragKnowledgeController {
      * @return
      */
     @GetMapping(value = "/list")
+    @RequiresPermissions("airag:knowledge:list")
     public Result<IPage<AiragKnowledge>> queryPageList(AiragKnowledge airagKnowledge,
                                                        @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo,
                                                        @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize,
@@ -193,6 +194,7 @@ public class AiragKnowledgeController {
      * @date 2025/2/18 18:37
      */
     @GetMapping(value = "/doc/list")
+    @RequiresPermissions("airag:knowledge:doc:list")
     public Result<IPage<AiragKnowledgeDoc>> queryDocumentPageList(AiragKnowledgeDoc airagKnowledgeDoc,
                                                                   @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo,
                                                                   @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize,

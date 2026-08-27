@@ -356,11 +356,28 @@ export function useCgformList(options: IOptions) {
       onOk() {
         if (!tableName.value) {
           $message.warning('请输入新表名');
-        } else if (tableName.value === record.tableName) {
-          $message.warning('新表名和旧表名不能一致');
-        } else {
-          doCopyTable(record.id, tableName.value).then(reload);
+        //update-begin---wangshuai---date:20260713  for：【LHZP-465】点击复制之后，列表需要手动刷新一下才能看到数据------------
+            return Promise.reject(); // 阻止 modal 关闭
         }
+        if (tableName.value === record.tableName) {
+          $message.warning('新表名和旧表名不能一致');
+          return Promise.reject(); // 阻止 modal 关闭
+        }
+        return new Promise((resolve, reject) => {
+          doCopyTable(record.id, tableName.value)
+            .then(() => {
+              $message.success('复制表成功');
+              // 强制跳到第 1 页再刷新：默认排序是 createTime desc，新复制的表落在第 1 页，
+              // 如果用户当前在第 N 页，普通 reload() 会沿用 current，导致新数据看不到。
+              reload({ page: 1 });
+              resolve(true);
+            })
+            .catch((err) => {
+              // 失败时把 promise reject，让 modal 不关闭、错误由 defHttp 的 errorMessageMode:'message' 自动提示
+              reject(err);
+            });
+        });
+      //update-end---author:wangshuai ---date:20260713  for：【LHZP-465】点击复制之后，列表需要手动刷新一下才能看到数据------------
       },
     });
   }

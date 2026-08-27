@@ -92,7 +92,7 @@
     </online-form>
 
     <template #comment>
-      <comment-panel ref="commentPanelRef" :tableName="tableName" :dataId="formDataId" />
+      <comment-panel ref="commentPanelRef" :tableId="tableId" :tableName="tableName" :dataId="formDataId" />
     </template>
   </BasicModal>
 </template>
@@ -163,6 +163,7 @@
         renderSuccess,
         formRendered,
         tableName,
+        tableId,
         formDataId,
         enableComment,
         onCloseEvent,
@@ -242,6 +243,7 @@
         pidFieldName,
         submitLoading,
         tableName,
+        tableId,
         formDataId,
         enableComment,
         commentPanelRef,

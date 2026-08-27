@@ -56,7 +56,7 @@
       name: '数据源列表',
       url: getExportUrl,
     },
-    importConifg: {
+    importConfig: {
       url: getImportUrl,
     },
   });
@@ -106,13 +106,17 @@
    * 删除事件
    */
   async function handleDelete(record) {
-    await deleteDataSource({ id: record.id }, reload);
+    await deleteDataSource({ id: record.id }, handleSuccess);
   }
 
   /**
    * 批量删除事件
    */
   async function batchHandleDelete() {
-    await batchDeleteDataSource({ ids: selectedRowKeys.value }, reload);
+    await batchDeleteDataSource({ ids: selectedRowKeys.value }, handleSuccess);
+  }
+  
+  function handleSuccess() {
+    (selectedRowKeys.value = []) && reload();
   }
 </script>

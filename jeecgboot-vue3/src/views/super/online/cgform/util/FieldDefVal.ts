@@ -86,48 +86,63 @@ export async function loadFormFieldsDefVal(properties, callback, formData?) {
  * liaozhiyang
  * 日期组件(date)中设置了年，年月，年周，年季度等格式的默认值需要转化成YYYY-MM-DD
  */
-function transformDefValDate(prop, value) {
+function transformDefValDate(prop, value, mode?) {
   const { type, field, view, fieldExtendJson } = prop;
   if (view == 'date' && fieldExtendJson) {
     const extendJson = JSON.parse(fieldExtendJson);
     const { picker } = extendJson;
     if (picker && picker != 'default' && value) {
-      let result;
-      try {
-        // 年 (2020)
-        if (picker === 'year') {
-          // update-begin--author:liaozhiyang---date:20240717---for：【TV360X-1790】年默认值设置YYYY-MM-DD格式，出现invaild Date
-          const data = value.split('-');
-          const y = data[0];
-          // update-end--author:liaozhiyang---date:20240717---for：【TV360X-1790】年默认值设置YYYY-MM-DD格式，出现invaild Date
-          result = dayjs().year(y).format('YYYY-MM-DD');
-        }
-        // 年 - 月 (2024-02)
-        if (picker === 'month') {
-          const data = value.split('-');
-          const y = data[0];
-          const m = +data[1] + 1;
-          result = dayjs().year(y).month(m).format('YYYY-MM-DD');
-        }
-        // 年 - 周 (2024-14周)
-        if (picker === 'week') {
-          const data = value.split('-');
-          const y = data[0];
-          const w = data[1].match(/^(\d+)周$/)[1];
-          result = dayjs().year(y).week(w).format('YYYY-MM-DD');
-        }
-        // 年 - 季度 (2024-Q4)
-        if (picker === 'quarter') {
-          const data = value.split('-');
-          const y = data[0];
-          const q = data[1].match(/^[Qq](\d)$/)[1];
-          result = dayjs().year(y).quarter(q).format('YYYY-MM-DD');
-        }
-      } catch (error) {
-        result = value;
+      // 范围查询默认值，形如 "2023,2024" / "2023-01,2023-12" / "2023-01-01,2023-12-31"
+      if (mode === 'group' && typeof value === 'string' && value.indexOf(',') !== -1) {
+        return value
+          .split(',')
+          .map((v) => transformPickerValue(picker, v))
+          .join(',');
       }
-      return result;
+      return transformPickerValue(picker, value);
     }
+    return value;
+  }
+  return value;
+}
+
+/**
+ * 把年 / 月 / 周 / 季度格式的字符串转换为 YYYY-MM-DD
+ * @param picker year | month | week | quarter
+ * @param value  例如 "2023" / "2023-07" / "2023-19周" / "2024-Q4"
+ */
+function transformPickerValue(picker, value) {
+  try {
+    if (picker === 'year') {
+      // 年 (2023)
+      const data = value.split('-');
+      const y = data[0];
+      return dayjs().year(y).format('YYYY-MM-DD');
+    }
+    if (picker === 'month') {
+      // 年 - 月 (2023-07)，dayjs.month 是 0 索引，7 月对应索引 6
+      const data = value.split('-');
+      const y = data[0];
+      const m = +data[1] - 1;
+      return dayjs().year(y).month(m).format('YYYY-MM-DD');
+    }
+    if (picker === 'week') {
+      // 年 - 周 (2023-19周)，兼容无"周"后缀
+      const data = value.split('-');
+      const y = data[0];
+      const matchResult = data[1].match(/^(\d+)周?$/);
+      const w = matchResult ? matchResult[1] : data[1];
+      return dayjs().year(y).week(w).format('YYYY-MM-DD');
+    }
+    if (picker === 'quarter') {
+      // 年 - 季度 (2024-Q4)
+      const data = value.split('-');
+      const y = data[0];
+      const matchResult = data[1].match(/^[Qq](\d)$/);
+      const q = matchResult ? matchResult[1] : data[1];
+      return dayjs().year(y).quarter(q).format('YYYY-MM-DD');
+    }
+  } catch (error) {
     return value;
   }
   return value;
@@ -153,6 +168,7 @@ export async function loadOneFieldDefVal(field, item, formValues) {
       }
       // update-end--author:liaozhiyang---date:20240618---for：online普通查询默认值范围查询不好使
     }
+    value = transformDefValDate(item, value, item.mode);
     formValues[field] = value;
   }
 }

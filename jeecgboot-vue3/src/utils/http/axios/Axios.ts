@@ -222,10 +222,11 @@ export class VAxios {
         .then((res: AxiosResponse<Result>) => {
           if (transformRequestHook && isFunction(transformRequestHook)) {
             try {
-              const ret = transformRequestHook(res, opt);
-              //zhangyafei---添加回调方法
+              //update-begin---author:scott ---date:20260728  for：【LHZP-860】业务失败时支持在响应转换前读取特殊标识-----------
+              // 先回调原始响应，确保业务失败抛出异常前调用方仍可读取响应中的特殊标识
               config.success && config.success(res.data);
-              //zhangyafei---添加回调方法
+              const ret = transformRequestHook(res, opt);
+              //update-end---author:scott ---date:20260728  for：【LHZP-860】业务失败时支持在响应转换前读取特殊标识-----------
               resolve(ret);
             } catch (err) {
               reject(err || new Error('request error!'));

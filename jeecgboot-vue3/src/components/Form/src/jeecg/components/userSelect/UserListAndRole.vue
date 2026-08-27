@@ -126,11 +126,15 @@
       }
 
       const maxHeight = ref(300);
-      maxHeight.value = window.innerHeight - 300;
+      //update-begin---wangshuai---date:20260810  for：【LHZP-1106】审批角色 按角色添加人员 高度太大了------------
+      maxHeight.value = window.innerHeight - 500;
+      //update-end---wangshuai---date:20260810  for：【LHZP-1106】审批角色 按角色添加人员 高度太大了------------
       const containerStyle = computed(() => {
         return {
           'overflow-y': 'auto',
-          'max-height': maxHeight.value + 'px',
+          //update-begin---wangshuai---date:20260810  for：【LHZP-1106】审批角色 按角色添加人员 高度太大了------------
+          'max-height': (maxHeight.value >= 300 ? maxHeight.value : 300) + 'px',
+          //update-end---author:wangshuai ---date:20260810  for：【LHZP-1106】审批角色 按角色添加人员 高度太大了------------
         };
       });
 

@@ -35,7 +35,8 @@ import {columns, formSchemas} from './button.data';
 const props = defineProps({
   record: {
     type: Object,
-    required: true,
+    required: false,
+    default: () => ({}),
   },
 })
 const emit = defineEmits(['register']);

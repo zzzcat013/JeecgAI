@@ -21,6 +21,7 @@
 <#assign need_multi = false>
 <#assign need_popup = false>
 <#assign need_popup_dict = false>
+<#assign need_link_table = false>
 <#assign need_select_tag = false>
 <#assign need_select_tree = false>
 <#assign need_time = false>
@@ -185,6 +186,7 @@
   import { ref, reactive, unref } from 'vue';
   import { BasicTable, useTable, TableAction } from '/@/components/Table';
   import { useListPage } from '/@/hooks/system/useListPage';
+  import {useModal} from '/@/components/Modal';
   import { columns, superQuerySchema } from './${entityName}.data';
   import {list, delete${entityName}, batchDelete${entityName}, getExportUrl,getImportUrl, getChildList,getChildListBatch} from './${entityName}.api';
   import { downloadFile } from '/@/utils/common/renderUtils';
@@ -240,6 +242,11 @@
         params.hasQuery = "true";
        <#if is_range>
         let rangerQuery = await setRangeQuery();
+        for (let key in fieldPickers) {
+          if (rangerQuery[key] && fieldPickers[key]) {
+            rangerQuery[key] = getDateByPicker(rangerQuery[key], fieldPickers[key]);
+          }
+        }
         return Object.assign(params, rangerQuery);
        <#else>
         for (let key in fieldPickers) {

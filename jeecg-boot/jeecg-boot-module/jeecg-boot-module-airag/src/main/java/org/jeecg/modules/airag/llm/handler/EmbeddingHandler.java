@@ -772,6 +772,9 @@ public class EmbeddingHandler implements IEmbeddingHandler {
         if (!matcher.matches()) {
             throw new JeecgBootException("网页URL格式不正确，请以http://或https://开头");
         }
+        //update-begin---author:zhangdaihao ---date:2026-08-06  for：【issues/9808】AI知识库Web文档抓取SSRF漏洞修复，抓取前调用SSRF校验器-----------
+        SsrfFileTypeFilter.checkSsrfHttpUrl(website);
+        //update-end---author:zhangdaihao ---date:2026-08-06  for：【issues/9808】AI知识库Web文档抓取SSRF漏洞修复，抓取前调用SSRF校验器-----------
 
         try {
             WebPageParser webPageParser = new WebPageParser();

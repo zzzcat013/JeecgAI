@@ -271,7 +271,6 @@
     getDatasetColumns();
     //查询评估器字段配置
     getEvaluatorFields();
-    console.log('evaluatorColumns.value', evaluatorColumns.value);
   });
 
   /**
@@ -301,9 +300,7 @@
     let dataValue = record.value?.dataValue;
     if (dataValue) {
       evaluatorFields.value = dataValue.match(/{{\s*([^}\s]+)\s*}}/g).map((match) => ({ field: match.replace(/{{\s*|\s*}}/g, '') }));
-    } else {
-      createMessage.warning('未配置评测集信息！');
-    }
+    } 
     //列配置
     evaluatorColumns.value.push({ name: 'actual_output', label: '评测对象', description: '实际输出', dateType: 'String' });
   }
@@ -315,7 +312,7 @@
     const res = await list({ ...page });
     if (res?.records) {
       res?.records.forEach((item) => {
-        promptOptions.value.push({ name: item.name, key: item.promptKey, value: item.promptKey, ...item });
+        promptOptions.value.push({ name: item.name, key: item.id, value: item.id, ...item });
       });
     }
   }

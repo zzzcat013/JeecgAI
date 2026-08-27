@@ -44,7 +44,7 @@
       </a-col>
       <a-col :xxl="4" :xl="6" :lg="6" :md="6" :sm="12" :xs="24" v-for="item in knowledgeAppDataList">
         <a-card class="knowledge-card pointer" @click="handleEditClick(item)">
-          <div class="flex">
+          <div class="flex" style="align-items: flex-start">
             <img class="header-img" :src="getImage(item.icon)" />
             <div class="header-text">
               <span class="header-text-top header-name ellipsis"> {{ item.name }} </span>
@@ -54,40 +54,46 @@
                 <span>创建者：{{ item.createBy_dictText || item.createBy }}</span>
               </span>
             </div>
-          </div>
-          <div class="header-tag">
-            <a-tag color="#EBF1FF" style="margin-right: 0" v-if="item.type === 'chatSimple'">
-              <span style="color: #3370ff">智能体</span>
-            </a-tag>
-            <a-tag color="#FDF6EC" style="margin-right: 0" v-if="item.type === 'chatFLow'">
-              <span style="color: #e6a343">高级编排</span>
-            </a-tag>
+            <div class="header-tag">
+              <a-tag color="#EBF1FF" style="margin-right: 0" v-if="item.type === 'chatSimple'">
+                <span style="color: #3370ff">智能体</span>
+              </a-tag>
+              <a-tag color="#FDF6EC" style="margin-right: 0" v-if="item.type === 'chatFLow'">
+                <span style="color: #e6a343">高级编排</span>
+              </a-tag>
+            </div>
           </div>
           <div class="card-description">
             <span>{{ item.descr || '暂无描述' }}</span>
           </div>
           <div class="card-footer">
             <a-tooltip title="演示">
-              <div class="card-footer-icon" @click.prevent.stop="handleViewClick(item.id)">
-                <Icon class="operation" icon="ant-design:youtube-outlined" size="18" 
-                      color="#1F2329"></Icon>
+              <div class="card-footer-icon" @click.prevent.stop="handleViewClick(item)">
+                <Icon class="operation" icon="lucide:circle-play" size="16"></Icon>
               </div>
             </a-tooltip>
-            <template v-if="item.status !== 'release'">
-              <a-divider type="vertical" style="float: left" />
-              <a-tooltip title="删除">
-                <div class="card-footer-icon" @click.prevent.stop="handleDeleteClick(item)">
-                  <Icon icon="ant-design:delete-outlined" class="operation" size="16" 
-                        color="#1F2329"></Icon>
+            <template v-if="item.status === 'release'">
+              <a-tooltip title="复制链接">
+                <div class="card-footer-icon" @click.prevent.stop="handleCopyShareLink(item)">
+                  <Icon class="operation" icon="lucide:link-2" size="16"></Icon>
                 </div>
               </a-tooltip>
             </template>
-            <a-divider type="vertical" style="float: left" />
-            <a-tooltip title="发布">
-              <a-dropdown class="card-footer-icon" placement="bottomRight" :trigger="['click']">
+            <template v-if="item.status !== 'release'">
+              <a-tooltip title="删除">
+                <div class="card-footer-icon delete-action" @click.prevent.stop="handleDeleteClick(item)">
+                  <Icon icon="lucide:trash-2" class="operation" size="16"></Icon>
+                </div>
+              </a-tooltip>
+            </template>
+            <a-tooltip :title="item.status === 'release' ? '分享' : '更多'">
+              <a-dropdown class="card-footer-icon" placement="bottomLeft" :trigger="['click']">
                 <div @click.prevent.stop>
-                  <Icon style="position: relative;top: 1px" icon="ant-design:send-outlined" 
-                        size="14" color="#1F2329"></Icon>
+                  <Icon
+                    class="operation"
+                    :icon="item.status === 'release' ? 'lucide:share-2' : 'lucide:ellipsis'"
+                    size="16"
+                  ></Icon>
                 </div>
                 <template #overlay>
                   <a-menu>
@@ -99,13 +105,20 @@
                       <a-menu-divider/>
                     </template>
                     <template v-else-if="item.status === 'release'">
+                      <a-menu-item key="copy-share" @click.prevent.stop="handleCopyShareLink(item)">
+                        <Icon icon="ant-design:copy-outlined" size="14"></Icon>
+                        复制链接
+                      </a-menu-item>
                       <a-menu-item key="un-release" @click.prevent.stop="handleSendClick(item,'un-release')">
                         <Icon icon="tabler:rocket-off" size="14"></Icon>
                         取消发布
                       </a-menu-item>
                       <a-menu-divider/>
                     </template>
-                    <a-menu-item key="web" @click.prevent.stop="handleSendClick(item,'web')">
+                    <a-menu-item key="copy" @click.prevent.stop="handleCopyClick(item)">
+                      <Icon icon="ant-design:copy-outlined" size="16"></Icon> 复制
+                    </a-menu-item>
+                    <a-menu-item v-if="item.status === 'release'" key="web" @click.prevent.stop="handleSendClick(item,'web')">
                       <Icon icon="ant-design:dribbble-outlined" size="16"></Icon>
                       嵌入网站
                     </a-menu-item>
@@ -155,8 +168,9 @@
   import AiAppSendModal from './components/AiAppSendModal.vue';
   import Icon from '@/components/Icon';
   import { $electron } from "@/electron";
-  import { appList, deleteApp, releaseApp } from './AiApp.api';
+  import { appList, copyApp, deleteApp, releaseApp, queryById } from './AiApp.api';
   import { useMessage } from '@/hooks/web/useMessage';
+  import { copyTextToClipboard } from '@/hooks/web/useCopyToClipboard';
   import JInput from '@/components/Form/src/jeecg/components/JInput.vue';
   import JDictSelectTag from '@/components/Form/src/jeecg/components/JDictSelectTag.vue';
   import { useRouter } from "vue-router";
@@ -184,7 +198,7 @@
       //当前页数
       const pageNo = ref<number>(1);
       //每页条数
-      const pageSize = ref<number>(10);
+      const pageSize = ref<number>(30);
       //总条数
       const total = ref<number>(0);
       //可选择的页数
@@ -288,8 +302,11 @@
       /**
        * 演示
        */
-      function handleViewClick(id: string) {
-        let url = '/ai/app/chat/' + id;
+      function handleViewClick(item: any) {
+        let url = '/ai/app/chat/' + item.id;
+        if (item.shareToken) {
+          url += '?shareToken=' + item.shareToken;
+        }
 
         // update-begin--author:sunjianlei---date:20250411---for：【QQYUN-9685】构建 electron 桌面应用
         if ($electron.isElectron()) {
@@ -300,6 +317,61 @@
         // update-end----author:sunjianlei---date:20250411---for：【QQYUN-9685】构建 electron 桌面应用
 
         window.open(url, '_blank');
+      }
+
+      /**
+       * 获取推广链接（含 shareToken）
+       */
+      function getShareUrl(item: any) {
+        const shareToken = item?.shareToken;
+        if (!item?.id || !shareToken || shareToken === '发布成功' || shareToken === '取消发布成功') {
+          return '';
+        }
+        return `${document.location.protocol}//${window.location.host}/ai/app/chat/${item.id}?shareToken=${shareToken}`;
+      }
+
+      /**
+       * 从详情接口刷新分享令牌
+       */
+      async function refreshShareToken(item: any) {
+        const res: any = await queryById({ id: item.id });
+        if (res && res.success && res.result?.shareToken) {
+          item.shareToken = res.result.shareToken;
+          return item.shareToken;
+        }
+        return '';
+      }
+
+      /**
+       * 复制推广链接
+       */
+      async function handleCopyShareLink(item: any) {
+        let url = getShareUrl(item);
+        if (!url && item.status === 'release') {
+          await refreshShareToken(item);
+          url = getShareUrl(item);
+        }
+        if (!url) {
+          createMessage.warning('分享链接无效，请重新发布后再复制');
+          return;
+        }
+        if (copyTextToClipboard(url)) {
+          createMessage.success('链接已复制');
+        } else {
+          createMessage.error('复制失败');
+        }
+      }
+
+      /**
+       * 复制应用
+       * @param item
+       * @author scott
+       * @since 2026-08-06 【LHZP-1512】AI应用增加复制功能
+       */
+      async function handleCopyClick(item: any) {
+        await copyApp({ id: item.id });
+        pageNo.value = 1;
+        reload();
       }
 
       /**
@@ -331,8 +403,10 @@
       async function onRelease(item) {
         const toRelease = item.status === 'enable';
         let flag = await createConfirmSync({
-          title: toRelease ? '发布应用' : '取消发布应用',
-          content: toRelease ? '确定要发布应用吗？发布后将不允许修改应用。' : '确定要取消发布应用吗？',
+          title: toRelease ? '发布应用' : '取消发布',
+          content: toRelease
+            ? '确定发布吗？发布后将生成分享链接（访客无需登录），且不允许再修改应用。'
+            : '确定取消发布吗？取消后分享链接将失效。',
           okText: '确定',
           cancelText: '取消',
         });
@@ -346,13 +420,20 @@
        * 发布
        */
       async function doRelease(item, release: boolean) {
-        let success: boolean = await releaseApp(item.id, release);
-        if (success) {
-          // 发布成功
+        const res: any = await releaseApp(item.id, release);
+        if (res && res.success) {
           if (release) {
-            item.status = 'release'
+            item.status = 'release';
+            // result 应为 32 位令牌；若误为提示文案则回查详情
+            const token = res.result;
+            if (token && token !== res.message && /^[a-fA-F0-9]{32}$/.test(token)) {
+              item.shareToken = token;
+            } else {
+              await refreshShareToken(item);
+            }
           } else {
-            item.status = 'enable'
+            item.status = 'enable';
+            item.shareToken = undefined;
           }
         }
       }
@@ -404,6 +485,8 @@
         getImage,
         handleEditClick,
         handleViewClick,
+        handleCopyShareLink,
+        handleCopyClick,
         handleDeleteClick,
         registerSettingModal,
         reload,
@@ -426,7 +509,28 @@
     height: calc(100vh - 115px);
     background: #f7f8fc;
     padding: 24px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .jeecg-basic-table-form-container {
+      flex-shrink: 0;
+    }
+
+    .knowledge-row {
+      flex: 1;
+      min-height: 0;
+      margin-top: 20px;
+      overflow-y: auto;
+      align-content: flex-start;
+      align-items: flex-start;
+    }
+
+    .list-footer {
+      flex-shrink: 0;
+      margin-top: 12px;
+      padding-top: 4px;
+    }
   }
 
   .add-knowledge-card {
@@ -476,7 +580,8 @@
       position: relative;
       font-size: 14px;
       display: grid;
-      width: calc(100% - 100px);
+      flex: 1;
+      min-width: 0;
       .header-name {
         font-weight: bold;
         color: #354052;
@@ -487,9 +592,8 @@
       }
     }
     .header-tag {
-      position: absolute;
-      right: 4px;
-      top: 6px;
+      flex-shrink: 0;
+      margin-left: 4px;
     }
   }
 
@@ -501,12 +605,6 @@
   .add-knowledge-card:hover,
   .knowledge-card:hover {
     box-shadow: 0 6px 12px #d0d3d8;
-  }
-
-  .knowledge-row {
-    max-height: calc(100% - 100px);
-    margin-top: 20px;
-    overflow-y: auto;
   }
 
   .add-knowledge-doc {
@@ -546,17 +644,20 @@
     width: 100%;
     align-items: center;
     display: flex;
+    gap: 14px;
   }
 
   .card-footer-icon {
     font-size: 14px;
-    height: 24px;
-    padding: 0 7px;
+    height: 28px;
+    padding: 0;
+    color: #475467;
     border-radius: 4px;
-    text-align: center;
-    align-content: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     float: left;
-    width: 36px;
+    width: 28px;
   }
 
   .card-footer-icon:hover {
@@ -565,13 +666,20 @@
     border: none;
   }
 
+  .delete-action {
+    color: #475467;
+  }
+
+  .delete-action:hover {
+    color: #ff4d4f;
+    background-color: #fff1f0;
+  }
+
   .operation {
-    position: relative;
-    top: 2px;
+    display: block;
   }
   .list-footer {
     text-align: right;
-    margin-top: 5px;
   }
   :deep(.ant-card .ant-card-body) {
     padding: 16px;

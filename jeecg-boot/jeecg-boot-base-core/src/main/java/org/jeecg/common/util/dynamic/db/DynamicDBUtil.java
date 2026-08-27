@@ -56,8 +56,10 @@ public class DynamicDBUtil {
         dataSource.setTestOnBorrow(false);
         dataSource.setTestOnReturn(false);
         dataSource.setBreakAfterAcquireFailure(true);
-        //设置超时时间60秒
-        dataSource.setLoginTimeout(60);
+        // TCP建连超时 3s，防止目标库不可达时连接线程挂住
+        dataSource.setConnectTimeout(3000);
+        // 登录超时 5s（原为60s，过长会导致线程被占住；不影响SQL执行阶段）
+        dataSource.setLoginTimeout(5);
         dataSource.setConnectionErrorRetryAttempts(0);
         dataSource.setUsername(dbUser);
         dataSource.setMaxWait(30000);

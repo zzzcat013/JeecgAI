@@ -1,9 +1,6 @@
 import {BasicColumn} from '/@/components/Table';
 import {FormSchema} from '/@/components/Table';
-import { rules} from '/@/utils/helper/validator';
-import { render } from '/@/utils/common/renderUtils';
 import {JVxeTypes,JVxeColumn} from '/@/components/jeecg/JVxeTable/types'
-import { getWeekMonthQuarterYear } from '/@/utils';
 //列表数据
 export const columns: BasicColumn[] = [
    {
@@ -54,17 +51,43 @@ export const searchFormSchema: FormSchema[] = [
     component: 'JInput',
   },
 ];
+// 请求方式选项（供表单 slot 复用）
+export const requestMethodOptions = [
+  { label: 'POST', value: 'POST' },
+  { label: 'GET', value: 'GET' },
+  { label: 'HEAD', value: 'HEAD' },
+  { label: 'PUT', value: 'PUT' },
+  { label: 'PATCH', value: 'PATCH' },
+  { label: 'DELETE', value: 'DELETE' },
+  { label: 'OPTIONS', value: 'OPTIONS' },
+  { label: 'TRACE', value: 'TRACE' },
+];
+
 //表单数据
 export const formSchema: FormSchema[] = [
   {
     label: '接口名称',
     field: 'name',
     component: 'Input',
-    dynamicRules: ({model,schema}) => {
+    dynamicRules: () => {
           return [
                  { required: true, message: '请输入接口名称!'},
           ];
      },
+  },
+  {
+    label: '接口地址',
+    field: 'requestUrl',
+    component: 'Input',
+    slot: 'requestUrlSlot',
+    dynamicDisabled: true,
+  },
+  {
+    label: '请求方式',
+    field: 'requestMethod',
+    defaultValue:'GET',
+    component: 'Input',
+    show: false,
   },
   {
     label: '原始接口',
@@ -74,6 +97,7 @@ export const formSchema: FormSchema[] = [
       placeholder: '当前系统的原始接口地址，如 /sys/user/list',
     },
     helpMessage: '当前系统中被代理的原始接口路径',
+    colProps: { span: 24 },
     dynamicRules: () => {
       return [
         { required: true, message: '请输入原始接口路径!' },
@@ -94,56 +118,7 @@ export const formSchema: FormSchema[] = [
       ];
     },
   },
-  {
-    label: '请求方式',
-    field: 'requestMethod',
-    component: 'JSearchSelect',
-    componentProps:{
-      dictOptions: [
-        {
-          text: 'POST',
-          value: 'POST',
-        },
-        {
-          text: 'GET',
-          value: 'GET',
-        },
-        {
-          text: 'HEAD',
-          value: 'HEAD',
-        },
-        {
-          text: 'PUT',
-          value: 'PUT',
-        },
-        {
-          text: 'PATCH',
-          value: 'PATCH',
-        },
-        {
-          text: 'DELETE',
-          value: 'DELETE',
-        },{
-          text: 'OPTIONS',
-          value: 'OPTIONS',
-        },{
-          text: 'TRACE',
-          value: 'TRACE',
-        },
-      ]
-     },
-    dynamicRules: ({model,schema}) => {
-          return [
-                 { required: true, message: '请输入请求方式!'},
-          ];
-     },
-  },
-  {
-    label: '接口地址',
-    field: 'requestUrl',
-    component: 'Input',
-    dynamicDisabled:true
-  },
+
   {
     label: 'IP 白名单',
     field: 'whiteList',
@@ -158,7 +133,7 @@ export const formSchema: FormSchema[] = [
   },
   {
     label: '备注',
-    field: 'comment',
+    field: 'remarks',
     component: 'InputTextArea',
     componentProps: {
       rows: 2,
@@ -256,6 +231,9 @@ export const openApiParamColumns: BasicColumn[] = [
    },
 ];
 //子表表格配置
+// update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1266】默认请求头 appKey/signature/timestamp 删除时校验拦截且必填禁用
+export const FIXED_HEADER_KEYS = ['appKey', 'signature', 'timestamp'];
+// update-end--author:liaozhiyang---date:20260804---for：【LHZP-1266】默认请求头 appKey/signature/timestamp 删除时校验拦截且必填禁用
 export const openApiHeaderJVxeColumns: JVxeColumn[] = [
     // {
     //   title: 'apiId',
@@ -282,7 +260,12 @@ export const openApiHeaderJVxeColumns: JVxeColumn[] = [
       width:"100px",
       placeholder: '请输入${title}',
       defaultValue:'',
-      customValue: ['1','0']
+      customValue: ['1','0'],
+      // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-1266】默认请求头 appKey/signature/timestamp 删除时校验拦截且必填禁用
+      props: {
+        isDisabledCell: ({ row }) => FIXED_HEADER_KEYS.includes(row.headerKey),
+      },
+      // update-end--author:liaozhiyang---date:20260804---for：【LHZP-1266】默认请求头 appKey/signature/timestamp 删除时校验拦截且必填禁用
     },
     {
       title: '参数类型',

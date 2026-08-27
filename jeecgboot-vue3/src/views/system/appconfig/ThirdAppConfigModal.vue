@@ -1,5 +1,5 @@
 <template>
-  <BasicModal @register="registerModal" :width="800" :title="title" @ok="handleSubmit">
+  <BasicModal @register="registerModal" :width="800" :bodyStyle="{minHeight: '450px'}" :title="title" @ok="handleSubmit">
     <BasicForm @register="registerForm" />
   </BasicModal>
 </template>
@@ -27,6 +27,8 @@
         setModalProps({ confirmLoading: true });
         if (data.thirdType == 'dingtalk') {
           title.value = '钉钉配置';
+        } else if (data.thirdType == 'feishu') {
+          title.value = '飞书配置';
         } else {
           title.value = '企业微信配置';
         }

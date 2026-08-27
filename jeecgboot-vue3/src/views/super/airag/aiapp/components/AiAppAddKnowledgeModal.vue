@@ -1,5 +1,5 @@
 <template>
-  <div class="p-2">
+  <div>
     <BasicModal destroyOnClose @register="registerModal" :canFullscreen="false" width="600px" :title="title" @ok="handleOk" @cancel="handleCancel">
       <div class="flex header">
         <a-input
@@ -168,8 +168,10 @@
         let params = {
           pageNo: pageNo.value,
           pageSize: pageSize.value,
-          name: searchText.value,
+          name: searchText.value?`*${searchText.value}*`:searchText.value,
           type: props.type,
+          column: 'createTime',
+          order: 'desc',
         };
         list(params).then((res) => {
           if (res.success) {

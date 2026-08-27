@@ -43,6 +43,11 @@
         type: String,
         required: true,
       },
+      // online CgReport id，用于按具体报表菜单鉴权
+      reportId: {
+        type: String,
+        required: false,
+      },
     },
     emits: ['update:value'],
     setup(props, { emit }) {
@@ -90,13 +95,18 @@
        * 【TV360X-1813】online报表查询支持滚动加载
        * */
       async function searchByKeyword(keyword = '') {
+        //update-begin---author:scott ---date:20260811  for：【LHZP-1148】查询字典接口按报表菜单权限鉴权-----------
+        if (!props.reportId) {
+          return;
+        }
         let params = {
           keyword: keyword,
           fieldId: props.fieldId,
           pageSize: 10,
           pageNo: pageNo.value,
         };
-        let url = `/online/cgreport/api/getReportDictList`;
+        let url = `/online/cgreport/api/getReportDictList/${props.reportId}`;
+        //update-end---author:scott ---date:20260811  for：【LHZP-1148】查询字典接口按报表菜单权限鉴权-----------
         await defHttp
           .get({ url: url, params }, { isTransformResponse: false })
           .then((res) => {

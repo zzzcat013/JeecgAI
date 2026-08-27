@@ -41,7 +41,7 @@ public interface ISysUserDepartService extends IService<SysUserDepart> {
      * @param realname 真实姓名
      * @return List<SysUser>
 	 */
-	List<SysUser> queryUserByDepCode(String depCode,String realname);
+	List<SysUser> queryUserByDepCode(String depCode,String realname,Integer status);
 
 	/**
 	 * 用户组件数据查询

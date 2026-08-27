@@ -154,6 +154,7 @@ export type ComponentType =
   | 'LinkTableSelect'
   | 'LinkTableForQuery'
   | 'CascaderPcaForQuery'
+  | 'JCategoryLinkage'
   | 'CascaderPcaInFilter'
   | 'UserSelect'
   | 'RoleSelect'
@@ -163,5 +164,5 @@ export type ComponentType =
   | 'RangeTime'
   | 'JRangeNumber'
   | 'JLinkTableCard'
-  | 'JInputSelect';
-
+  | 'JInputSelect'
+  | 'JAuthRuleValue';

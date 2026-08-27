@@ -91,5 +91,5 @@ export const queryById = (params) => defHttp.get({ url: Api.queryById, params },
  * @param params
  */
 export const getTempList = (params) => {
-  return defHttp.get({ url: Api.tempList, params });
+  return defHttp.get({ url: Api.tempList, params: { ...params, useStatus: '1' } });
 };

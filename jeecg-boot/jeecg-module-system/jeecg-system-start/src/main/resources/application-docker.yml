@@ -2,7 +2,6 @@ server:
   port: 8080
   tomcat:
     max-swallow-size: -1
-    basedir: ..
   servlet:
     context-path: /jeecg-boot
   compression:

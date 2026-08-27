@@ -108,7 +108,11 @@
     <h2 class="rich_media_title">${data.titile}</h2>
     <div class="meta_content">
         <#if data.priority??>
-            <span class="rich_media_meta priority ${data.priority}">
+            <#assign priClass = "">
+            <#if data.priority == "H" || data.priority == "M" || data.priority == "L">
+                <#assign priClass = data.priority>
+            </#if>
+            <span class="rich_media_meta priority ${priClass}">
                 <#if data.priority == "H">
                     高
                 <#elseif data.priority == "M">
@@ -116,7 +120,7 @@
                 <#elseif data.priority == "L">
                     低
                 <#else >
-                    ${data.priority}
+                    未知
                 </#if>
             </span>
         </#if>

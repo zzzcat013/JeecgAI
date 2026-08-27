@@ -1,4 +1,4 @@
-import { inject, reactive, ref, watch, unref, Ref } from 'vue';
+import { inject, reactive, ref, watch, unref, Ref, computed } from 'vue';
 import { useMessage } from '/@/hooks/web/useMessage';
 import { isEmpty } from '@/utils/is';
 
@@ -61,17 +61,16 @@ export function useSelectBiz(getList, props, emit?) {
   }
 
   /**
-   * 选择列配置
+   * 选择列配置（响应式：当 isRadioSelection prop 变化时，type 自动切换 radio/checkbox）
    */
-  const rowSelection = {
-    // 代码逻辑说明: 动态设置rowSelection的type值,默认是'checkbox' ---
+  const rowSelection = computed(() => ({
     type: props.isRadioSelection ? 'radio' : 'checkbox',
     columnWidth: 20,
     selectedRowKeys: checkedKeys,
     onChange: onSelectChange,
     //table4.4.0新增属性选中之后是否清空上一页下一页的数据，默认false
     preserveSelectedRowKeys:true,
-  };
+  }));
 
   /**
    * 序号列配置

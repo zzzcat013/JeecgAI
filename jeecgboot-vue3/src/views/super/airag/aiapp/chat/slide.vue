@@ -41,6 +41,7 @@
             placeholder="请输入标题"
             @change="handleInputChange"
             @keyup.enter="inputBlur(item)"
+            @blur="inputBlur(item)"
           />
           <span class="title" v-else>{{ item.title }}</span>
           <span class="icon edit" @click.stop="handleEdit(item)" v-if="!item.isEdit && !item.disabled">
@@ -112,6 +113,9 @@
   };
   // 失去焦点
   const inputBlur = (item) => {
+    if (!item.isEdit) {
+      return;
+    }
     item.isEdit = false;
     item.title = inputValue;
     defHttp

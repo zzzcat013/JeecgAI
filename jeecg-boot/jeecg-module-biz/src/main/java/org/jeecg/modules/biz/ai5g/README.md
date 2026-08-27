@@ -130,6 +130,12 @@
 - 曾出现“附件7已命中但回答未提供内容”，原因是 `topNumber=5` 时附件后续分片未进入上下文，且提示词未约束附件名误判；已在 V20260820_7 中修复。
 - 后续可优化方向：pgvector `SearchMode.HYBRID` + RRF 混合检索、Qwen `gte-rerank-v2` 精排、按文档合并连续分片后再截断。
 
+## 数据库迁移与 Flyway 记录
+
+- 2026-08-27 已手工执行 `V20260820_1` 至 `V20260820_8`、`V20260826_1`、`V3.9.5_0`。
+- 当前 `spring.flyway.enabled=false`，但 `flyway_schema_history` 已补齐并执行 Flyway `repair`，校验结果为 29 条迁移、0 失败。
+- `V3.9.5_0` 会删除旧 Chat2BI 和通用数据库插件，正式 AI5G 应用不受影响；旧流程 `2077719401256538114 随行专网数据检索` 已禁用。
+
 ## 说明
 - Word/PDF 转 Markdown 时，Office 先通过 LibreOffice 预转 PDF，再走 MinerU 解析，失败后再走文本兜底。
 - Pandoc/Tika 兜底仅保证文本可读，不保证图片可用。

@@ -48,7 +48,7 @@ public class SysPositionSelectTreeVo {
         this.parentId = sysDepart.getParentId();
         this.orgCategory = sysDepart.getOrgCategory();
         this.orgCode = sysDepart.getOrgCode();
-        if(0 == sysDepart.getIzLeaf()){
+        if(null != sysDepart.getIzLeaf() && 0 == sysDepart.getIzLeaf()){
             this.isLeaf = false;
         }else{
             this.isLeaf = true;
@@ -72,7 +72,7 @@ public class SysPositionSelectTreeVo {
         this.id = position.getId();
         this.parentId = position.getDepPostParentId();
         this.orgCategory = "3";
-        if(0 == position.getIzLeaf()){
+        if(position!=null && position.getIzLeaf()!=null && 0 == position.getIzLeaf()){
             this.isLeaf = false;
         }else{
             this.isLeaf = true;

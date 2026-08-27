@@ -763,6 +763,31 @@ public class SysDepartController {
     }
 
     /**
+     * 批量获取部门路径名称（根据多个depId一次性查询）
+     *
+     * @param depIds 逗号分隔的部门/岗位ID
+     * @return Map<depId, 部门路径名称>
+     */
+    @GetMapping("/batchGetDepartPathName")
+    public Result<Map<String, String>> batchGetDepartPathName(@RequestParam(name = "depIds") String depIds) {
+        Map<String, String> resultMap = new LinkedHashMap<>();
+        if (StringUtils.isBlank(depIds)) {
+            return Result.OK(resultMap);
+        }
+        String[] ids = depIds.split(",");
+        for (String depId : ids) {
+            String id = depId.trim();
+            if (StringUtils.isNotBlank(id)) {
+                String pathName = sysDepartService.getDepartPathNameByOrgCode(null, id);
+                if (pathName != null) {
+                    resultMap.put(id, pathName);
+                }
+            }
+        }
+        return Result.OK(resultMap);
+    }
+
+    /**
      * 根据部门id获取部门下的岗位id
      *
      * @param depIds 当前选择的公司、子公司、部门id
@@ -802,4 +827,23 @@ public class SysDepartController {
         IPage<SysUser> pageList = sysDepartService.getDepartmentHead(departId,page);
         return Result.OK(pageList);
     }
+
+    /**
+     * 部门管理页面专用搜索接口，搜索结果支持展开下级并去除父子重复节点。
+     *
+     * @param keyWord 关键字
+     * @param orgCategory 组织机构类型
+     * @return 部门树节点
+     */
+    @GetMapping("/searchByDepartManage")
+    public Result<List<SysDepartTreeModel>> searchByDepartManage(
+            @RequestParam(name = "keyWord") String keyWord,
+            @RequestParam(name = "orgCategory", required = false) String orgCategory) {
+        List<SysDepartTreeModel> treeList = sysDepartService.searchByKeyWordForDepartManage(keyWord, orgCategory);
+        if (treeList == null || treeList.size() == 0) {
+            return Result.error("未查询匹配数据！");
+        }
+        return Result.ok(treeList);
+    }
+    
 }

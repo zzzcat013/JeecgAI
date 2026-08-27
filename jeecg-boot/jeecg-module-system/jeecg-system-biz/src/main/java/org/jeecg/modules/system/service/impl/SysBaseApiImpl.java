@@ -45,7 +45,9 @@ import org.jeecg.modules.airag.flow.service.IAiragFlowService;
 import org.jeecg.modules.message.entity.SysMessageTemplate;
 import org.jeecg.modules.message.handle.impl.DdSendMsgHandle;
 import org.jeecg.modules.message.handle.impl.EmailSendMsgHandle;
+import org.jeecg.modules.message.handle.impl.FsSendMsgHandle;
 import org.jeecg.modules.message.handle.impl.QywxSendMsgHandle;
+import org.jeecg.modules.message.handle.impl.SmsSendMsgHandle;
 import org.jeecg.modules.message.handle.impl.SystemSendMsgHandle;
 import org.jeecg.modules.message.service.ISysMessageTemplateService;
 import org.jeecg.modules.message.websocket.WebSocket;
@@ -81,6 +83,10 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -94,6 +100,10 @@ import java.util.stream.Collectors;
 public class SysBaseApiImpl implements ISysBaseAPI {
 	/** 当前系统数据库类型 */
 	private static String DB_TYPE = "";
+
+	/** 钉钉/企业微信/飞书/短信 异步发送线程池 */
+	private static final ExecutorService MSG_THREAD_POOL = new ThreadPoolExecutor(
+			0, 1024, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
 
 	// uniapp 推送调用api地址
 	@Value("${jeecg.unicloud.pushUrl:}")
@@ -138,6 +148,8 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 	private ThirdAppWechatEnterpriseServiceImpl wechatEnterpriseService;
 	@Autowired
 	private ThirdAppDingtalkServiceImpl dingtalkService;
+	@Autowired
+	private ThirdAppFeishuServiceImpl feishuService;
 	@Autowired
 	ISysCategoryService sysCategoryService;
 	@Autowired
@@ -477,6 +489,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			// 同步发送第三方APP消息
 			wechatEnterpriseService.sendMessage(message, true);
 			dingtalkService.sendMessage(message, true);
+			feishuService.sendMessage(message, true);
 		} catch (Exception e) {
 			log.error("同步发送第三方APP消息失败！", e);
 		}
@@ -496,6 +509,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			// 同步发送第三方APP消息
 			wechatEnterpriseService.sendMessage(message, true);
 			dingtalkService.sendMessage(message, true);
+			feishuService.sendMessage(message, true);
 		} catch (Exception e) {
 			log.error("同步发送第三方APP消息失败！", e);
 		}
@@ -571,6 +585,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			// 同步企业微信、钉钉的消息通知
 			dingtalkService.sendActionCardMessage(announcement, mobileOpenUrl, true);
 			wechatEnterpriseService.sendTextCardMessage(announcement, mobileOpenUrl, true);
+			feishuService.sendAnnouncementMessage(announcement, mobileOpenUrl, true);
 		} catch (Exception e) {
 			log.error("同步发送第三方APP消息失败！", e);
 		}
@@ -668,6 +683,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			dingtalkService.sendActionCardMessage(announcement, mobileOpenUrl, true);
 			// 企业微信通知
 			wechatEnterpriseService.sendTextCardMessage(announcement, mobileOpenUrl, true);
+			feishuService.sendAnnouncementMessage(announcement, mobileOpenUrl, true);
 			// Uniapp手机端消息推送
 			PushMessageDTO pushMessageDTO = new PushMessageDTO();
 			pushMessageDTO.setTitle(announcement.getTitile());
@@ -835,6 +851,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			ComboModel model = new ComboModel();
 			model.setTitle(role.getRoleName());
 			model.setId(role.getId());
+			model.setRoleCode(role.getRoleCode());
 			list.add(model);
 		}
 		return list;
@@ -1705,6 +1722,10 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 
 	@Autowired
 	private DdSendMsgHandle ddSendMsgHandle;
+	@Autowired
+	private FsSendMsgHandle fsSendMsgHandle;
+	@Autowired
+	private SmsSendMsgHandle smsSendMsgHandle;
 
 	@Override
 	public void sendTemplateMessage(MessageDTO message) {
@@ -1745,9 +1766,13 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 				emailSendMsgHandle.sendMessage(message);
 			}
 		}else if(MessageTypeEnum.DD.getType().equals(messageType)){
-			ddSendMsgHandle.sendMessage(message);
+			MSG_THREAD_POOL.execute(() -> ddSendMsgHandle.sendMessage(message));
 		}else if(MessageTypeEnum.QYWX.getType().equals(messageType)){
-			qywxSendMsgHandle.sendMessage(message);
+			MSG_THREAD_POOL.execute(() -> qywxSendMsgHandle.sendMessage(message));
+		}else if(MessageTypeEnum.FS.getType().equals(messageType)){
+			MSG_THREAD_POOL.execute(() -> fsSendMsgHandle.sendMessage(message));
+		}else if(MessageTypeEnum.DX.getType().equals(messageType)){
+			MSG_THREAD_POOL.execute(() -> smsSendMsgHandle.sendMessage(message));
 		}
 	}
 
@@ -1785,8 +1810,11 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			entity.setDataContent(dataLogDto.getContent());
 			entity.setType(dataLogDto.getType());
 			entity.setDataVersion("1");
+			if (oConvertUtils.isNotEmpty(dataLogDto.getCreateBy())) {
+				entity.setCreateBy(dataLogDto.getCreateBy());
+			}
 			if (oConvertUtils.isNotEmpty(dataLogDto.getCreateName())) {
-				entity.setCreateBy(dataLogDto.getCreateName());
+				entity.setCreateName(dataLogDto.getCreateName());
 			} else {
 				entity.autoSetCreateName();
 			}
@@ -1846,7 +1874,16 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 	public List<String> queryUserIdsByDeptIds(List<String> deptIds) {
 		QueryWrapper<SysUserDepart> queryWrapper = new QueryWrapper<>();
 		queryWrapper.lambda().select(SysUserDepart::getUserId).in(true,SysUserDepart::getDepId,deptIds);
-		return sysUserDepartService.listObjs(queryWrapper,e->e.toString());
+		List<String> userIds = sysUserDepartService.listObjs(queryWrapper,e->e.toString());
+		//update-begin---author:zhangdaiscott ---date:2026-07-16  for：【LHZP-789】过滤sys_user_depart关系表中用户已被删除/禁用的垃圾数据-----------
+		if (userIds == null || userIds.isEmpty()) {
+			return userIds;
+		}
+		QueryWrapper<SysUser> userQueryWrapper = new QueryWrapper<>();
+		userQueryWrapper.lambda().select(SysUser::getId).eq(SysUser::getStatus,Integer.parseInt(CommonConstant.STATUS_1))
+				.eq(SysUser::getDelFlag,CommonConstant.DEL_FLAG_0).in(SysUser::getId,userIds);
+		return sysUserService.listObjs(userQueryWrapper,e->e.toString());
+		//update-end---author:zhangdaiscott ---date:2026-07-16  for：【LHZP-789】过滤sys_user_depart关系表中用户已被删除/禁用的垃圾数据-----------
 	}
 
 	@Override
@@ -1861,7 +1898,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
                 .select(SysDepart::getOrgCode)
                 .in(SysDepart::getId, deptIds));
         departs.forEach(depart -> {
-            List<SysUser> sysUsers = sysUserDepartService.queryUserByDepCode(depart.getOrgCode(), null);
+            List<SysUser> sysUsers = sysUserDepartService.queryUserByDepCode(depart.getOrgCode(), null, null);
             if(oConvertUtils.isObjectNotEmpty(sysUsers)){
                 userIds.addAll(sysUsers.stream().map(SysUser::getId).collect(Collectors.toSet()));
             }
@@ -1883,7 +1920,16 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 			List<String> idList = roleList.stream().map(role->role.getId()).collect(Collectors.toList());
 			QueryWrapper<SysUserRole> queryWrapper = new QueryWrapper<>();
 			queryWrapper.lambda().select(SysUserRole::getUserId).in(true,SysUserRole::getRoleId, idList);
-			return sysUserRoleService.listObjs(queryWrapper,e->e.toString());
+			List<String> userIds = sysUserRoleService.listObjs(queryWrapper,e->e.toString());
+			//update-begin---author:zhangdaiscott ---date:2026-07-16  for：【LHZP-789】过滤sys_user_role关系表中用户已被删除/禁用的垃圾数据-----------
+			if (userIds == null || userIds.isEmpty()) {
+				return userIds;
+			}
+			QueryWrapper<SysUser> userQueryWrapper = new QueryWrapper<>();
+			userQueryWrapper.lambda().select(SysUser::getId).eq(SysUser::getStatus,Integer.parseInt(CommonConstant.STATUS_1))
+					.eq(SysUser::getDelFlag,CommonConstant.DEL_FLAG_0).in(SysUser::getId,userIds);
+			return sysUserService.listObjs(userQueryWrapper,e->e.toString());
+			//update-end---author:zhangdaiscott ---date:2026-07-16  for：【LHZP-789】过滤sys_user_role关系表中用户已被删除/禁用的垃圾数据-----------
 		}
 		return null;
 	}
@@ -2071,6 +2117,7 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 				// 同步企业微信、钉钉的消息通知
 				Response<String> dtResponse = dingtalkService.sendActionCardMessage(sysAnnouncement, null, true);
 				wechatEnterpriseService.sendTextCardMessage(sysAnnouncement, null,true);
+				feishuService.sendAnnouncementMessage(sysAnnouncement, null, true);
 
 				if (dtResponse != null && dtResponse.isSuccess()) {
 					String taskId = dtResponse.getResult();
@@ -2162,12 +2209,13 @@ public class SysBaseApiImpl implements ISysBaseAPI {
 	 */
 	@Override
 	public void uniPushMsgToUser(PushMessageDTO pushMessageDTO) {
+		//jeecg.unicloud.pushUrl 未配置时视为推送功能未启用，直接跳过（避免定时消息等场景反复刷警告日志）
+		if(oConvertUtils.isEmpty(jeecgPushUrl) || "''".equals(jeecgPushUrl) || "??".equals(jeecgPushUrl) ){
+			log.warn("yml配置项: jeecg.unicloud.pushUrl 未设置，APP消息UniPush推送功能未启用！");
+			return;
+		}
 		log.info("UniappPush推送URL:{}", jeecgPushUrl);
 		try {
-			if(oConvertUtils.isEmpty(jeecgPushUrl) || "''".equals(jeecgPushUrl) || "??".equals(jeecgPushUrl) ){
-				log.warn("yml配置项: jeecg.unicloud.pushUrl 未设置，APP消息UniPush推送功能未启用！");
-				return;
-			}
 			// 获取推送的用户信息
 			List<String> usernames = pushMessageDTO.getUsernames();
 			List<String> userIds = pushMessageDTO.getUserIds();

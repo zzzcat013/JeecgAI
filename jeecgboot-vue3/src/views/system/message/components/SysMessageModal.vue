@@ -53,7 +53,7 @@
         <!-- 头部图标 -->
         <div class="icon-right">
           <div class="icons">
-            <a-popover placement="bottomRight" :overlayStyle="{ width: '400px' }" trigger="click" v-model:open="showSearch">
+            <a-popover placement="bottomRight" :overlayStyle="{ width: '400px', zIndex: 1000 }" trigger="click" v-model:open="showSearch">
               <template #content>
                 <div>
                   <span class="search-label">回复、提到我的人?：</span>
@@ -333,6 +333,9 @@
         if(options && options.length>0){
           searchParams.fromUser = value
           searchParams.realname = options[0].label;
+          // update-begin--author:liaozhiyang---date:20260810---for：【LHZP-1217】添加人和删除人立马触发查询
+          loadData();
+          // update-end--author:liaozhiyang---date:20260810---for：【LHZP-1217】添加人和删除人立马触发查询
         }
       }
       
@@ -343,7 +346,11 @@
       function clearSearchParamsUser(){
         searchParams.fromUser = ''
         searchParams.realname = ''
+        // update-begin--author:liaozhiyang---date:20260810---for：【LHZP-1217】添加人和删除人立马触发查询
+        loadData();
+        // update-end--author:liaozhiyang---date:20260810---for：【LHZP-1217】添加人和删除人立马触发查询
       }
+
 
       function clearAll(){
         searchParams.fromUser='';

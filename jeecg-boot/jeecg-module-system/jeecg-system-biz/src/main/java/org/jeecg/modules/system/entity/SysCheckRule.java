@@ -60,7 +60,7 @@ public class SysCheckRule {
     /**
      * 更新人
      */
-    @Excel(name = "更新人", width = 15)
+    @Excel(name = "更新人", width = 15,dictTable = "sys_user",dicCode = "username",dicText = "realname")
     @Schema(description = "更新人")
     private String updateBy;
     /**
@@ -74,7 +74,7 @@ public class SysCheckRule {
     /**
      * 创建人
      */
-    @Excel(name = "创建人", width = 15)
+    @Excel(name = "创建人", width = 15,dictTable = "sys_user",dicCode = "username",dicText = "realname")
     @Schema(description = "创建人")
     private String createBy;
     /**

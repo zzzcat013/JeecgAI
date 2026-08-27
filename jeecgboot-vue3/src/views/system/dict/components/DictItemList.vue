@@ -12,7 +12,7 @@
      
     </BasicTable>
   </BasicDrawer>
-  <DictItemModal @register="registerModal" @success="reload" :dictId="dictId" />
+  <DictItemModal @register="registerModal" @success="handleItemSuccess" :dictId="dictId" />
 </template>
 <script lang="ts" setup>
   import { ref, unref } from 'vue';
@@ -22,10 +22,15 @@
   import { useDesign } from '/@/hooks/web/useDesign';
   import DictItemModal from './DictItemModal.vue';
   import { dictItemColumns, dictItemSearchFormSchema } from '../dict.data';
-  import { itemList, deleteItem } from '../dict.api';
+  import { itemList, deleteItem, refreshCache, queryAllDictItems } from '../dict.api';
   import { ColEx } from '/@/components/Form/src/types';
+  import { useMessage } from '/src/hooks/web/useMessage';
+  import { removeAuthCache } from '/src/utils/auth';
+  import { DB_DICT_DATA_KEY } from '/src/enums/cacheEnum';
+  import { useUserStore } from '/@/store/modules/user';
 
   const { prefixCls } = useDesign('row-invalid');
+  const { createMessage } = useMessage();
   const dictId = ref('');
   //字典配置model
   const [registerModal, { openModal }] = useModal();
@@ -106,6 +111,35 @@
    */
   async function handleDelete(record) {
     await deleteItem({ id: record.id }, reload);
+  }
+
+  /**
+   * 字典项新增/编辑成功：刷新列表 + 同步刷新字典缓存
+   */
+  async function handleItemSuccess() {
+    await reload();
+    await doRefreshDictCache();
+  }
+
+  /**
+   * 刷新字典缓存（后端缓存 + 前端 store + 本地缓存）
+   */
+  async function doRefreshDictCache() {
+    try {
+      const result = await refreshCache();
+      if (result && result.success) {
+        const res = await queryAllDictItems();
+        removeAuthCache(DB_DICT_DATA_KEY);
+        // 代码逻辑说明: 【QQYUN-6417】生产环境字典慢的问题
+        const userStore = useUserStore();
+        userStore.setAllDictItems(res.result);
+        //createMessage.success('刷新字典缓存成功！');
+      } else {
+       // createMessage.error('刷新字典缓存失败！');
+      }
+    } catch (e) {
+      //createMessage.error('刷新字典缓存异常！');
+    }
   }
 
   /**

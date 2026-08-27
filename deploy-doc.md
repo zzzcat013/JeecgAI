@@ -346,7 +346,8 @@ cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
 - 文档管理“导入知识库”继续使用当前已生成的 Markdown。
 - AIRag 的文档解析继续由远程 MinerU API 处理，不受主业务容器是否安装 `magic-pdf` 影响。
 - AI5G 转换结果只上传主 Markdown 和 Markdown 引用的图片，MinerU 生成的 PDF/JSON 中间文件不上传 MinIO。
-- 当前环境 Flyway 为关闭状态，部署前需手工应用 `V20260820_1__ai5g_docfile_mineru_async.sql` 至 `V20260820_7__ai5g_ops_agent_flow.sql` 数据库变更；其中第三个变更用于新增“文档管理概览”菜单，第四个变更用于修复转换后被 Markdown 文本大小覆盖的源文件大小，第五个变更用于删除文档后的 MinIO 清理墓碑表，第六个变更用于 AI5G 角色首页授权，第七个变更用于将“5G专网运维智能体”正式应用切换到新的 ToB/ToC 分流流程，并修复知识库附件正文误判、把非现场知识检索 `topNumber` 提高到 10。
+- 当前环境 `spring.flyway.enabled=false`，数据库迁移采用手工执行。2026-08-27 已依次应用 `V20260820_1` 至 `V20260820_8`、`V20260826_1`、`V3.9.5_0`，并已补齐 `flyway_schema_history`。
+- 如果部署到全新环境，仍需要按上述顺序应用数据库脚本；已有环境不要重复执行非幂等的 `V3.9.5_0__all_upgrade.sql`。
 - AI5G 智能体结构化查询依赖 `jeecg-boot/db/ai5g/ai5g_domain_query_plugin.sql`，ToB/ToC 业务表脚本位于 `org/jeecg/modules/biz/ai5g/sql/`，首次部署时需一并应用。
 
 ### 10.5 5G专网运维智能体
@@ -364,3 +365,51 @@ cd /Users/zhangxj/source/java/jeecgAI/JeecgAI
 - 不建议把 `magic-pdf` 混装进主业务容器。
 - 不建议依赖宿主机安装的软件去给 Docker 容器提供 `soffice`。
 - 不建议把 Office 预览和 AIRag 解析都塞到同一个容器镜像里，后续维护成本会比较高。
+
+## 十一、数据库变更记录（2026-08-27）
+
+### 11.1 已执行的迁移
+
+| 脚本 | 内容 | 状态 |
+|------|------|------|
+| `V20260820_1__ai5g_docfile_mineru_async.sql` | `biz_ai5g_docfile` 增加 MinerU 异步转换字段和任务索引 | 已执行 |
+| `V20260820_2__ai5g_docfile_manifest_remark.sql` | `asset_manifest` 调整为 `LONGTEXT`，`remark` 调整为 `TEXT` | 已执行 |
+| `V20260820_3__ai5g_doc_overview_menu.sql` | 新增“文档管理概览”菜单及 AI5G 角色授权 | 已执行 |
+| `V20260820_4__ai5g_docfile_fix_size.sql` | 修正 `biz_ai5g_docfile.size` 为原始上传文件大小 | 已执行 |
+| `V20260820_5__ai5g_docfile_tombstone.sql` | 新增文档删除后的 MinIO 清理墓碑表 | 已执行 |
+| `V20260820_6__ai5g_home_menu.sql` | 新增 AI5G 角色独立首页及角色首页配置 | 已执行 |
+| `V20260820_7__ai5g_ops_agent_flow.sql` | 新增 5G 专网运维智能体正式流程并切换正式应用 | 已执行 |
+| `V20260820_8__ai5g_ops_agent_db_source.sql` | 为 ToB/ToC 数据库查询和最终回答补充数据库来源标注 | 已执行 |
+| `V20260826_1__fix_suixing_retrieval_app_flow.sql` | 随行专网数据检索应用切换到 AI5G 新流程 | 已执行 |
+| `V3.9.5_0__all_upgrade.sql` | main 合并带来的系统升级 SQL | 已执行 |
+
+### 11.2 V3.9.5 系统升级主要内容
+
+- 删除 `airag_prompts.prompt_key`。
+- `onl_cgform_head`、`onl_cgform_enhance_sql` 增加动态数据源字段。
+- `sys_depart` 增加飞书部门标识字段。
+- `open_api` 将 `comment` 改为 `remarks`、`body` 改为 `request_body`，并增加接口描述字段。
+- `open_api_log` 增加调用 AK、请求方法、请求路径、来源 IP、请求参数、响应码、错误信息、请求头等日志字段。
+- `airag_app` 增加 `share_token` 分享令牌及唯一索引。
+- `jimu_dict` 重建字典检索索引。
+- 补齐 AI 模型、知识库、应用等接口按钮权限。
+- 删除旧 Chat2BI 应用、流程、插件和旧报表/大屏 AI 流程。
+
+### 11.3 Flyway 记录同步
+
+- 2026-08-27 手工执行升级后，已补齐 `V20260820_1~8`、`V20260826_1`、`V3.9.5_0` 的 `flyway_schema_history` 记录。
+- 使用 Flyway `7.15.0` 执行 `repair`，回填所有迁移的 `checksum` 和描述。
+- 执行 `validate` 通过：共校验 29 条迁移，失败 0 条，迁移脚本 checksum 为空 0 条。
+- 当前 `spring.flyway.enabled` 仍为 `false`，后续如需启用 Flyway，可直接 validate，不会重复执行已手工应用的脚本。
+
+### 11.4 升级后 AI5G 核对结果
+
+- `5G专网运维智能体`：`2083017548267618305`，仍绑定正式流程 `2082795096418247001`。
+- `随行专网项目数据检索智能体`：`2077722659066368002`，仍绑定正式流程 `2082795096418247001`。
+- `AI5G专网查询插件`：`2078729600000000001`，升级后保留正常。
+- 旧流程 `2077719401256538114 随行专网数据检索` 已禁用，避免引用已删除的通用数据库插件。
+
+### 11.5 备份文件
+
+- `/Users/zhangxj/backups/jeecgai-before-v3.9.5-20260827.sql`
+- `/Users/zhangxj/backups/jeecgai-before-flyway-sync-20260827.sql`

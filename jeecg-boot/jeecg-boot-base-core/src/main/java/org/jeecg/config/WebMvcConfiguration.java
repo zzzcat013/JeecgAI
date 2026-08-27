@@ -14,10 +14,12 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.jeecg.config.filter.SvgSecurityFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -36,7 +38,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,6 +49,9 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Configuration
 public class WebMvcConfiguration implements WebMvcConfigurer {
+	private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+	private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+	private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     @Resource
     JeecgBaseConfig jeecgBaseConfig;
@@ -133,15 +137,57 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         //默认的处理日期时间格式
         objectMapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
         JavaTimeModule javaTimeModule = new JavaTimeModule();
-        javaTimeModule.addSerializer(LocalDateTime.class, new LocalDateTimeSerializer(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        javaTimeModule.addSerializer(LocalDate.class, new LocalDateSerializer(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-        javaTimeModule.addSerializer(LocalTime.class, new LocalTimeSerializer(DateTimeFormatter.ofPattern("HH:mm:ss")));
-        javaTimeModule.addDeserializer(LocalDateTime.class, new LocalDateTimeDeserializer(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        javaTimeModule.addDeserializer(LocalDate.class, new LocalDateDeserializer(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-        javaTimeModule.addDeserializer(LocalTime.class, new LocalTimeDeserializer(DateTimeFormatter.ofPattern("HH:mm:ss")));
+		javaTimeModule.addSerializer(LocalDateTime.class, new LocalDateTimeSerializer(DATE_TIME_FORMATTER));
+		javaTimeModule.addSerializer(LocalDate.class, new LocalDateSerializer(DATE_FORMATTER));
+		javaTimeModule.addSerializer(LocalTime.class, new LocalTimeSerializer(TIME_FORMATTER));
+		javaTimeModule.addDeserializer(LocalDateTime.class, new LocalDateTimeDeserializer(DATE_TIME_FORMATTER));
+		javaTimeModule.addDeserializer(LocalDate.class, new LocalDateDeserializer(DATE_FORMATTER));
+		javaTimeModule.addDeserializer(LocalTime.class, new LocalTimeDeserializer(TIME_FORMATTER));
         objectMapper.registerModule(javaTimeModule);
         return objectMapper;
     }
+
+	//update-begin---author:scott ---date:20260813  for：Spring Boot 4默认Jackson 3统一Java时间格式------------
+	/**
+	 * 为 Spring Boot 4 默认的 Jackson 3 JsonMapper 注册 Java 时间序列化格式。
+	 */
+	@Bean
+	public tools.jackson.databind.JacksonModule jackson3JavaTimeModule() {
+		tools.jackson.databind.module.SimpleModule javaTimeModule = new tools.jackson.databind.module.SimpleModule("jeecgJavaTimeModule");
+		javaTimeModule.addSerializer(LocalDateTime.class, new tools.jackson.databind.ext.javatime.ser.LocalDateTimeSerializer(DATE_TIME_FORMATTER));
+		javaTimeModule.addSerializer(LocalDate.class, new tools.jackson.databind.ext.javatime.ser.LocalDateSerializer(DATE_FORMATTER));
+		javaTimeModule.addSerializer(LocalTime.class, new tools.jackson.databind.ext.javatime.ser.LocalTimeSerializer(TIME_FORMATTER));
+		return javaTimeModule;
+	}
+	//update-end---author:scott ---date:20260813  for：Spring Boot 4默认Jackson 3统一Java时间格式------------
+
+//    /**
+//     * SpringBootAdmin的Httptrace不见了
+//     * https://blog.csdn.net/u013810234/article/details/110097201
+//     */
+//    @Bean
+//    public InMemoryHttpTraceRepository getInMemoryHttpTrace(){
+//        return new InMemoryHttpTraceRepository();
+//    }
+
+
+    //update-begin---author:liusq ---date:20260525  for：【QQYUN-15536】修复上传SVG文件通过静态资源路径触发存储型XSS-----------
+    /**
+     * 注册 SVG 安全响应头过滤器
+     * <p>对所有 .svg 请求的响应自动追加 Content-Security-Policy:sandbox 和 X-Content-Type-Options:nosniff，
+     * 阻止浏览器以顶层文档方式渲染已上传 SVG 时执行内嵌脚本（存储型 XSS）。</p>
+     *
+     * @see SvgSecurityFilter
+     */
+    @Bean
+    public FilterRegistrationBean<SvgSecurityFilter> svgSecurityFilterRegistration() {
+        FilterRegistrationBean<SvgSecurityFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new SvgSecurityFilter());
+        registration.addUrlPatterns("/*");
+        registration.setName("svgSecurityFilter");
+        return registration;
+    }
+    //update-end---author:liusq ---date:20260525  for：【QQYUN-15536】修复上传SVG文件通过静态资源路径触发存储型XSS-----------
 
     /**
      * 在Bean初始化完成后立即配置PrometheusMeterRegistry，避免在Meter注册后才配置MeterFilter

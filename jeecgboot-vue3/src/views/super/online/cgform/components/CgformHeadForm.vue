@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, reactive, ref, toRaw } from 'vue';
+  import { computed, reactive, ref, toRaw, inject } from 'vue';
   import { useModal } from '/@/components/Modal';
   import { useMessage } from '/@/hooks/web/useMessage';
   import { duplicateValidate } from '/@/utils/helper/validator';
@@ -102,6 +102,7 @@
   import CgformFieldItem from './CgformFieldItem.vue';
   import { ExtConfigDefaultJson } from '../cgform.data';
   import { parseExtConfigJson } from '../util/utils';
+  import { CgformPageType } from '../types';
 
   interface FieldItem {
     label: string;
@@ -131,7 +132,14 @@
 
   const { createMessage: $message } = useMessage();
 
+  const pageType = inject<CgformPageType>('cgformPageType', CgformPageType.normal);
+
   const expandStatus = ref(false);
+
+  // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-328】视图进入的编辑弹窗中的表类型和是否树都需禁用
+  const cgformPageType = inject('cgformPageType', CgformPageType.normal);
+  const isCopyMode = computed(() => cgformPageType === CgformPageType.copy);
+  // update-end--author:liaozhiyang---date:20260713---for：【LHZP-328】视图进入的编辑弹窗中的表类型和是否树都需禁用
 
   const tableTypeOptions = [
     { label: '单表', value: 1 },
@@ -244,7 +252,7 @@
       field: 'tableName',
       type: 'input',
       required: true,
-      disabled: !!(formModel.tableVersion && formModel.tableVersion != 1),
+      disabled: pageType === CgformPageType.copy || !!(formModel.tableVersion && formModel.tableVersion != 1),
       allowClear: true,
       status: fieldErrors.tableName,
       onChange: (e: any) => validateTableNameSync(e?.target?.value ?? e ?? ''),
@@ -264,6 +272,7 @@
       type: 'select',
       options: tableTypeOptions,
       onChange: onTableTypeChange,
+      disabled: isCopyMode.value,
     },
   ]);
 
@@ -291,9 +300,20 @@
   //   type: 'input-number',
   // };
 
+  // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-183】主题模板为ERP时禁用复选框配置
+  function onThemeTemplateChange(value: string) {
+    // ERP 风格列表固定需要行选中，复选框强制显示且不可改
+    if (value === 'erp') {
+      formModel.isCheckbox = 'Y';
+    }
+  }
+  // update-end--author:liaozhiyang---date:20260804---for：【LHZP-183】主题模板为ERP时禁用复选框配置
+
   // 展开后的通用字段
   const expandCommonFields = computed<FieldItem[]>(() => [
-    { label: '复选框', field: 'isCheckbox', type: 'select', options: isCheckboxOptions },
+    // update-begin--author:liaozhiyang---date:20260804---for：【LHZP-183】主题模板为ERP时禁用复选框配置
+    { label: '复选框', field: 'isCheckbox', type: 'select', options: isCheckboxOptions, disabled: formModel.themeTemplate === 'erp' },
+    // update-end--author:liaozhiyang---date:20260804---for：【LHZP-183】主题模板为ERP时禁用复选框配置
     { label: '表单风格', field: 'formTemplate', type: 'select', options: formTemplateOptions },
     { label: '滚动条', field: 'scroll', type: 'select', options: scrollOptions },
     { label: '分页', field: 'isPage', type: 'select', options: isPageOptions },
@@ -311,7 +331,12 @@
     if (tableType === 2) {
       const fields: FieldItem[] = [{ ...subTableField, show: !!formModel.subTableStr }];
       if (expanded) {
-        fields.push(...expandCommonFields.value, { label: '主题模板', field: 'themeTemplate', type: 'select', options: themeTemplateOptions });
+        // update-begin--author:liaozhiyang---date:20260804---for【LHZP-183】主题模板为ERP时禁用复选框配置
+        fields.push(
+          ...expandCommonFields.value,
+          { label: '主题模板', field: 'themeTemplate', type: 'select', options: themeTemplateOptions, onChange: onThemeTemplateChange }
+        );
+        // update-end--author:liaozhiyang---date:20260804---for：【LHZP-183】主题模板为ERP时禁用复选框配置
       }
       return fields;
     }
@@ -320,7 +345,7 @@
     if (expanded) {
       const fields: FieldItem[] = [
         ...expandCommonFields.value,
-        { label: '是否树', field: 'isTree', type: 'select', options: isTreeOptions, onChange: onIsTreeChange },
+        { label: '是否树', field: 'isTree', type: 'select', options: isTreeOptions, onChange: onIsTreeChange, disabled: isCopyMode.value },
       ];
       if (isTree === 'Y') {
         fields.push(
@@ -354,6 +379,8 @@
     return false;
   });
 
+  const FORM_FIELD_KEYS = Object.keys(DEFAULT_FORM_MODEL);
+
   function resetFields() {
     Object.assign(formModel, DEFAULT_FORM_MODEL);
     fieldErrors.tableName = '';
@@ -361,7 +388,20 @@
   }
 
   function setFieldsValue(values: Recordable) {
-    Object.assign(formModel, values);
+    // update-begin--author:liaozhiyang---date:20260520---for:【QQYUN-15469】新加的表，创建时间是已打开过的表单的时间
+    // 只接收白名单内的字段，避免被编辑的 record 的多余字段污染 formModel
+    if (!values) return;
+    for (const key of FORM_FIELD_KEYS) {
+      if (key in values) {
+        (formModel as Recordable)[key] = values[key];
+      }
+    }
+    // update-end--author:liaozhiyang---date:20260520---for:【QQYUN-15469】新加的表，创建时间是已打开过的表单的时间
+    // update-begin--author:liaozhiyang---date:20260804---for：主题模板为ERP时禁用复选框配置
+    if (formModel.themeTemplate === 'erp') {
+      formModel.isCheckbox = 'Y';
+    }
+    // update-end--author:liaozhiyang---date:20260804---for：主题模板为ERP时禁用复选框配置
   }
 
   function getFieldsValue(fields?: string[]) {
@@ -431,6 +471,10 @@
     extConfigJson = Object.assign({}, ExtConfigDefaultJson, parseJSON, {
       isDesForm: record.isDesForm || 'N',
       desFormCode: record.desFormCode || '',
+      // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源（dbSource 为 onl_cgform_head 独立列）
+      dbSource: record.dbSource || '',
+      enableMultiDataSource: record.dbSource ? 1 : 0,
+      // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
     });
   }
 

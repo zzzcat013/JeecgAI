@@ -14,4 +14,13 @@ import java.util.List;
  */
 public interface IAiragModelService extends IService<AiragModel> {
 
+	/**
+	 * 复制AI模型配置
+	 *
+	 * @param id 原模型ID
+	 * @author scott
+	 * @since 2026-08-06 LHZP-1552 AI模型配置增加复制功能
+	 */
+	void copyModel(String id);
+
 }

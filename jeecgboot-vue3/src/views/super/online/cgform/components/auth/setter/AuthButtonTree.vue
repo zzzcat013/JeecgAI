@@ -6,6 +6,8 @@
       <div class="onl-auth-tree-btns">
         <a-button @click="onRefresh" size="small" type="primary" preIcon="ant-design:redo" ghost>刷新</a-button>
         <a-button @click="onSave" size="small" type="primary" preIcon="ant-design:save" ghost>保存</a-button>
+        <a-button @click="onSelectAll" size="small" type="primary" ghost><CheckOutlined />全选</a-button>
+        <a-button @click="onClearSelected" size="small" type="primary" ghost><UndoOutlined />重置</a-button>
       </div>
       <a-tree
         checkable
@@ -24,9 +26,11 @@
   import { useMessage } from '/@/hooks/web/useMessage';
   import { authButtonFixedList } from '../auth.data';
   import { authButtonLoadTree, loadRoleAuthChecked, saveAuthButton } from '../auth.api';
+  import { CheckOutlined, UndoOutlined } from '@ant-design/icons-vue';
 
   export default defineComponent({
     name: 'AuthButtonTree',
+    components: { CheckOutlined, UndoOutlined },
     props: {
       cgformId: { type: String, required: true },
     },
@@ -139,6 +143,14 @@
         checkedKeys.value = [];
       }
 
+      function onClearSelected() {
+        checkedKeys.value = [];
+      }
+
+      function onSelectAll() {
+        checkedKeys.value = treeData.value.map((item) => item.key);
+      }
+
       return {
         loadChecked,
         clear,
@@ -151,6 +163,8 @@
         onExpand,
         onRefresh,
         clearChecked,
+        onClearSelected,
+        onSelectAll,
       };
     },
   });

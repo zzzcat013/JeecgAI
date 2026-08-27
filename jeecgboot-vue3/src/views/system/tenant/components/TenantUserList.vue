@@ -27,6 +27,7 @@ const { prefixCls, tableContext } = useListPage({
     api: getTenantUserList,
     columns: userColumns,
     immediate:false,
+    canResize: false,
     formConfig: {
       schemas: userSearchFormSchema,
       // 代码逻辑说明: 【QQYUN-5698】样式问题------------

@@ -91,6 +91,8 @@ componentMap.set('RangeDate', createAsyncComponent(() => import('./jeecg/compone
 componentMap.set('RangeTime', createAsyncComponent(() => import('./jeecg/components/JRangeTime.vue')));
 componentMap.set('RoleSelect', createAsyncComponent(() => import('./jeecg/components/roleSelect/RoleSelectInput.vue')));
 componentMap.set('JInputSelect', createAsyncComponent(() => import('./jeecg/components/JInputSelect.vue')));
+componentMap.set('JAuthRuleValue', createAsyncComponent(() => import('./jeecg/components/JAuthRuleValue.vue')));
+componentMap.set('JMultiTextTagInput', createAsyncComponent(() => import('./jeecg/components/JMultiTextTagInput.vue')));
 componentMap.set('JSelectDepartPost', createAsyncComponent(() => import('./jeecg/components/JSelectDepartPost.vue')));
 componentMap.set('JSelectUserByDeptPost', createAsyncComponent(() => import('./jeecg/components/JSelectUserByDeptPost.vue')));
 

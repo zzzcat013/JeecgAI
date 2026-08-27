@@ -8,6 +8,7 @@
           <a-button v-if="addBtnCfg.enabled && showAdd" type="primary" :preIcon="addBtnCfg.buttonIcon" :disabled="disabled" :loading="deleting" @click="trigger('add')">
             <span>{{ addBtnCfg.buttonName }}</span>
           </a-button>
+          <slot name="toolbarAfterAdd" :size="btnSize" :selectedRowIds="selectedRowIds" />
           <a-button v-if="showSave" preIcon="ant-design:save-outlined" :disabled="disabled" @click="trigger('save')">
             <span>保存</span>
           </a-button>
@@ -21,7 +22,7 @@
               <a-button preIcon="ant-design:delete-outlined" @click="trigger('clearSelection')">清空选择</a-button>
             </template>
           </template>
-          <slot v-if="showSuffix" name="toolbarSuffix" :size="btnSize" />
+          <slot v-if="showSuffix" name="toolbarSuffix" :size="btnSize" :selectedRowIds="selectedRowIds" />
           <a v-if="showCollapse" style="margin-left: 4px" @click="toggleCollapse">
             <span>{{ collapsed ? '展开' : '收起' }}</span>
             <Icon :icon="collapsed ? 'ant-design:down-outlined' : 'ant-design:up-outlined'" />

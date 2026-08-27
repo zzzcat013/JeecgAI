@@ -97,6 +97,10 @@
   const generatedImage = ref('');
   const previewVisible = ref(false);
   const configTab = ref('draw');
+  const FACE_SWAP_PROMPT =
+    '将图2的人脸替换到图1的人脸区域，保留图2的面部特征和五官细节，保持图1的身体姿态、发型、服装、构图和背景不变，面部融合自然，光影与肤色协调，高分辨率，写实风格';
+  const MIX_CHANGE_CLOTHES_PROMPT =
+    '以图2作为唯一的主体底图和最终画面，只将图1人物所穿的服装转移到图2人物身上。必须完整保留图2人物的身份、人脸、五官、发型、体型、身体姿态以及图2的构图、环境和背景，不得使用或复制图1的人脸、头部、身体姿态、人物身份和背景。图1仅作为服装参考，准确还原其服装款式、颜色、纹理和材质，使服装自然贴合图2人物，保持图2原有光影和画面风格。最终结果必须是图2中的人穿上图1的衣服，而不是生成图1中的人物。高分辨率，写实风格';
 
   const { domainUrl } = useGlobSetting();
   const [registerForm, { validate, resetSchema, setFieldsValue }] = useForm({
@@ -110,9 +114,13 @@
     if (val === 'draw') {
       resetSchema(drawFormSchema);
     } else if (val === 'face') {
-      resetSchema(faceSwapFormSchema);
+      resetSchema(faceSwapFormSchema).then(() => {
+        setFieldsValue({ content: FACE_SWAP_PROMPT });
+      });
     } else if (val === 'mix') {
-      resetSchema(mixFormSchema);
+      resetSchema(mixFormSchema).then(() => {
+        setFieldsValue({ content: MIX_CHANGE_CLOTHES_PROMPT });
+      });
     } else {
       // Default to draw or empty for mix for now
       resetSchema(drawFormSchema);
@@ -181,7 +189,9 @@
           delete values.sourceImage;
           delete values.targetImage;
         }
-        values.content = '将图1的面部特征替换到图2的面部区域，保留图1五官细节，保持图2身体姿态，面部融合自然，高分辨率，写实风格';
+        values.content =
+          values.content ||
+          FACE_SWAP_PROMPT;
       }
 
       //update-begin---author:wangshuai---date:2026-04-15---for:【QQYUN-14944】改为异步提交，获取taskId后开始轮询
@@ -220,7 +230,7 @@
       setFieldsValue({
         imageUrl:
           'https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/4e4d1886-fb3b-4c01-abf6-25e546a1253e_1770703403479.png,https://jeecgdev.oss-cn-beijing.aliyuncs.com/upload/test/63706787-4072-4cba-ad88-385e0584b020_1770703456766.png',
-        content: '将【图一】的衣服换到【图二】中。',
+        content: MIX_CHANGE_CLOTHES_PROMPT,
       });
     }
   }

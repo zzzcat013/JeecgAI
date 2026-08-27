@@ -2,7 +2,8 @@
 <template>
   <div class="JPopupDict components-input-demo-presuffix">
     <!--输入框-->
-    <a-select v-model:value="showText" v-bind="attrs" :mode="multi ? 'multiple' : ''" @click="handleOpen" readOnly :loading="loading">
+    <a-input v-if="useInput" v-model:value="showLabel" v-bind="attrs" :disabled="disabled" @click="handleOpen" readonly :loading="loading" />
+    <a-select v-else v-model:value="showText" v-bind="attrs" :disabled="disabled" :mode="multi ? 'multiple' : ''" @click="handleOpen" readOnly :loading="loading" :open="false">
       <a-select-option v-for="item in options" :value="item.value">{{ item.text }}</a-select-option>
     </a-select>
     <a-form-item>
@@ -54,21 +55,25 @@
       dictCode: propTypes.string.def(''),
       value: propTypes.string.def(''),
       sorter: propTypes.string.def(''),
+      disabled: propTypes.bool.def(false),
       multi: propTypes.bool.def(false),
       param: propTypes.object.def({}),
       spliter: propTypes.string.def(','),
       getFormValues: propTypes.func,
       getContainer: propTypes.func,
       showAdvancedButton: propTypes.bool.def(true),
+      useInput: propTypes.bool.def(false),
     },
-    emits: ['update:value', 'register', 'change'],
+    emits: ['update:value', 'register', 'change', 'options-change'],
     setup(props, { emit }) {
       const { createMessage } = useMessage();
       const attrs = useAttrs();
       const showText = ref<any>(props.multi ? [] : '');
+      const showLabel = ref<string>('');
       const options = ref<any>([]);
       const cgRpConfigId = ref('');
       const loading = ref(false);
+      let syncingFromProps = false;
       const code = props.dictCode.split(',')[0];
       const labelFiled = props.dictCode.split(',')[1];
       const valueFiled = props.dictCode.split(',')[2];
@@ -84,29 +89,69 @@
        */
       function handleOpen() {
         // 代码逻辑说明: 【TV360X-317】禁用后JPopup和JPopupdic还可以点击出弹窗
-        !attrs.value.disabled && openModal(true);
+        //update-begin---wangshuai---date:20260104  for：[issue/1560]动态列后面无法接其它列，如动态列最后加汇总就有问题------------
+        //update-end---author:wangshuai ---date:20260104  for：[issue/1560]动态列后面无法接其它列，如动态列最后加汇总就有问题------------
+        if (props.disabled) {
+          return;
+        }
+        openModal(true);
+      }
+      /**
+       * liaozhiyang
+       * 20260522
+       * 【QQYUN-15493】新增a-input模式下
+       * */
+      function syncShowLabel() {
+        if (!props.useInput) return;
+        const currentValue = showText.value;
+        if (props.multi) {
+          const values = Array.isArray(currentValue) ? currentValue : currentValue ? currentValue.split(props.spliter) : [];
+          showLabel.value = values
+            .map((v) => {
+              const opt = options.value.find((o: any) => String(o.value) === String(v));
+              return opt?.text || v;
+            })
+            .join(props.spliter);
+        } else {
+          const opt = options.value.find((o: any) => String(o.value) === String(currentValue));
+          showLabel.value = opt?.text || currentValue || '';
+        }
       }
       /**
        * 监听value数值
        */
       watch(
         () => props.value,
-        (val) => {
+        () => {
           const callBack = () => {
+            syncingFromProps = true;
+            // update-begin--author:liusq---date:20260720---for：【LHZP-1003】单表pop字典，设置后，编辑打开，回显数据陷入循环查询的死循环
+            // 代码逻辑说明: 必须使用实时的props.value而非闭包捕获的val，否则在异步回调时
+            // defaultValue与记录值不同时，多个callBack会交替覆盖formModel，导致无限刷新
+            const currentValue = props.value;
             if (props.multi) {
-              showText.value = val && val.length > 0 ? val.split(props.spliter) : [];
+              showText.value = currentValue && currentValue.length > 0 ? currentValue.split(props.spliter) : [];
             } else {
-              showText.value = val ?? '';
+              showText.value = currentValue ?? '';
             }
+            // update-end--author:liusq---date:20260720---for：【LHZP-1003】单表pop字典，设置后，编辑打开，回显数据陷入循环查询的死循环
+            // update-begin--author:liaozhiyang---date:20260714---for：【LHZP-392】pop字典外面删除了，弹窗里面还是勾选
+            const currentValues = (props.multi ? showText.value : showText.value ? [showText.value] : []).map((v: any) => String(v));
+            selected.value = (selected.value || []).filter((r: any) => currentValues.includes(String(r[valueFiled])));
+            // update-end--author:liaozhiyang---date:20260714---for：【LHZP-392】pop字典外面删除了，弹窗里面还是勾选
+            syncShowLabel();
+            nextTick(() => {
+              syncingFromProps = false;
+            });
           };
+          // 先回显已保存值，接口返回后再用加载到的 options 替换为显示文本，避免编辑弹窗短暂空白
+          callBack();
           if (props.value || props.defaultValue) {
             if (cgRpConfigId.value) {
               loadData({ callBack });
             } else {
               loadColumnsInfo({ callBack });
             }
-          } else {
-            callBack();
           }
         },
         { immediate: true }
@@ -114,6 +159,8 @@
       watch(
         () => showText.value,
         (val) => {
+          // props 回显属于单向同步，不能再作为用户操作反向清空或覆盖表单值
+          if (syncingFromProps) return;
           let result;
           if (props.multi) {
             result = val.join(',');
@@ -182,18 +229,30 @@
         if (props.multi) {
           showText.value = dataValue;
           result = dataValue.join(props.spliter);
+          //update-begin author:liaozhiyang date:20260522 for：【QQYUN-15493】新增a-input模式下
+          if (props.useInput) {
+            showLabel.value = dataOptions.map((o: any) => o.text).join(props.spliter);
+          }
+          //update-end author:liaozhiyang date:20260522 for：【QQYUN-15493】新增a-input模式下
         } else {
           showText.value = dataValue[0];
           result = dataValue[0];
+          //update-begin author:liaozhiyang date:20260522 for：【QQYUN-15493】新增a-input模式下
+          if (props.useInput) {
+            showLabel.value = dataOptions[0]?.text || '';
+          }
+          //update-end author:liaozhiyang date:20260522 for：【QQYUN-15493】新增a-input模式下
         }
         nextTick(() => {
           emit('change', result);
           emit('update:value', result);
+          emit('options-change', options.value);
         });
       }
 
       return {
         showText,
+        showLabel,
         attrs,
         regModal,
         handleOpen,

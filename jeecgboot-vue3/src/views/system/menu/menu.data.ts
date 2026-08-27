@@ -352,13 +352,13 @@ export const dataRuleSearchFormSchema: FormSchema[] = [
   {
     field: 'ruleName',
     label: '规则名称',
-    component: 'Input',
+    component: 'JInput',
     // colProps: { span: 6 },
   },
   {
     field: 'ruleValue',
     label: '规则值',
-    component: 'Input',
+    component: 'JInput',
     // colProps: { span: 6 },
   },
 ];

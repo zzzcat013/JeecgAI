@@ -141,7 +141,9 @@ function customComponentAddStar(columns) {
         ].includes(type)
       ) {
         if (validateRules.find((item) => item.required)) {
-          column.title = ` * ${column.title}`;
+          // update-begin--author:liaozhiyang---date:20260807---for:【LHZP-703】用户、部门、图片、文件、开关的必填标识显示非红色
+          column.headerClassName = 'jvxe-col--required';
+          // update-end--author:liaozhiyang---date:20260807---for:【LHZP-703】用户、部门、图片、文件、开关的必填标识显示非红色
         }
       }
     }

@@ -43,6 +43,7 @@
   import { useListPage } from '/@/hooks/system/useListPage';
   import { useDrawer } from '/@/components/Drawer';
   import { useMessage } from '/@/hooks/web/useMessage';
+  import { copyTextToClipboard } from '/@/hooks/web/useCopyToClipboard';
   import { columns, searchFormSchema, superQuerySchema } from './OpenApiAuth.data';
   import { list, deleteOne, batchDelete, getImportUrl, getExportUrl, getGenAKSK, saveOrUpdate } from './OpenApiAuth.api';
   import OpenApiAuthDrawer from './components/OpenApiAuthDrawer.vue';
@@ -177,12 +178,12 @@
   /**
    * 复制密钥
    */
-  async function handleCopyKeys(record: Recordable) {
+  function handleCopyKeys(record: Recordable) {
     const text = `访问密钥（AK）: ${record.ak}\n签名密钥（SK）: ${record.sk}`;
-    try {
-      await navigator.clipboard.writeText(text);
+    const isSuccess = copyTextToClipboard(text);
+    if (isSuccess) {
       createMessage.success('密钥已复制到剪贴板');
-    } catch (_e) {
+    } else {
       createMessage.error('复制失败，请手动复制');
     }
   }

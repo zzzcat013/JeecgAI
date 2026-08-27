@@ -4,6 +4,7 @@
     :width="900"
     :maskClosable="false"
     defaultFullscreen
+    wrapClassName="onl-auth-setter-modal"
     :okButtonProps="{ style: { display: 'none' } }"
     cancelText="关闭"
     @cancel="closeModal"
@@ -229,4 +230,29 @@
     }
   }
   // update-end--author:liaozhiyang---date:20231226---for：【QQYUN-7540】角色权限弹窗右侧内容较长时局部滚动
+</style>
+
+<style lang="less">
+  .onl-auth-setter-modal:not(.fullscreen-modal) {
+    .onl-auth-user-query-item {
+      flex: 0 0 50%;
+      max-width: 50%;
+    }
+
+    .onl-auth-user-query-actions {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+
+    .onl-auth-tree-btns {
+      display: grid;
+      grid-template-columns: repeat(4, max-content);
+      gap: 8px;
+      margin-left: 10px;
+
+      button {
+        margin: 0;
+      }
+    }
+  }
 </style>

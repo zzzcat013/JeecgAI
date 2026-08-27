@@ -47,7 +47,7 @@
     />
 
     <template #comment>
-      <comment-panel ref="commentPanelRef" :tableName="tableName" :dataId="formDataId"></comment-panel>
+      <comment-panel ref="commentPanelRef" :tableId="tableId" :tableName="tableName" :dataId="formDataId"></comment-panel>
     </template>
   </BasicModal>
 </template>
@@ -104,6 +104,7 @@
         formRendered,
         showSub,
         tableName,
+        tableId,
         formDataId,
         enableComment,
         themeTemplate,
@@ -161,6 +162,7 @@
         submitLoading,
         showSub,
         tableName,
+        tableId,
         formDataId,
         enableComment,
         commentPanelRef,

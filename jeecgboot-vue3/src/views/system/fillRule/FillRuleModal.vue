@@ -1,5 +1,5 @@
 <template>
-  <BasicModal v-bind="$attrs" @register="registerModal" :title="title" @ok="handleSubmit" :width="800" destroyOnClose>
+  <BasicModal v-bind="$attrs" @register="registerModal" :title="title" @ok="handleSubmit" :width="800" wrapClassName="fill-rule-modal" destroyOnClose>
     <BasicForm @register="registerForm" />
   </BasicModal>
 </template>
@@ -80,3 +80,14 @@
     }
   }
 </script>
+
+<style lang="less">
+  .fill-rule-modal .dynamic-delete-button {
+    position: static;
+    display: inline-flex;
+    align-items: center;
+    width: auto !important;
+    height: 32px;
+    margin-left: 8px;
+  }
+</style>

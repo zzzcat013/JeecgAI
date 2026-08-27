@@ -98,6 +98,8 @@ export const ExtConfigDefaultJson = {
   commentStatus: 0,
   tableFixedAction: 1,
   tableFixedActionType: 'right',
+  // Excel 图片导出方式（embed 嵌入图片，path 图片路径）
+  imageExportMode: 'path',
   // update-begin--author:liaozhiyang---date:20240329---for：【QQYUN-7872】online表单label较长优化
   formLabelLengthShow: 0,
   formLabelLength: null,
@@ -105,6 +107,11 @@ export const ExtConfigDefaultJson = {
   // 是否启用外部链接
   enableExternalLink: 0,
   externalLinkActions: 'add,edit,detail',
+  // update-begin--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
+  // 是否开启多数据源（仅UI状态，关闭时清空 dbSource；最终持久化到 onl_cgform_head.db_source 列）
+  enableMultiDataSource: 0,
+  dbSource: '',
+  // update-end--author:jeecg---date:20260512---for：【QQYUN-15337】online表单支持多数据源
 };
 
 /** 获取主表的初始化数据 */

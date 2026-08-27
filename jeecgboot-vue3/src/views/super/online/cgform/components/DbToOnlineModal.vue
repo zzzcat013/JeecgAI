@@ -5,7 +5,7 @@
         <template #tableTitle>
           <div>
             注：导入表会排除配置前缀表
-            <a href="http://doc.jeecg.com/2043924" target="_blank"> 参考文档</a>
+            <a href="https://help.jeecg.com/java/online/more/exclusionTable?_highlight=%E6%95%B0%E6%8D%AE%E5%BA%93" target="_blank"> 参考文档</a>
           </div>
         </template>
       </BasicTable>

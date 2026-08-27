@@ -19,7 +19,12 @@
             </template>
             <template #renderItem="{ item }">
               <a-list-item :class="activeIndex === item.index ? 'bg-blue' : ''">
-                <a @click="fullCode(item)">{{ getFormatDate(item.date) }}</a>
+                <!-- update-begin--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用 -->
+                <div class="history-item">
+                  <a class="history-time" @click="fullCode(item)">{{ getFormatDate(item.date) }}</a>
+                  <a-button type="link" size="small" class="history-apply" @click.stop="onApply(item)">应用</a-button>
+                </div>
+                <!-- update-end--author:liaozhiyang---date:20260713---for【LHZP-235】修复js增强历史版本年份不显示及新增应用 -->
               </a-list-item>
             </template>
           </a-list>
@@ -48,7 +53,8 @@
   export default defineComponent({
     name: 'EnhanceJsHistory',
     components: { BasicModal, JCodeEditor },
-    setup() {
+    emits: ['register', 'apply'],
+    setup(_props, { emit }) {
       const enhanceStore = useEnhanceStore();
       const codeEditorRef = ref<InstanceType<typeof JCodeEditor>>();
       const confirmLoading = ref(false);
@@ -86,7 +92,7 @@
       }
 
       function getFormatDate(date) {
-        return formatToDate(date, 'yyyy-MM-DD HH:mm:ss');
+        return formatToDate(date, 'YYYY-MM-DD HH:mm:ss');
       }
 
       function fullCode(item) {
@@ -94,9 +100,17 @@
         codeEditorRef.value!.setValue(item.str);
       }
 
+      // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用
+      function onApply(item) {
+        emit('apply', { type: item.type, str: item.str });
+        closeModal();
+      }
+      // update-end--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用
+
       return {
         codeEditorRef,
         fullCode,
+        onApply,
         registerModal,
         getFormatDate,
         onCancel,
@@ -117,6 +131,7 @@
         height: 42px;
         line-height: 42px;
         transition: background-color 300ms;
+        padding: 0;
       }
 
       .bg-blue {
@@ -126,14 +141,14 @@
         a {
           color: rgb(255, 255, 255);
         }
-      }
 
-      a {
-        color: rgba(0, 0, 0, 0.85);
-        display: block;
-        position: absolute;
-        width: 100%;
-        height: 100%;
+        .history-apply {
+          &,
+          &:hover,
+          &:focus {
+            color: rgb(255, 255, 255);
+          }
+        }
       }
     }
 
@@ -143,4 +158,37 @@
       padding-bottom: 5px;
     }
   }
+
+  // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 16px;
+
+    .history-time {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: rgba(0, 0, 0, 0.85);
+      cursor: pointer;
+    }
+
+    .history-apply {
+      flex: none;
+      padding: 0 4px;
+      visibility: hidden;
+      display: none;
+      transition: opacity 200ms;
+    }
+
+    &:hover .history-apply {
+      visibility: visible;
+      display: block;
+    }
+  }
+  // update-end--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用
 </style>

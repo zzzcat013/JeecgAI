@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 <#assign has_multi_query_field=false>
 <#list originalColumns as po>
-<#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox')>
+<#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='popup_dict' || po.classType=='sel_user' || po.classType=='sel_depart')>
    <#assign has_multi_query_field=true>
 </#if>
 </#list>
@@ -103,7 +103,7 @@ public class ${entityName}Controller extends JeecgController<${entityName}, I${e
         Map<String, QueryRuleEnum> customeRuleMap = new HashMap<>();
         // 自定义多选的查询规则为：LIKE_WITH_OR
     <#list originalColumns as po>
-        <#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox')>
+        <#if po.isQuery=='Y' && (po.classType=='list' || po.classType=='list_multi' || po.classType=='radio' || po.classType=='checkbox' || po.classType=='popup_dict' || po.classType=='sel_user' || po.classType=='sel_depart')>
         customeRuleMap.put("${po.fieldName}", QueryRuleEnum.LIKE_WITH_OR);
         </#if>
     </#list>
@@ -371,6 +371,29 @@ public class ${entityName}Controller extends JeecgController<${entityName}, I${e
 			 params.setNeedSave(true);
 			 try {
 				 List<${sub.entityName}> list = ExcelImportUtil.importExcel(file.getInputStream(), ${sub.entityName}.class, params);
+                 <#if sub.foreignRelationType == '1'>
+                 // 一对一子表：每个主表记录只能对应一条子表，导入前需校验
+                 if (list != null && !list.isEmpty()) {
+                     // 1. 校验 Excel 自身行数：只能导入一条
+                     if (list.size() > 1) {
+                         return Result.error("【${sub.ftlDescription}】为一对一关系,Excel 仅允许导入一条数据,请删除多余行后重试");
+                     }
+                     // 2. 校验库中是否已存在该主表对应的一对一子表记录
+                     List<${sub.entityName}> existing = ${sub.entityName?uncap_first}Service.selectByMainId(mainId);
+                     if (existing != null && !existing.isEmpty()) {
+                         return Result.error("【${sub.ftlDescription}】该主表已存在一对一记录,请先删除现有子表后再导入");
+                     }
+                 }
+                 // 一对一场景下取第一行
+                 ${sub.entityName} temp = list.get(0);
+                 <#list sub.foreignKeys as key>
+                 temp.set${key?cap_first}(mainId);
+                 </#list>
+                 long start = System.currentTimeMillis();
+                 ${sub.entityName?uncap_first}Service.save(temp);
+                 log.info("消耗时间" + (System.currentTimeMillis() - start) + "毫秒");
+                 return Result.OK("文件导入成功！数据行数：1（一对一关系仅导入首条）");
+                 <#else>
 				 for (${sub.entityName} temp : list) {
 					<#list sub.foreignKeys as key>
                     temp.set${key?cap_first}(mainId);
@@ -380,6 +403,7 @@ public class ${entityName}Controller extends JeecgController<${entityName}, I${e
 				 ${sub.entityName?uncap_first}Service.saveBatch(list);
 				 log.info("消耗时间" + (System.currentTimeMillis() - start) + "毫秒");
 				 return Result.OK("文件导入成功！数据行数：" + list.size());
+                 </#if>
 			 } catch (Exception e) {
 				 log.error(e.getMessage(), e);
 				 return Result.error("文件导入失败:" + e.getMessage());

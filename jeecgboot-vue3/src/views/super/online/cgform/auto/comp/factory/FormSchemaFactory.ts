@@ -33,6 +33,7 @@ import LinkTableForQueryWidget from './impl/LinkTableForQueryWidget'
 import CascaderPcaForQueryWidget from './impl/CascaderPcaForQueryWidget'
 import SelectUser2Widget from './impl/SelectUser2Widget'
 import RangeWidget from "./impl/RangeWidget";
+import CategoryLinkageForQueryWidget from './impl/CategoryLinkageForQueryWidget';
 
 export default class FormSchemaFactory {
   static createFormSchema(key, data, queryItem) {
@@ -124,6 +125,10 @@ export default class FormSchemaFactory {
         return new LinkTableForQueryWidget(key, data);
       case 'CascaderPcaForQuery':
         return new CascaderPcaForQueryWidget(key, data, queryItem);
+      // update-begin--author:wangshuai---date:20260819---for：【LHZP-1983】【表单设计器】支持联动组件
+      case 'JCategoryLinkage':
+        return new CategoryLinkageForQueryWidget(key, data);
+      // update-end--author:wangshuai---date:20260819---for：【LHZP-1983】【表单设计器】支持联动组件
       case 'select_user2':
         return new SelectUser2Widget(key, data);
       case 'rangeDate':

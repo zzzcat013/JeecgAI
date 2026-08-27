@@ -114,6 +114,8 @@ export const mixFormSchema: FormSchema[] = [
     field: 'content',
     label: '提示词',
     component: 'InputTextArea',
+    defaultValue:
+      '以图2作为唯一的主体底图和最终画面，只将图1人物所穿的服装转移到图2人物身上。必须完整保留图2人物的身份、人脸、五官、发型、体型、身体姿态以及图2的构图、环境和背景，不得使用或复制图1的人脸、头部、身体姿态、人物身份和背景。图1仅作为服装参考，准确还原其服装款式、颜色、纹理和材质，使服装自然贴合图2人物，保持图2原有光影和画面风格。最终结果必须是图2中的人穿上图1的衣服，而不是生成图1中的人物。高分辨率，写实风格',
     componentProps: {
       rows: 4,
       placeholder: '如将图一的话花瓶放到图二中',
@@ -291,6 +293,18 @@ export const faceSwapFormSchema: FormSchema[] = [
     componentProps: {
       fileMax: 1,
       text: '上传明星图',
+    },
+  },
+  {
+    field: 'content',
+    label: '提示词',
+    component: 'InputTextArea',
+    required: true,
+    defaultValue:
+      '将图2的人脸替换到图1的人脸区域，保留图2的面部特征和五官细节，保持图1的身体姿态、发型、服装、构图和背景不变，面部融合自然，光影与肤色协调，高分辨率，写实风格',
+    componentProps: {
+      rows: 4,
+      placeholder: '请输入换脸提示词',
     },
   },
   {

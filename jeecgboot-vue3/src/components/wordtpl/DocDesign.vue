@@ -555,7 +555,7 @@
   const [registerHighlightColorModal, { openModal: openHighlightColorModal }] = useModal();
   
   function initEditor() {
-    setTimeout(() => {
+    setTimeout(async () => {
       const fontDom: any = document.querySelector('.jeecg-menu-item-font');
       fontOptionDom.value = fontDom.querySelector('.options');
       //字体大小
@@ -594,7 +594,13 @@
       searchCollapseDom.value = document.querySelector('.jeecg-menu-item-search-collapse');
       
       setTableStyle()
-      createEditor(props.content);
+      // update-begin--author:liaozhiyang---date:20270724---for:【LHZP-1452】修复word目录需要修改下正文才显示
+      await createEditor(props.content);
+      // 初始化完成后主动渲染一次目录，避免需要点击目录按钮才显示
+      if (formState.showCataLogDom) {
+        updateCatalog();
+      }
+      // update-end--author:liaozhiyang---date:20270724---for:【LHZP-1452】修复word目录需要修改下正文才显示
       // 组件挂载后添加事件监听器
       document.addEventListener('click', handleClickOutside);
       //监听Ctrl或Cmd键和S键事件

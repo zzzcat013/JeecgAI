@@ -56,7 +56,8 @@ export function useThirdLogin() {
           bindingPhoneModal.value = true;
           let strings = token.split(',');
           thirdUserUuid.value = strings[1];
-        } else {
+        } else if (token.split('.').length === 3) {
+          // JWT 格式校验：必须包含两个 '.'，过滤飞书 SDK 等第三方 postMessage（如 [tea-sdk]ready）
           doThirdLogin(token);
         }
       } else if (typeof token === 'object') {

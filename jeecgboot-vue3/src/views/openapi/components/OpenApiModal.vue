@@ -2,7 +2,20 @@
   <BasicModal :bodyStyle="{ padding: '20px' }" v-bind="$attrs" @register="registerModal" destroyOnClose :title="title" width="80%" @ok="handleSubmit">
     <a-row :gutter="24">
       <a-col :span="10">
-        <BasicForm @register="registerForm" ref="formRef" name="OpenApiForm" />
+        <BasicForm @register="registerForm" ref="formRef" name="OpenApiForm">
+          <template #requestUrlSlot="{ model, field }">
+            <a-input-group compact style="display: flex">
+              <a-input v-model:value="model[field]" disabled style="flex: 1; min-width: 0" />
+              <a-select
+                v-model:value="model['requestMethod']"
+                style="width: 130px; flex-shrink: 0"
+                :options="requestMethodOptions"
+                :disabled="formDisabled"
+                placeholder="请求方式"
+              />
+            </a-input-group>
+          </template>
+        </BasicForm>
       </a-col>
       <a-col :span="14">
         <a-row :gutter="24">
@@ -47,7 +60,7 @@
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { BasicForm, useForm } from '/@/components/Form/index';
   import { useJvxeMethod } from '/@/hooks/system/useJvxeMethods.ts';
-  import { formSchema, openApiHeaderJVxeColumns, openApiParamJVxeColumns } from '../OpenApi.data';
+  import { formSchema, openApiHeaderJVxeColumns, openApiParamJVxeColumns, requestMethodOptions } from '../OpenApi.data';
   import { saveOrUpdate, queryOpenApiHeader, queryOpenApiParam, getGenPath } from '../OpenApi.api';
   import { VALIDATE_FAILED } from '/@/utils/common/vxeUtils';
   import { useMessage } from "@/hooks/web/useMessage";
@@ -139,9 +152,9 @@
     let headersJson = !!values.headersJson?JSON.stringify(values.headersJson):null;
     let paramsJson = !!values.headersJson?JSON.stringify(values.paramsJson):null;
     try {
-      if (!!values.body){
+      if (!!values.requestBody){
         try {
-          if (typeof JSON.parse(values.body)!='object'){
+          if (typeof JSON.parse(values.requestBody)!='object'){
             $message.createMessage.error("JSON格式化错误,请检查输入数据");
             return;
           }
@@ -153,6 +166,7 @@
       setModalProps({ confirmLoading: true });
       values.headersJson = headersJson
       values.paramsJson = paramsJson
+      console.log("values*****model》》》》",values)
       //提交表单
       await saveOrUpdate(values, isUpdate.value);
       //关闭弹窗

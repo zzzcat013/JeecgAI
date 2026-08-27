@@ -14,6 +14,9 @@ enum Api {
   exportXls = '/airag/prompts/exportXls',
 
   promptExperiment = '/airag/prompts/experiment',
+  recycleBinList = '/airag/prompts/recycleBinList',
+  revertRecycleBin = '/airag/prompts/revertRecycleBin',
+  deleteRecycleBin = '/airag/prompts/deleteRecycleBin',
 }
 /**
  * 导出api
@@ -79,3 +82,23 @@ export const saveOrUpdate = (params, isUpdate) => {
 export const promptExperiment = (params) => {
   return defHttp.post({url: Api.promptExperiment, params},{ isTransformResponse: false });
 }
+/**
+ * 回收站列表
+ */
+export const getRecycleBinList = (params) => defHttp.get({ url: Api.recycleBinList, params });
+/**
+ * 还原
+ */
+export const putRecycleBin = (params, handleSuccess) => {
+  return defHttp.put({ url: Api.revertRecycleBin, params }, { joinParamsToUrl: true }).then(() => {
+    handleSuccess();
+  });
+};
+/**
+ * 彻底删除
+ */
+export const deleteRecycleBin = (params, handleSuccess) => {
+  return defHttp.delete({ url: Api.deleteRecycleBin, params }, { joinParamsToUrl: true }).then(() => {
+    handleSuccess();
+  });
+};

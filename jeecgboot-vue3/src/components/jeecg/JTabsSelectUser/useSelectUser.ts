@@ -20,7 +20,7 @@ export const getDepartTreeData = (params?) => defHttp.get({ url: Api.departList,
 /**
  * 获取用户列表
  */
-export const getUserList = (params?) => defHttp.get({ url: Api.userList, params });
+export const getUserList = (params?) => defHttp.get({ url: Api.userList, params: { ...params, status: '1' } });
 
 /**
  * 获取指定部门用户列表

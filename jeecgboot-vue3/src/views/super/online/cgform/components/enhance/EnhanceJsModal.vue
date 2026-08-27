@@ -66,7 +66,7 @@
       </a-space>
     </template>
 
-    <EnhanceJsHistory @register="registerEnhanceJsHistory" />
+    <EnhanceJsHistory @register="registerEnhanceJsHistory" @apply="onApplyHistory" />
   </BasicModal>
 </template>
 
@@ -200,6 +200,18 @@
         });
       }
 
+      // update-begin--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用
+      function onApplyHistory({ type, str }) {
+        enhanceType.value = type;
+        enhanceValues[type] = str;
+        codeChange.value = true;
+        getFlag[type] = true;
+        // 强制重新渲染编辑器，确保应用后的值正确展示
+        reloading.value = true;
+        setTimeout(() => (reloading.value = false), 150);
+      }
+      // update-end--author:liaozhiyang---date:20260713---for：【LHZP-235】修复js增强历史版本年份不显示及新增应用
+
       function onCodeChange(value) {
         if (enhanceValues[enhanceType.value] != value) {
           codeChange.value = true;
@@ -243,6 +255,7 @@
         onChangeType,
         onCodeChange,
         onShowHistory,
+        onApplyHistory,
         onSubmit,
         onCancel,
         registerModal,

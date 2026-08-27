@@ -4,10 +4,11 @@
     v-model:value="state"
     :options="getOptions"
     show-search
-    :filter-option="filterOption"
+    :filter-option="getFilterOption"
     @change="handleChange"
     @dropdownVisibleChange="handleFetch"
     @popupScroll="handlePopupScroll"
+    @search="handleSearch"
   >
     <template #[item]="data" v-for="item in Object.keys($slots)">
       <slot :name="item" v-bind="data || {}"></slot>
@@ -66,6 +67,7 @@
       labelField: propTypes.string.def('label'),
       valueField: propTypes.string.def('value'),
       immediate: propTypes.bool.def(true),
+      searchDebounce: propTypes.number.def(300),
     },
     emits: ['options-change', 'change'],
     setup(props, { emit }) {
@@ -74,6 +76,8 @@
       const isFirstLoad = ref(true);
       const emitData = ref<any[]>([]);
       const attrs = useAttrs();
+      const searchValue = ref('');
+      let searchTimer: ReturnType<typeof setTimeout> | null = null;
       const { t } = useI18n();
       // 代码逻辑说明: 【QQYUN-11831】ApiSelect 分页下拉方案 #7883
       const hasMore = ref(true);
@@ -82,7 +86,14 @@
         pageSize: 10,
         total: 0,
       });
-      const defPageConfig = { isPage: false, pageField: 'pageNo', pageSizeField: 'pageSize', totalField: 'total', listField: 'records' };
+      // update-begin--author:liaozhiyang---date:20260617---for:【issue/9689】开启分页 + 搜索,过滤不到未加载数据
+      const defPageConfig = { isPage: false, pageField: 'pageNo', pageSizeField: 'pageSize', totalField: 'total', listField: 'records', searchField: '' };
+      const mergedPageConfig = computed(() => ({ ...defPageConfig, ...props.pageConfig }));
+      const isRemoteSearch = computed(() => {
+        const { isPage, searchField } = mergedPageConfig.value;
+        return !!(isPage && searchField);
+      });
+      // update-end--author:liaozhiyang---date:20260617---for:【issue/9689】开启分页 + 搜索,过滤不到未加载数据
       // update-end--author:liusq---date:20250407---for：【QQYUN-11831】ApiSelect 分页下拉方案 #7883
       // Embedded in the form, just use the hook binding to perform form verification
       const [state, setState] = useRuleFormItem(props, 'value', 'change', emitData);
@@ -159,6 +170,22 @@
       const filterOption = (input: string, option: any) => {
         return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0 || option.label.indexOf(input) >= 0;
       };
+      // update-begin--author:liaozhiyang---date:20260617---for:【issue/9689】开启分页 + 搜索,过滤不到未加载数据
+      const getFilterOption = computed(() => {
+        return isRemoteSearch.value ? false : filterOption;
+      });
+      function handleSearch(input: string) {
+        if (!isRemoteSearch.value) return;
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          if (searchValue.value === input) return;
+          searchValue.value = input;
+          pagination.value.pageNo = 1;
+          hasMore.value = true;
+          fetch();
+        }, props.searchDebounce);
+      }
+      // update-end--author:liaozhiyang---date:20260617---for:【issue/9689】开启分页 + 搜索,过滤不到未加载数据
       async function fetch() {
         const api = props.api;
         if (!api || !isFunction(api)) return;
@@ -168,10 +195,16 @@
         }
         try {
           loading.value = true;
-          let { isPage, pageField, pageSizeField, totalField, listField } = { ...defPageConfig, ...props.pageConfig };
+          let { isPage, pageField, pageSizeField, totalField, listField, searchField } = mergedPageConfig.value;
           let params = isPage
             ? { ...props.params, [pageField]: pagination.value.pageNo, [pageSizeField]: pagination.value.pageSize }
             : { ...props.params };
+          // update-begin--author:liaozhiyang---date:20260617---for:【issue/9689】开启分页 + 搜索,过滤不到未加载数据
+          // 携带远程搜索关键字到后端
+          if (isPage && searchField && searchValue.value) {
+            params[searchField] = searchValue.value;
+          }
+          // update-end--author:liaozhiyang---date:20260617---for:【issue/9689】开启分页 + 搜索,过滤不到未加载数据
           const res = await api(params);
           if (isPage) {
             // 代码逻辑说明: 【QQYUN-11831】ApiSelect 分页下拉方案 #7883
@@ -236,7 +269,7 @@
           fetch();
         }
       }
-      return { state, attrs_, attrs, getOptions, loading, t, handleFetch, handleChange, handlePopupScroll,filterOption };
+      return { state, attrs_, attrs, getOptions, loading, t, handleFetch, handleChange, handlePopupScroll, filterOption, getFilterOption, handleSearch };
     },
   });
 </script>

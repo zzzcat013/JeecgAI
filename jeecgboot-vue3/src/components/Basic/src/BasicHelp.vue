@@ -25,6 +25,10 @@
      */
     color: { type: String, default: '#ffffff' },
     /**
+     * Tooltip background color
+     */
+    backgroundColor: { type: String },
+    /**
      * Help text font size
      * @default: 14px
      */
@@ -77,6 +81,7 @@
           <Tooltip
             overlayClassName={`${prefixCls}__wrap`}
             title={<div style={unref(getTooltipStyle)}>{renderTitle()}</div>}
+            color={props.backgroundColor}
             autoAdjustOverflow={true}
             overlayStyle={unref(getOverlayStyle)}
             placement={props.placement as 'right'}

@@ -190,7 +190,14 @@ public class SysAnnouncementServiceImpl extends ServiceImpl<SysAnnouncementMappe
 		} else {
 			tenantId = null;
 		}
-		
+
+		//update-begin---author:Claude ---date:2026-08-05---for: 【公告】全员发布撤销重发后sys_announcement_send产生重复记录，按anntId先清后插---
+		// 先按公告id删除该公告已有的发送记录，避免撤销后再次发布时同一用户产生多条未读
+		LambdaQueryWrapper<SysAnnouncementSend> delQw = new LambdaQueryWrapper<>();
+		delQw.eq(SysAnnouncementSend::getAnntId, commentId);
+		sysAnnouncementSendService.remove(delQw);
+		//update-end---author:Claude ---date:2026-08-05---for: 【公告】全员发布撤销重发后sys_announcement_send产生重复记录，按anntId先清后插---
+
 		List<String> userIdList = sysUserMapper.getTenantUserIdList(tenantId);
 		List<SysAnnouncementSend> sysAnnouncementSendList = new ArrayList<>();
 		if (!CollectionUtils.isEmpty(userIdList)) {

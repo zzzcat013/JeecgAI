@@ -11,6 +11,7 @@
   import { Loading } from '/@/components/Loading';
   import DetailForm from '../../extend/form/DetailForm.vue';
   import { getDetailFormSchemas } from '../../hooks/auto/useAutoForm';
+  import { getLinkTableColumns, transLinkTableRecord } from '../../extend/linkTable/useLinkTable';
 
   const baseUrl = '/online/cgform/api/subform';
   export default {
@@ -109,8 +110,10 @@
           if (schema.view === 'link_table' && (schema as any).linkFields?.length > 0) {
             const fieldValue = data[schema.field];
             if (fieldValue) {
+              const linkFields = (schema as any).linkFields as string[];
               const valueField = (schema as any).dictCode || 'id';
               const vals = String(fieldValue).split(',');
+              const selectFields = [...new Set([valueField, ...linkFields.map((item) => item.split(',')[1]).filter(Boolean)])].join(',');
               const params = {
                 pageSize: vals.length,
                 pageNo: 1,
@@ -118,9 +121,15 @@
                 superQueryParams: encodeURI(JSON.stringify([{ field: valueField, rule: 'in', val: fieldValue }])),
               };
               try {
-                const result = await defHttp.get({ url: '/online/cgform/api/getData/' + (schema as any).dictTable, params });
+                // update-begin--author:liusq---date:20260811---for：【online一对一详情】他表字段复用关联记录转换逻辑
+                const linkTableName = (schema as any).dictTable;
+                const [result, columns] = await Promise.all([
+                  defHttp.get({ url: '/online/cgform/api/getData/' + linkTableName, params }),
+                  getLinkTableColumns(linkTableName, selectFields),
+                ]);
                 const records = result?.records || [];
-                for (const linkField of (schema as any).linkFields) {
+                records.forEach((record) => transLinkTableRecord(record, columns?.columns, columns?.dictOptions));
+                for (const linkField of linkFields) {
                   const [formField, tableField] = linkField.split(',');
                   if (records.length > 0) {
                     data[formField] = records.map((r: any) => r[tableField] ?? '').join(',');
@@ -128,6 +137,7 @@
                     data[formField] = '';
                   }
                 }
+                // update-end--author:liusq---date:20260811---for：【online一对一详情】他表字段复用关联记录转换逻辑
               } catch (e) {
                 console.warn('填充他表字段失败:', e);
               }

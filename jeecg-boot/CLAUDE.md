@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-JeecgBoot 3.9.3 — a Java low-code development platform built on **Spring Boot 4.1.0**, **Java 17** (also supports 21, 24). It runs as a monolithic app by default, with an optional Spring Cloud microservices mode. Uses `jakarta` namespace (not `javax`) throughout.
+JeecgBoot 3.9.5 — a Java low-code development platform built on **Spring Boot 4.1.0**, **Java 17** (also supports 21, 24). It runs as a monolithic app by default, with an optional Spring Cloud microservices mode. Uses `jakarta` namespace (not `javax`) throughout.
 
 ## Build & Run Commands
 
@@ -99,20 +99,6 @@ Optional microservices modules (activated via `-P SpringCloud`):
 **Auto query building:** `QueryGenerator.initQueryWrapper(entity, request.getParameterMap())` auto-builds `QueryWrapper` from HTTP request params, supporting fuzzy match, range queries, etc.
 
 **Monolithic ↔ Microservices switch:** The `jeecg-system-api` module has two implementations (`local-api` for direct calls, `cloud-api` for Feign). Switching is done by changing the dependency in the startup module, not by modifying business code.
-
-**代码修改痕迹日志：** 所有新增或修改的代码块必须用 `update-begin` / `update-end` 注释包裹，格式如下：
-
-```java
-//update-begin---author:作者 ---date:YYYY-MM-DD  for：【bug号/需求号】修改说明-----------
-// 新增或修改的代码
-//update-end---author:作者 ---date:YYYY-MM-DD  for：【bug号/需求号】修改说明-----------
-```
-
-规则：
-- `author` 填实际修改人，`date` 填修改日期（格式 `YYYY-MM-DD`），`for` 填 bug 号或需求号 + 简要说明
-- 新增方法：`update-begin` 放在方法声明前，`update-end` 放在方法结束 `}` 后
-- 修改已有方法中的代码：`update-begin` / `update-end` 只包裹被修改的代码段，不包裹整个方法
-- 用户未提供 bug 号时，需要主动询问
 
 ## Database
 

@@ -1,4 +1,5 @@
 import {BasicColumn, FormSchema} from '/@/components/Table';
+import { rules } from '/@/utils/helper/validator';
 
 const statusOptions = [
   {label: '禁用', value: '0'},
@@ -32,12 +33,12 @@ export const searchFormSchema: FormSchema[] = [
   {
     label: '允许的表名',
     field: 'tableName',
-    component: 'Input',
+    component: 'JInput',
   },
   {
     label: '允许的字段名',
     field: 'fieldName',
-    component: 'Input',
+    component: 'JInput',
   },
   {
     label: '状态',
@@ -56,6 +57,7 @@ export const formSchema: FormSchema[] = [
     field: 'tableName',
     component: 'Input',
     required: true,
+    dynamicRules: ({ model, schema }) => rules.duplicateCheckRule('sys_table_white_list', 'table_name', model, schema, true),
   },
   {
     label: '允许的字段名',
