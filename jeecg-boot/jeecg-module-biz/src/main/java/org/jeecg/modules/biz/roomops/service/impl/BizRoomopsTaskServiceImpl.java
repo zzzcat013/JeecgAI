@@ -29,9 +29,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -138,6 +141,77 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
         "创建任务并下发");
     tryPushTask(task);
     return task;
+  }
+
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public List<BizRoomopsTask> createTasksBatch(BizRoomopsTask base, List<String> roomIds,
+                                               List<String> candidateUserids,
+                                               String operatorUserid, String operatorName) {
+    if (roomIds == null || roomIds.isEmpty()) {
+      throw new IllegalArgumentException("请至少选择一个机房");
+    }
+    String candidateIds = joinCsv(candidateUserids);
+    String candidateNames = resolveCandidateNames(candidateUserids);
+    List<BizRoomopsTask> saved = new ArrayList<>();
+    for (String roomId : roomIds) {
+      String rid = roomId == null ? "" : roomId.trim();
+      if (rid.isEmpty()) {
+        continue;
+      }
+      BizRoomopsTask task = copyTaskBase(base);
+      task.setRoomId(rid);
+      task.setTaskId(null);
+      task.setAssigneeUserid("");
+      task.setAssigneeName("");
+      task.setCandidateUserids(candidateIds);
+      task.setCandidateNames(candidateNames);
+      saved.add(createTask(task, operatorUserid, operatorName));
+    }
+    return saved;
+  }
+
+  private BizRoomopsTask copyTaskBase(BizRoomopsTask source) {
+    if (source == null) {
+      return new BizRoomopsTask();
+    }
+    return JSON.parseObject(JSON.toJSONString(source), BizRoomopsTask.class);
+  }
+
+  private String joinCsv(List<String> values) {
+    if (values == null || values.isEmpty()) {
+      return "";
+    }
+    return values.stream()
+        .filter(v -> v != null && !v.trim().isEmpty())
+        .map(String::trim)
+        .distinct()
+        .collect(Collectors.joining(","));
+  }
+
+  private String resolveCandidateNames(List<String> userids) {
+    if (userids == null || userids.isEmpty()) {
+      return "";
+    }
+    List<String> ids = userids.stream()
+        .filter(v -> v != null && !v.trim().isEmpty())
+        .map(String::trim)
+        .distinct()
+        .collect(Collectors.toList());
+    if (ids.isEmpty()) {
+      return "";
+    }
+    String inClause = ids.stream()
+        .map(v -> "'" + v.replace("'", "''") + "'")
+        .collect(Collectors.joining(","));
+    List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+        "select userid, name from biz_roomops_dingtalk_user where userid in (" + inClause + ")");
+    Map<String, String> nameMap = new HashMap<>();
+    for (Map<String, Object> row : rows) {
+      nameMap.put(String.valueOf(row.get("userid")), String.valueOf(row.get("name")));
+    }
+    return ids.stream().map(id -> nameMap.getOrDefault(id, id)).collect(Collectors.joining(","));
   }
 
   @Override
@@ -486,6 +560,8 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     task.setAssignerName(text(json, "assignerName", "assigner_name"));
     task.setAssigneeUserid(text(json, "assigneeUserid", "assignee_userid"));
     task.setAssigneeName(text(json, "assigneeName", "assignee_name"));
+    task.setCandidateUserids(text(json, "candidateUserids", "candidate_userids"));
+    task.setCandidateNames(text(json, "candidateNames", "candidate_names"));
     task.setStatus(text(json, "status"));
     task.setPriority(text(json, "priority"));
     task.setRoundCount(integer(json, "roundCount", "round_count"));
@@ -590,6 +666,8 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
     json.put("assignerName", task.getAssignerName());
     json.put("assigneeUserid", task.getAssigneeUserid());
     json.put("assigneeName", task.getAssigneeName());
+    json.put("candidateUserids", task.getCandidateUserids());
+    json.put("candidateNames", task.getCandidateNames());
     json.put("status", task.getStatus());
     json.put("priority", task.getPriority());
     json.put("roundCount", task.getRoundCount());

@@ -173,18 +173,18 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="机房">
+            <a-form-item label="机房（可多选）">
               <a-select
-                v-model:value="formModel.roomId"
+                v-model:value="formModel.roomIds"
+                mode="multiple"
                 :options="machineRoomOptions"
                 show-search
                 option-filter-prop="label"
-                placeholder="请选择机房"
-                @change="fillRoomInfo"
+                placeholder="可多选，将按机房生成多个任务"
               />
             </a-form-item>
           </a-col>
-          <a-col :span="12">
+          <a-col v-if="isUpdate" :span="12">
             <a-form-item label="执行人">
               <a-select
                 v-model:value="formModel.assigneeUserid"
@@ -194,6 +194,19 @@
                 option-filter-prop="label"
                 placeholder="不选则进入待接任务"
                 @change="fillAssigneeName"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col v-if="!isUpdate" :span="12">
+            <a-form-item label="可认领人员（可多选）">
+              <a-select
+                v-model:value="formModel.candidateUserids"
+                mode="multiple"
+                :options="dingtalkUserOptions"
+                allow-clear
+                show-search
+                option-filter-prop="label"
+                placeholder="仅所选人员可看到并认领，不选则所有人可认领"
               />
             </a-form-item>
           </a-col>
@@ -677,7 +690,9 @@
     formModel.taskTitle = record?.taskTitle || '';
     formModel.taskContent = record?.taskContent || '';
     formModel.roomId = record?.roomId || '';
+    formModel.roomIds = record?.roomId ? [record.roomId] : [];
     formModel.roomName = record?.roomName || '';
+    formModel.candidateUserids = record?.candidateUserids ? String(record.candidateUserids).split(',').filter(Boolean) : [];
     formModel.assigneeUserid = record?.assigneeUserid || '';
     formModel.assigneeName = record?.assigneeName || '';
     formModel.domainCode = record?.domainCode || 'core_network';
@@ -706,21 +721,11 @@
     formOpen.value = true;
   }
 
-  function fillRoomInfo(roomId: string) {
-    const room = machineRoomOptions.value.find((item) => item.value === roomId);
-    if (!room) return;
-    formModel.roomName = room.roomName;
-    formModel.domainCode = room.domainCode;
-    formModel.domainShortCode = room.domainShortCode;
-    formModel.domainName = room.domainName;
-    formModel.regionCode = room.regionCode;
-    formModel.regionName = room.regionName;
-  }
-
   function fillProjectInfo(projectId: string) {
     const project = engineeringProjectOptions.value.find((item) => item.value === projectId);
     if (!project) return;
     formModel.roomId = project.roomId;
+    formModel.roomIds = project.roomId ? [project.roomId] : [];
     formModel.roomName = project.roomName;
     formModel.domainCode = project.domainCode;
     formModel.domainShortCode = project.domainShortCode;
@@ -752,17 +757,34 @@
   async function submit() {
     submitLoading.value = true;
     try {
-      const payload = { ...formModel };
-      if (payload.assigneeUserid?.startsWith('name:')) {
-        payload.assigneeName = payload.assigneeUserid.substring(5);
-        payload.assigneeUserid = '';
-      }
       if (isUpdate.value) {
+        const payload = { ...formModel };
+        delete payload.roomIds;
+        payload.candidateUserids = Array.isArray(payload.candidateUserids)
+          ? payload.candidateUserids.join(',')
+          : payload.candidateUserids || '';
+        if (payload.assigneeUserid?.startsWith('name:')) {
+          payload.assigneeName = payload.assigneeUserid.substring(5);
+          payload.assigneeUserid = '';
+        }
         await updateTask(payload);
         message.success('任务已更新');
       } else {
+        const roomIds = (formModel.roomIds || []).filter((v: string) => v);
+        if (roomIds.length === 0) {
+          message.warning('请至少选择一个机房');
+          return;
+        }
+        const candidateUserids = (formModel.candidateUserids || []).filter((v: string) => v);
+        const payload: Record<string, any> = {};
+        Object.keys(formModel).forEach((key) => {
+          if (key !== 'roomIds' && key !== 'candidateUserids') payload[key] = formModel[key];
+        });
+        payload.roomIds = roomIds;
+        payload.candidateUserids = candidateUserids;
         const created: any = await createTask(payload);
-        message.success(`派单成功：${created?.taskId || ''}`);
+        const count = Array.isArray(created) ? created.length : 1;
+        message.success(`派单成功：已生成 ${count} 个任务`);
       }
       formOpen.value = false;
       await load();

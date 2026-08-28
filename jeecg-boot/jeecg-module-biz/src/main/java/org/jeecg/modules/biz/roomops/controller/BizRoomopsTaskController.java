@@ -1,5 +1,6 @@
 package org.jeecg.modules.biz.roomops.controller;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -21,6 +22,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -103,7 +105,22 @@ public class BizRoomopsTaskController {
 
   @PostMapping(value = "/add")
   @RequiresPermissions("roomops:task:edit")
-  public Result<?> add(@RequestBody BizRoomopsTask entity) {
+  public Result<?> add(@RequestBody JSONObject body) {
+    JSONArray roomIds = body.getJSONArray("roomIds");
+    if (roomIds != null && !roomIds.isEmpty()) {
+      JSONArray candidateUserids = body.getJSONArray("candidateUserids");
+      body.remove("roomIds");
+      body.remove("candidateUserids");
+      BizRoomopsTask entity = body.toJavaObject(BizRoomopsTask.class);
+      List<String> ids = roomIds.toJavaList(String.class);
+      List<String> candidates = candidateUserids == null
+          ? Collections.emptyList()
+          : candidateUserids.toJavaList(String.class);
+      List<BizRoomopsTask> saved = bizRoomopsTaskService.createTasksBatch(
+          entity, ids, candidates, currentUserId(), currentUserName());
+      return Result.ok(saved);
+    }
+    BizRoomopsTask entity = body.toJavaObject(BizRoomopsTask.class);
     BizRoomopsTask saved = bizRoomopsTaskService.createTask(entity, currentUserId(), currentUserName());
     return Result.ok(saved);
   }

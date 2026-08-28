@@ -32,6 +32,8 @@ public class BizRoomopsTask {
   private String assignerName;
   private String assigneeUserid;
   private String assigneeName;
+  private String candidateUserids;
+  private String candidateNames;
 
   private String status;
   private String priority;

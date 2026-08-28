@@ -9,6 +9,10 @@ import java.util.List;
 public interface IBizRoomopsTaskService extends IService<BizRoomopsTask> {
   BizRoomopsTask createTask(BizRoomopsTask task, String operatorUserid, String operatorName);
 
+  java.util.List<BizRoomopsTask> createTasksBatch(BizRoomopsTask base, java.util.List<String> roomIds,
+                                        java.util.List<String> candidateUserids,
+                                        String operatorUserid, String operatorName);
+
   BizRoomopsTask updateTask(BizRoomopsTask task, String operatorUserid, String operatorName);
 
   void confirmTask(String taskId, String remark, String operatorUserid, String operatorName);
