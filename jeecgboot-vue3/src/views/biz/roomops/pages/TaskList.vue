@@ -101,7 +101,11 @@
           {{ record.assignerName || '-' }}
         </template>
         <template v-else-if="column.key === 'assigneeName'">
-          {{ record.assigneeName || (record.status === 'AVAILABLE' ? '待接单' : '-') }}
+          <template v-if="record.assigneeName">{{ record.assigneeName }}</template>
+          <template v-else-if="record.status === 'AVAILABLE'">
+            待接单<template v-if="record.candidateNames">（{{ record.candidateNames }}）</template><template v-else>（所有人可认领）</template>
+          </template>
+          <template v-else>-</template>
         </template>
         <template v-else-if="column.key === 'statusName'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
@@ -264,6 +268,7 @@
             </a-descriptions-item>
             <a-descriptions-item label="机房">{{ detailTask.roomId }} {{ detailTask.roomName || '' }}</a-descriptions-item>
             <a-descriptions-item label="执行人">{{ detailTask.assigneeName || '待接单' }}</a-descriptions-item>
+            <a-descriptions-item label="候选执行人">{{ detailTask.candidateNames || '所有人可认领' }}</a-descriptions-item>
             <a-descriptions-item label="派单人">{{ detailTask.assignerName || '-' }}</a-descriptions-item>
             <a-descriptions-item label="当前轮次">{{ detailTask.roundCount || 1 }}</a-descriptions-item>
             <a-descriptions-item label="截止时间">{{ detailTask.deadlineAt || '-' }}</a-descriptions-item>

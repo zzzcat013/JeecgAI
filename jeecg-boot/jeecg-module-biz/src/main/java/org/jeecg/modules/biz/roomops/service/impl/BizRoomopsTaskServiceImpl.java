@@ -209,7 +209,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
         "select dingtalk_userid, name from biz_roomops_dingtalk_user where dingtalk_userid in (" + inClause + ")");
     Map<String, String> nameMap = new HashMap<>();
     for (Map<String, Object> row : rows) {
-      nameMap.put(String.valueOf(row.get("userid")), String.valueOf(row.get("name")));
+      nameMap.put(String.valueOf(row.get("dingtalk_userid")), String.valueOf(row.get("name")));
     }
     return ids.stream().map(id -> nameMap.getOrDefault(id, id)).collect(Collectors.joining(","));
   }
