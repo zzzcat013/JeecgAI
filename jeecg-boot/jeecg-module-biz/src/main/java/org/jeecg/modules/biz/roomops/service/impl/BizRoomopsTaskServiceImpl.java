@@ -206,7 +206,7 @@ public class BizRoomopsTaskServiceImpl extends ServiceImpl<BizRoomopsTaskMapper,
         .map(v -> "'" + v.replace("'", "''") + "'")
         .collect(Collectors.joining(","));
     List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-        "select userid, name from biz_roomops_dingtalk_user where userid in (" + inClause + ")");
+        "select dingtalk_userid, name from biz_roomops_dingtalk_user where dingtalk_userid in (" + inClause + ")");
     Map<String, String> nameMap = new HashMap<>();
     for (Map<String, Object> row : rows) {
       nameMap.put(String.valueOf(row.get("userid")), String.valueOf(row.get("name")));
